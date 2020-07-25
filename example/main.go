@@ -4,6 +4,8 @@
  */
 package main
 
-func main() {
+import "gsfly/logger"
 
+func main() {
+	logger.Debug("测试....")
 }

@@ -2,7 +2,7 @@
  * Author:slive
  * DATE:2020/7/21
  */
-package conn
+package channel
 
 const (
 	// 协议类型，如0:tcp,1:udp,2:http,3:websocket,4:kcpws
@@ -16,6 +16,8 @@ const (
 )
 
 type Packet interface {
+	GetChannel() Channel
+
 	GetPrepare() bool
 
 	// GetPType 协议类型，如0:tcp,1:http,2:websocket...
@@ -29,8 +31,13 @@ type Packet interface {
 }
 
 type Basepacket struct {
-	ptype int
-	data  []byte
+	channel Channel
+	ptype   int
+	data    []byte
+}
+
+func (b *Basepacket) GetChannel() Channel {
+	return b.channel
 }
 
 func (b *Basepacket) GetPType() int {
@@ -53,9 +60,10 @@ func (b *Basepacket) GetPrepare() bool {
 	return len(b.data) > 0
 }
 
-func NewBasePacket(ptype int) *Basepacket {
+func NewBasePacket(channel Channel, ptype int) *Basepacket {
 	b := &Basepacket{
-		ptype: ptype,
+		channel: channel,
+		ptype:   ptype,
 	}
 	return b
 }
