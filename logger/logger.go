@@ -5,9 +5,15 @@
 package logger
 
 import (
+	"fmt"
+	logx "github.com/sirupsen/logrus"
+	"gsfly/config"
 	"log"
+	"path"
+	"runtime"
+	"strings"
+	"time"
 
-	//"log"
 	"os"
 )
 
@@ -19,56 +25,23 @@ const (
 )
 
 func init() {
-	//logdir := config.Global_Conf.LogConf.LogDir
-	////创建日志文件夹
-	//_ = mkdirLog(logdir)
-	//
-	//filePath := path.Join(logdir, config.Global_Conf.LogConf.LogFile)
-	//log.Println("filePath:", filePath)
-	//var logfile *os.File = nil
-	//if checkFileExist(filePath) {
-	//	//文件存在，打开
-	//	logfile, _ = os.OpenFile(filePath, os.O_APPEND|os.O_RDWR, 0644)
-	//} else {
-	//	//文件不存在，创建
-	//	logfile, _ = os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
-	//}
-	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
-	log.SetOutput(os.Stdout)
-	//log.SetOutput(logfile)
+	logdir := config.Global_Conf.LogConf.LogDir
+	//创建日志文件夹
+	_ = mkdirLog(logdir)
 
-	//log.SetReportCaller(true)
-	//log.SetFormatter(&log.TextFormatter{
-	//	DisableColors: true,
-	//	FullTimestamp: true,
-	//})
-	//log.AddHook(newRlfHook(filePath, 10))
-	//log.SetOutput(logfile)
-	//log.SetOutput(os.Stdout)
+	filePath := path.Join(logdir, config.Global_Conf.LogConf.LogFile)
+	log.Println("filePath:", filePath)
+	var logfile *os.File = nil
+	if checkFileExist(filePath) {
+		//文件存在，打开
+		logfile, _ = os.OpenFile(filePath, os.O_APPEND|os.O_RDWR, 0644)
+	} else {
+		//文件不存在，创建
+		logfile, _ = os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	}
+	logx.SetOutput(logfile)
+	logx.SetOutput(os.Stdout)
 }
-
-//func newRlfHook(logName string, maxRemainCont uint) log.Hook {
-//	writer, err := rotatelogs.New(logName+"%Y%m%d%H",
-//		rotatelogs.WithLinkName(logName),
-//		rotatelogs.WithRotationTime(time.Minute),
-//		rotatelogs.WithRotationCount(maxRemainCont))
-//	if err != nil {
-//		log.Errorf("config local file system for logger error: %v", err)
-//	}
-//
-//	log.SetLevel(log.DebugLevel)
-//
-//	lfsHook := lfshook.NewHook(lfshook.WriterMap{
-//		log.DebugLevel: writer,
-//		log.InfoLevel:  writer,
-//		log.WarnLevel:  writer,
-//		log.ErrorLevel: writer,
-//		log.FatalLevel: writer,
-//		log.PanicLevel: writer,
-//	}, &log.TextFormatter{DisableColors: true})
-//
-//	return lfsHook
-//}
 
 func checkFileExist(filename string) bool {
 	exist := true
@@ -92,8 +65,50 @@ func mkdirLog(dir string) (e error) {
 	return
 }
 
-func logwrite(level string, logs ...interface{}) {
-	log.Println("["+level+"]", logs)
+func logwrite(level string, logs []interface{}) {
+	if logs != nil {
+		finalLog := convertFinalLog(logs)
+		//var lfmt string = "[" + level + "] "
+		//log.Println(lfmt + finalLog)
+		switch level {
+		case LOG_DEBUG:
+			logx.Debug(finalLog)
+			break
+		case LOG_INFO:
+			logx.Info(finalLog)
+			break
+		case LOG_WARN:
+			logx.Warn(finalLog)
+			break
+		case LOG_ERROR:
+			logx.Error(finalLog)
+		default:
+			logx.Println(finalLog)
+		}
+	}
+}
+
+func convertFinalLog(logs []interface{}) string {
+	lfmt := time.Now().Format("2006-01-02 15:04:05.999999999") + " "
+	_, file, line, ok := runtime.Caller(2)
+	if ok {
+		sps := strings.Split(file, "/")
+		if sps != nil {
+			file = sps[len(sps)-1]
+		}
+		lfmt += file + fmt.Sprintf("(%v) ", line)
+	}
+
+	var index int = 0
+	logsLen := len(logs)
+	for _, val := range logs {
+		lfmt += fmt.Sprint(val)
+		if index != logsLen {
+			lfmt += ","
+		}
+	}
+
+	return lfmt
 }
 
 func Debug(logs ...interface{}) {

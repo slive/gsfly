@@ -73,7 +73,7 @@ func ReadKcp(b Channel) (gchannel.Packet, error) {
 	datapack := b.NewPacket()
 	bytes := readbf[0:readNum]
 	datapack.SetData(bytes)
-	logx.Info("receive:", string(bytes))
+	logx.Info("receive:" + string(bytes))
 	return datapack, err
 }
 
