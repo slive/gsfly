@@ -44,8 +44,10 @@ func handelReadQueue(queue *ReadQueue) {
 	for {
 		select {
 		case packet := <-queue.readChan:
-			msgFunc := packet.GetChannel().GetHandleMsgFunc()
-			msgFunc(packet)
+			if packet != nil{
+				msgFunc := packet.GetChannel().GetHandleMsgFunc()
+				msgFunc(packet)
+			}
 		}
 	}
 }

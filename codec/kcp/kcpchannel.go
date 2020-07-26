@@ -18,6 +18,11 @@ type KcpChannel struct {
 	conn *kcp.UDPSession
 }
 
+type Channel interface {
+	gchannel.Channel
+	GetConn() *kcp.UDPSession
+}
+
 // TODO 配置化
 var readbf []byte
 
@@ -39,15 +44,24 @@ func StartKcpChannel(kcpconn *kcp.UDPSession, conf *config.ChannelConf, msgFunc 
 	return ch
 }
 
+func (b *KcpChannel) GetConn() *kcp.UDPSession {
+	return b.conn
+}
+
 func (b *KcpChannel) GetChId() string {
 	return b.conn.RemoteAddr().String() + ":" + fmt.Sprintf("%s", b.conn.GetConv())
 }
 
 func (b *KcpChannel) Read() (packet gchannel.Packet, err error) {
 	// TODO 超时配置
+	return ReadKcp(b)
+}
+
+func ReadKcp(b Channel) (gchannel.Packet, error) {
 	conf := b.GetConf()
-	b.conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
-	readNum, err := b.conn.Read(readbf)
+	conn := b.GetConn()
+	conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
+	readNum, err := conn.Read(readbf)
 	if err != nil {
 		return nil, err
 	}
@@ -56,14 +70,18 @@ func (b *KcpChannel) Read() (packet gchannel.Packet, err error) {
 		return nil, nil
 	}
 
-	bytes := readbf[0:readNum]
 	datapack := b.NewPacket()
+	bytes := readbf[0:readNum]
 	datapack.SetData(bytes)
 	logx.Info("receive:", string(bytes))
 	return datapack, err
 }
 
 func (b *KcpChannel) Write(datapack gchannel.Packet) error {
+	return WriteKcp(b, datapack)
+}
+
+func WriteKcp(b Channel, datapack gchannel.Packet) error {
 	defer func() {
 		i := recover()
 		if i != nil {
@@ -75,8 +93,9 @@ func (b *KcpChannel) Write(datapack gchannel.Packet) error {
 	if datapack.GetPrepare() {
 		bytes := datapack.GetData()
 		conf := b.GetConf()
-		b.conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
-		_, err := b.conn.Write(bytes)
+		conn := b.GetConn()
+		conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
+		_, err := conn.Write(bytes)
 		if err != nil {
 			logx.Error("write error:", err)
 			panic(err)

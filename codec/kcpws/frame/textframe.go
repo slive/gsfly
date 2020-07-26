@@ -65,9 +65,11 @@ func NewInputFrame(kcpData []byte) Frame {
 		t.Unpack()
 		return t
 	} else {
-		return &TextFrame{
+		t := &TextFrame{
 			BaseFrame: BaseFrame{KcpData: kcpData},
 		}
+		t.Unpack()
+		return t
 	}
 }
 

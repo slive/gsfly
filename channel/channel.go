@@ -66,7 +66,7 @@ func StartReadLoop(channel Channel) error {
 	defer func() {
 		i := recover()
 		if i != nil {
-			logx.Error("error:", i)
+			logx.Error("read loop error:", i)
 		}
 	}()
 	for {
@@ -75,7 +75,7 @@ func StartReadLoop(channel Channel) error {
 			return err
 		}
 
-		if rev.GetPrepare() {
+		if rev != nil && rev.GetPrepare() {
 			readPool.Cache(rev)
 		}
 	}

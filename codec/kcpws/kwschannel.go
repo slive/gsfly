@@ -33,12 +33,16 @@ func StartKwsChannel(kcpconn *kcp.UDPSession, conf *config.ChannelConf, handleKw
 	return ch
 }
 
+func (b *KwsChannel) GetConn() *kcp.UDPSession {
+	return b.conn
+}
+
 func (b *KwsChannel) Read() (packet gchannel.Packet, err error) {
-	return b.KcpChannel.Read()
+	return kcpx.ReadKcp(b)
 }
 
 func (b *KwsChannel) Write(datapack gchannel.Packet) error {
-	return b.KcpChannel.Write(datapack)
+	return kcpx.WriteKcp(b, datapack)
 }
 
 type KwsPacket struct {
