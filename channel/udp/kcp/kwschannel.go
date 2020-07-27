@@ -2,35 +2,52 @@
  * Author:slive
  * DATE:2020/7/17
  */
-package kcpws
+package kcp
 
 import (
 	"github.com/xtaci/kcp-go"
 	gchannel "gsfly/channel"
-	kcpx "gsfly/codec/kcp"
-	"gsfly/codec/kcpws/frame"
 	"gsfly/config"
 	logx "gsfly/logger"
 )
 
 type KwsChannel struct {
-	kcpx.KcpChannel
+	KcpChannel
 	conn           *kcp.UDPSession
 	handleKwsFrame HandleKwsFrame
 }
 
 func NewKwsChannel(kcpconn *kcp.UDPSession, conf *config.ChannelConf) *KwsChannel {
 	ch := &KwsChannel{conn: kcpconn}
-	ch.KcpChannel = *kcpx.NewKcpChannel(kcpconn, conf)
+	ch.KcpChannel = *NewKcpChannel(kcpconn, conf)
 	return ch
 }
 
-func StartKwsChannel(kcpconn *kcp.UDPSession, conf *config.ChannelConf, handleKwsFrame HandleKwsFrame) *KwsChannel {
+func StartKwsChannel(kcpconn *kcp.UDPSession, conf *config.ChannelConf, handleKwsFrame HandleKwsFrame) (*KwsChannel, error) {
+	return StartKwsChannelWithHandle(kcpconn, conf, handleKwsFrame, nil, nil)
+}
+
+func StartKwsChannelWithHandle(kcpconn *kcp.UDPSession, conf *config.ChannelConf, handleKwsFrame HandleKwsFrame, handleStartFunc gchannel.HandleStartFunc,
+	handleCloseFunc gchannel.HandleCloseFunc) (*KwsChannel, error) {
+	defer func() {
+		re := recover()
+		if re != nil {
+			logx.Error("Start kwschannel error:", re)
+		}
+	}()
+	var err error
 	ch := NewKwsChannel(kcpconn, conf)
 	ch.handleKwsFrame = handleKwsFrame
 	ch.SetHandleMsgFunc(handlerMessage)
 	go gchannel.StartReadLoop(ch)
-	return ch
+	handle := ch.ChannelHandle
+	startFunc := handle.HandleStartFunc
+	if startFunc != nil {
+		err = startFunc(ch)
+	}
+	handle.HandleStartFunc = handleStartFunc
+	handle.HandleCloseFunc = handleCloseFunc
+	return ch, err
 }
 
 func (b *KwsChannel) GetConn() *kcp.UDPSession {
@@ -38,15 +55,15 @@ func (b *KwsChannel) GetConn() *kcp.UDPSession {
 }
 
 func (b *KwsChannel) Read() (packet gchannel.Packet, err error) {
-	return kcpx.ReadKcp(b)
+	return ReadKcp(b)
 }
 
 func (b *KwsChannel) Write(datapack gchannel.Packet) error {
-	return kcpx.WriteKcp(b, datapack)
+	return WriteKcp(b, datapack)
 }
 
 type KwsPacket struct {
-	kcpx.KcpPacket
+	KcpPacket
 }
 
 func (b *KwsChannel) NewPacket() gchannel.Packet {
@@ -56,7 +73,7 @@ func (b *KwsChannel) NewPacket() gchannel.Packet {
 }
 
 func handlerMessage(datapack gchannel.Packet) error {
-	bf := frame.NewInputFrame(datapack.GetData())
+	bf := NewInputFrame(datapack.GetData())
 	logx.Info("baseFrame:", bf.ToJsonString())
 	conn := datapack.GetChannel()
 	kwsConn := conn.(*KwsChannel)
@@ -64,4 +81,4 @@ func handlerMessage(datapack gchannel.Packet) error {
 	return nil
 }
 
-type HandleKwsFrame func(conn gchannel.Channel, frame frame.Frame) error
+type HandleKwsFrame func(conn gchannel.Channel, frame Frame) error

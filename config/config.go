@@ -19,6 +19,9 @@ type ChannelConf struct {
 
 	// ReadBufSize 读缓冲
 	ReadBufSize int
+
+	// ReadBufSize 读缓冲
+	WriteBufSize int
 }
 
 type LogConf struct {
@@ -29,22 +32,30 @@ type LogConf struct {
 	LogDir string
 }
 
+type TcpServerConf struct {
+	Ip            string
+	Port          int
+	MaxAcceptSize int
+}
+
 type ReadPoolConf struct {
 	MaxReadPoolSize  int
 	MaxReadQueueSize int
 }
 
 type GlobalConf struct {
-	ChannelConf  *ChannelConf
-	LogConf      *LogConf
-	ReadPoolConf *ReadPoolConf
+	ChannelConf   *ChannelConf
+	LogConf       *LogConf
+	ReadPoolConf  *ReadPoolConf
+	TcpServerConf *TcpServerConf
 }
 
 var (
 	channelConf = &ChannelConf{
 		ReadTimeout:  15,
-		ReadBufSize: 10*1024,
+		ReadBufSize:  10 * 1024,
 		WriteTimeout: 15,
+		WriteBufSize: 10 * 1024,
 	}
 
 	logConf = &LogConf{
@@ -56,14 +67,22 @@ var (
 		MaxReadQueueSize: 100,
 		MaxReadPoolSize:  runtime.NumCPU() * 10,
 	}
+
+	tcpServerConf = &TcpServerConf{
+		Ip:            "127.0.0.1",
+		Port:          9981,
+		MaxAcceptSize: 50000,
+	}
 )
 
 var Global_Conf GlobalConf
 
 func init() {
-	Global_Conf = GlobalConf{ChannelConf: channelConf,
-		LogConf:      logConf,
-		ReadPoolConf: readPoolConf}
+	Global_Conf = GlobalConf{
+		ChannelConf:   channelConf,
+		LogConf:       logConf,
+		ReadPoolConf:  readPoolConf,
+		TcpServerConf: tcpServerConf}
 }
 
 func getPwd() string {

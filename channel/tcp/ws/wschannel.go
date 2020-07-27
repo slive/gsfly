@@ -8,6 +8,7 @@ import (
 	gws "github.com/gorilla/websocket"
 	gchannel "gsfly/channel"
 	"gsfly/config"
+	logx "gsfly/logger"
 	"time"
 )
 
@@ -22,12 +23,31 @@ func NewWsChannel(wsconn *gws.Conn, conf *config.ChannelConf) *WsChannel {
 	return ch
 }
 
-func StartWsChannel(wsconn *gws.Conn, conf *config.ChannelConf, msgFunc gchannel.HandleMsgFunc) *WsChannel {
+func StartWsChannel(wsconn *gws.Conn, conf *config.ChannelConf, msgFunc gchannel.HandleMsgFunc) (*WsChannel, error) {
+	return StartWsChannelWithHandle(wsconn, conf, gchannel.ChannelHandle{
+		HandleMsgFunc: msgFunc,
+	})
+}
+
+func StartWsChannelWithHandle(wsconn *gws.Conn, conf *config.ChannelConf, channelHandle gchannel.ChannelHandle) (*WsChannel, error) {
+	defer func() {
+		re := recover()
+		if re != nil {
+			logx.Error("Start wschannel error:", re)
+		}
+	}()
+
+	var err error
 	ch := NewWsChannel(wsconn, conf)
-	ch.SetHandleMsgFunc(msgFunc)
+	ch.ChannelHandle = channelHandle
 	wsconn.SetReadLimit(int64(conf.ReadBufSize))
 	go gchannel.StartReadLoop(ch)
-	return ch
+	handle := ch.ChannelHandle
+	startFunc := handle.HandleStartFunc
+	if startFunc != nil {
+		err = startFunc(ch)
+	}
+	return ch, err
 }
 
 func (b *WsChannel) GetChId() string {

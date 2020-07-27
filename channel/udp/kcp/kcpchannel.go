@@ -7,41 +7,66 @@ package kcp
 import (
 	"fmt"
 	"github.com/xtaci/kcp-go"
-	gchannel "gsfly/channel"
+	"gsfly/channel"
 	"gsfly/config"
 	logx "gsfly/logger"
 	"time"
 )
 
 type KcpChannel struct {
-	gchannel.BaseChannel
+	channel.BaseChannel
 	conn *kcp.UDPSession
 }
 
-type Channel interface {
-	gchannel.Channel
+type KChannel interface {
+	channel.Channel
 	GetConn() *kcp.UDPSession
 }
 
 // TODO 配置化
-var readbf []byte
+var readKcpBf []byte
 
 func NewKcpChannel(kcpconn *kcp.UDPSession, conf *config.ChannelConf) *KcpChannel {
 	ch := &KcpChannel{conn: kcpconn}
-	ch.BaseChannel = *gchannel.NewBaseChannel(conf)
-	bufSize := conf.ReadBufSize
-	if bufSize <= 0 {
-		bufSize = 10 * 1024
+	ch.BaseChannel = *channel.NewBaseChannel(conf)
+	readBufSize := conf.ReadBufSize
+	if readBufSize <= 0 {
+		readBufSize = 10 * 1024
 	}
-	readbf = make([]byte, bufSize)
+	kcpconn.SetReadBuffer(readBufSize)
+	readKcpBf = make([]byte, readBufSize)
+
+	writeBufSize := conf.WriteBufSize
+	if writeBufSize <= 0 {
+		writeBufSize = 10 * 1024
+	}
+	kcpconn.SetWriteBuffer(writeBufSize)
 	return ch
 }
 
-func StartKcpChannel(kcpconn *kcp.UDPSession, conf *config.ChannelConf, msgFunc gchannel.HandleMsgFunc) *KcpChannel {
+func StartKcpChannel(kcpconn *kcp.UDPSession, conf *config.ChannelConf, msgFunc channel.HandleMsgFunc) (*KcpChannel, error) {
+	return StartKcpChannelWithHandle(kcpconn, conf, channel.ChannelHandle{
+		HandleMsgFunc: msgFunc,
+	})
+}
+
+func StartKcpChannelWithHandle(kcpconn *kcp.UDPSession, conf *config.ChannelConf, channelHandle channel.ChannelHandle) (*KcpChannel, error) {
+	defer func() {
+		re := recover()
+		if re != nil {
+			logx.Error("Start kcpchannel error:", re)
+		}
+	}()
+	var err error
 	ch := NewKcpChannel(kcpconn, conf)
-	ch.SetHandleMsgFunc(handlerMessage)
-	go gchannel.StartReadLoop(ch)
-	return ch
+	ch.ChannelHandle = channelHandle
+	go channel.StartReadLoop(ch)
+	handle := ch.ChannelHandle
+	startFunc := handle.HandleStartFunc
+	if startFunc != nil {
+		err = startFunc(ch)
+	}
+	return ch, err
 }
 
 func (b *KcpChannel) GetConn() *kcp.UDPSession {
@@ -52,16 +77,16 @@ func (b *KcpChannel) GetChId() string {
 	return b.conn.RemoteAddr().String() + ":" + fmt.Sprintf("%s", b.conn.GetConv())
 }
 
-func (b *KcpChannel) Read() (packet gchannel.Packet, err error) {
+func (b *KcpChannel) Read() (packet channel.Packet, err error) {
 	// TODO 超时配置
 	return ReadKcp(b)
 }
 
-func ReadKcp(b Channel) (gchannel.Packet, error) {
+func ReadKcp(b KChannel) (channel.Packet, error) {
 	conf := b.GetConf()
 	conn := b.GetConn()
 	conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
-	readNum, err := conn.Read(readbf)
+	readNum, err := conn.Read(readKcpBf)
 	if err != nil {
 		return nil, err
 	}
@@ -71,17 +96,17 @@ func ReadKcp(b Channel) (gchannel.Packet, error) {
 	}
 
 	datapack := b.NewPacket()
-	bytes := readbf[0:readNum]
+	bytes := readKcpBf[0:readNum]
 	datapack.SetData(bytes)
 	logx.Info("receive:" + string(bytes))
 	return datapack, err
 }
 
-func (b *KcpChannel) Write(datapack gchannel.Packet) error {
+func (b *KcpChannel) Write(datapack channel.Packet) error {
 	return WriteKcp(b, datapack)
 }
 
-func WriteKcp(b Channel, datapack gchannel.Packet) error {
+func WriteKcp(b KChannel, datapack channel.Packet) error {
 	defer func() {
 		i := recover()
 		if i != nil {
@@ -103,23 +128,23 @@ func WriteKcp(b Channel, datapack gchannel.Packet) error {
 		}
 		logx.Info("write:", string(bytes))
 		return err
-	}else{
+	} else {
 		logx.Info("packet is not prepare.")
 	}
 	return nil
 }
 
-func handlerMessage(datapack gchannel.Packet) error {
+func handlerMessage(datapack channel.Packet) error {
 	logx.Info("handler datapack:", datapack)
 	return nil
 }
 
 type KcpPacket struct {
-	gchannel.Basepacket
+	channel.Basepacket
 }
 
-func (b *KcpChannel) NewPacket() gchannel.Packet {
+func (b *KcpChannel) NewPacket() channel.Packet {
 	k := &KcpPacket{}
-	k.Basepacket = *gchannel.NewBasePacket(b, gchannel.PROTOCOL_KCP)
+	k.Basepacket = *channel.NewBasePacket(b, channel.PROTOCOL_KCP)
 	return k
 }

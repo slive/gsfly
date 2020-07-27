@@ -19,22 +19,48 @@ type UdpChannel struct {
 
 // TODO 配置化
 var readbf []byte
+
 func NewUdpChannel(conn *net.UDPConn, conf *config.ChannelConf) *UdpChannel {
 	ch := &UdpChannel{conn: conn}
 	ch.BaseChannel = *gchannel.NewBaseChannel(conf)
-	bufSize := conf.ReadBufSize
-	if bufSize <= 0 {
-		bufSize = 10 * 1024
+	readBufSize := conf.ReadBufSize
+	if readBufSize <= 0 {
+		readBufSize = 10 * 1024
 	}
-	readbf = make([]byte, bufSize)
+	conn.SetReadBuffer(readBufSize)
+	readbf = make([]byte, readBufSize)
+
+	writeBufSize := conf.WriteBufSize
+	if writeBufSize <= 0 {
+		writeBufSize = 10 * 1024
+	}
+	conn.SetWriteBuffer(writeBufSize)
 	return ch
 }
 
-func StartUdpChannel(conn *net.UDPConn, conf *config.ChannelConf, msgFunc gchannel.HandleMsgFunc) *UdpChannel {
+func StartUdpChannel(wsconn *net.UDPConn, conf *config.ChannelConf, msgFunc gchannel.HandleMsgFunc) (*UdpChannel, error) {
+	return StartUdpChannelWithHandle(wsconn, conf, gchannel.ChannelHandle{
+		HandleMsgFunc: msgFunc,
+	})
+}
+
+func StartUdpChannelWithHandle(conn *net.UDPConn, conf *config.ChannelConf, channelHandle gchannel.ChannelHandle) (*UdpChannel, error) {
+	defer func() {
+		re := recover()
+		if re != nil {
+			logx.Error("Start updchannel error:", re)
+		}
+	}()
+	var err error
 	ch := NewUdpChannel(conn, conf)
-	ch.SetHandleMsgFunc(msgFunc)
+	ch.ChannelHandle = channelHandle
 	go gchannel.StartReadLoop(ch)
-	return ch
+	handle := ch.ChannelHandle
+	startFunc := handle.HandleStartFunc
+	if startFunc != nil {
+		err = startFunc(ch)
+	}
+	return ch, err
 }
 
 func (b *UdpChannel) GetChId() string {

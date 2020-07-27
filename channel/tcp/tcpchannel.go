@@ -5,7 +5,7 @@
 package tcp
 
 import (
-	gchannel "gsfly/channel"
+	"gsfly/channel"
 	"gsfly/config"
 	logx "gsfly/logger"
 	"net"
@@ -13,7 +13,7 @@ import (
 )
 
 type TcpChannel struct {
-	gchannel.BaseChannel
+	channel.BaseChannel
 	conn     *net.TCPConn
 	readerr  *int
 	writeerr *int
@@ -21,30 +21,55 @@ type TcpChannel struct {
 
 // TODO 配置化
 var readbf []byte
+
 func NewTcpChannel(conn *net.TCPConn, conf *config.ChannelConf) *TcpChannel {
 	ch := &TcpChannel{conn: conn}
-	ch.BaseChannel = *gchannel.NewBaseChannel(conf)
-	bufSize := conf.ReadBufSize
-	if bufSize <= 0 {
-		bufSize = 10 * 1024
+	ch.BaseChannel = *channel.NewBaseChannel(conf)
+	readBufSize := conf.ReadBufSize
+	if readBufSize <= 0 {
+		readBufSize = 10 * 1024
 	}
-	readbf = make([]byte, bufSize)
+	conn.SetReadBuffer(readBufSize)
+	readbf = make([]byte, readBufSize)
+
+	writeBufSize := conf.WriteBufSize
+	if writeBufSize <= 0 {
+		writeBufSize = 10 * 1024
+	}
+	conn.SetWriteBuffer(writeBufSize)
 	return ch
 }
 
+func StartTcpChannel(conn *net.TCPConn, conf *config.ChannelConf, msgFunc channel.HandleMsgFunc) (*TcpChannel, error) {
+	return StartTcpChannelWithHandle(conn, conf, channel.ChannelHandle{
+		HandleMsgFunc: msgFunc,
+	})
+}
 
-func StartTcpChannel(conn *net.TCPConn, conf *config.ChannelConf, msgFunc gchannel.HandleMsgFunc) *TcpChannel {
+func StartTcpChannelWithHandle(conn *net.TCPConn, conf *config.ChannelConf, channelHandle channel.ChannelHandle) (*TcpChannel, error) {
+	defer func() {
+		re := recover()
+		if re != nil {
+			logx.Error("Start tcpchannel error:", re)
+		}
+	}()
+	var err error
 	ch := NewTcpChannel(conn, conf)
-	ch.SetHandleMsgFunc(msgFunc)
-	go gchannel.StartReadLoop(ch)
-	return ch
+	ch.ChannelHandle = channelHandle
+	go channel.StartReadLoop(ch)
+	handle := ch.ChannelHandle
+	startFunc := handle.HandleStartFunc
+	if startFunc != nil {
+		err = startFunc(ch)
+	}
+	return ch, err
 }
 
 func (b *TcpChannel) GetChId() string {
 	return b.conn.LocalAddr().String() + ":" + b.conn.RemoteAddr().String()
 }
 
-func (b *TcpChannel) Read() (packet gchannel.Packet, err error) {
+func (b *TcpChannel) Read() (packet channel.Packet, err error) {
 	// TODO 超时配置
 	conf := config.Global_Conf.ChannelConf
 	b.conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
@@ -60,7 +85,7 @@ func (b *TcpChannel) Read() (packet gchannel.Packet, err error) {
 	return datapack, err
 }
 
-func (b *TcpChannel) Write(datapack gchannel.Packet) error {
+func (b *TcpChannel) Write(datapack channel.Packet) error {
 	defer func() {
 		i := recover()
 		if i != nil {
@@ -84,12 +109,12 @@ func (b *TcpChannel) Write(datapack gchannel.Packet) error {
 	return nil
 }
 
-func (b *TcpChannel) NewPacket() gchannel.Packet {
+func (b *TcpChannel) NewPacket() channel.Packet {
 	w := &TcpPacket{}
-	w.Basepacket = *gchannel.NewBasePacket(b, gchannel.PROTOCOL_TCP)
+	w.Basepacket = *channel.NewBasePacket(b, channel.PROTOCOL_TCP)
 	return w
 }
 
 type TcpPacket struct {
-	gchannel.Basepacket
+	channel.Basepacket
 }

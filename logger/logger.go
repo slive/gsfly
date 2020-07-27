@@ -18,11 +18,13 @@ import (
 )
 
 const (
-	LOG_DEBUG = "DEBUG"
-	LOG_INFO  = "INFO"
-	LOG_WARN  = "WARN"
-	LOG_ERROR = "ERROR"
+	LOG_DEBUG = logx.DebugLevel
+	LOG_INFO  = logx.InfoLevel
+	LOG_WARN  = logx.WarnLevel
+	LOG_ERROR = logx.ErrorLevel
 )
+
+var logLevel logx.Level
 
 func init() {
 	logdir := config.Global_Conf.LogConf.LogDir
@@ -39,7 +41,8 @@ func init() {
 		//文件不存在，创建
 		logfile, _ = os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	}
-	logx.SetLevel(logx.DebugLevel)
+	logLevel = logx.DebugLevel
+	logx.SetLevel(logLevel)
 	logx.SetOutput(logfile)
 	log.SetOutput(os.Stdout)
 }
@@ -66,7 +69,7 @@ func mkdirLog(dir string) (e error) {
 	return er
 }
 
-func logwrite(level string, logs []interface{}) {
+func logwrite(level logx.Level, logs []interface{}) {
 	if logs != nil {
 		finalLog := convertFinalLog(logs)
 		log.Println(finalLog)
@@ -110,6 +113,10 @@ func convertFinalLog(logs []interface{}) string {
 	}
 
 	return lfmt
+}
+
+func Println(logs ...interface{}) {
+	logwrite(logLevel, logs)
 }
 
 func Debug(logs ...interface{}) {
