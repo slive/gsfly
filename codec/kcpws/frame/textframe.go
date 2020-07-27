@@ -4,7 +4,10 @@
  */
 package frame
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	logx "gsfly/logger"
+)
 
 type TextFrame struct {
 	BaseFrame
@@ -52,6 +55,7 @@ func (frame *TextSignallingFrame) Pack() {
 
 func NewInputFrame(kcpData []byte) Frame {
 	opCode := binary.BigEndian.Uint16(kcpData[2:4])
+	logx.Debug("opCode:", opCode)
 	if OPCODE_TEXT_SESSION == opCode {
 		t := &TextSessionFrame{TextFrame{
 			BaseFrame: BaseFrame{KcpData: kcpData},

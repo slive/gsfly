@@ -94,7 +94,7 @@ func WriteKcp(b Channel, datapack gchannel.Packet) error {
 		bytes := datapack.GetData()
 		conf := b.GetConf()
 		conn := b.GetConn()
-		conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
+		conn.SetWriteDeadline(time.Now().Add(conf.WriteTimeout * time.Second))
 		_, err := conn.Write(bytes)
 		if err != nil {
 			logx.Error("write error:", err)
@@ -103,6 +103,8 @@ func WriteKcp(b Channel, datapack gchannel.Packet) error {
 		}
 		logx.Info("write:", string(bytes))
 		return err
+	}else{
+		logx.Info("packet is not prepare.")
 	}
 	return nil
 }

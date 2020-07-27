@@ -5,12 +5,12 @@
 package kcpws
 
 import (
-	logx "github.com/sirupsen/logrus"
 	"github.com/xtaci/kcp-go"
 	gchannel "gsfly/channel"
 	kcpx "gsfly/codec/kcp"
 	"gsfly/codec/kcpws/frame"
 	"gsfly/config"
+	logx "gsfly/logger"
 )
 
 type KwsChannel struct {
@@ -57,7 +57,7 @@ func (b *KwsChannel) NewPacket() gchannel.Packet {
 
 func handlerMessage(datapack gchannel.Packet) error {
 	bf := frame.NewInputFrame(datapack.GetData())
-	logx.Println("baseFrame:", bf.ToJsonString())
+	logx.Info("baseFrame:", bf.ToJsonString())
 	conn := datapack.GetChannel()
 	kwsConn := conn.(*KwsChannel)
 	kwsConn.handleKwsFrame(conn, bf)

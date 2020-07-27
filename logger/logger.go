@@ -39,8 +39,9 @@ func init() {
 		//文件不存在，创建
 		logfile, _ = os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	}
+	logx.SetLevel(logx.DebugLevel)
 	logx.SetOutput(logfile)
-	logx.SetOutput(os.Stdout)
+	log.SetOutput(os.Stdout)
 }
 
 func checkFileExist(filename string) bool {
@@ -52,24 +53,23 @@ func checkFileExist(filename string) bool {
 }
 
 func mkdirLog(dir string) (e error) {
-	defer log.Println("error:", e)
 	_, er := os.Stat(dir)
+	defer log.Println("mkdirLog error:", er)
 	b := er == nil || os.IsExist(er)
 	if !b {
 		if err := os.MkdirAll(dir, 0775); err != nil {
 			if os.IsPermission(err) {
-				e = err
+				er = err
 			}
 		}
 	}
-	return
+	return er
 }
 
 func logwrite(level string, logs []interface{}) {
 	if logs != nil {
 		finalLog := convertFinalLog(logs)
-		//var lfmt string = "[" + level + "] "
-		//log.Println(lfmt + finalLog)
+		log.Println(finalLog)
 		switch level {
 		case LOG_DEBUG:
 			logx.Debug(finalLog)
@@ -90,7 +90,7 @@ func logwrite(level string, logs []interface{}) {
 
 func convertFinalLog(logs []interface{}) string {
 	lfmt := time.Now().Format("2006-01-02 15:04:05.999999999") + " "
-	_, file, line, ok := runtime.Caller(2)
+	_, file, line, ok := runtime.Caller(3)
 	if ok {
 		sps := strings.Split(file, "/")
 		if sps != nil {
@@ -99,11 +99,12 @@ func convertFinalLog(logs []interface{}) string {
 		lfmt += file + fmt.Sprintf("(%v) ", line)
 	}
 
-	var index int = 0
+	var index int = 1
 	logsLen := len(logs)
 	for _, val := range logs {
 		lfmt += fmt.Sprint(val)
-		if index != logsLen {
+		index += 1
+		if index < logsLen {
 			lfmt += ","
 		}
 	}

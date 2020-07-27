@@ -22,7 +22,7 @@ type ReadPool struct {
 
 func (p *ReadPool) Cache(pack Packet) {
 	id := pack.GetChannel().GetChId()
-	key := hashCode(id) / p.maxReadPoolSize
+	key := hashCode(id) % p.maxReadPoolSize
 	queue := p.fetchReadQueue(key)
 	queue.readChan <- pack
 }
@@ -59,7 +59,7 @@ func (p *ReadPool) get(key int) *ReadQueue {
 func (p *ReadPool) Remove(id string) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
-	key := hashCode(id) / p.maxReadPoolSize
+	key := hashCode(id) % p.maxReadPoolSize
 	delete(p.readQueue, key)
 }
 
