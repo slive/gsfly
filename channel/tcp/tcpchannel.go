@@ -81,7 +81,8 @@ func (b *TcpChannel) Read() (packet channel.Packet, err error) {
 	bytes := readbf[0:readNum]
 	datapack := b.NewPacket()
 	datapack.SetData(bytes)
-	logx.Info("receive:", string(bytes))
+	logx.Info("receive tcp:", string(bytes))
+	channel.RevStatis(datapack)
 	return datapack, err
 }
 
@@ -103,7 +104,8 @@ func (b *TcpChannel) Write(datapack channel.Packet) error {
 			panic(err)
 			return nil
 		}
-		logx.Info("write:", string(bytes))
+		logx.Info("write tcp:", string(bytes))
+		channel.SendStatis(datapack)
 		return err
 	}
 	return nil

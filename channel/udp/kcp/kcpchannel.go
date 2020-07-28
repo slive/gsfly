@@ -98,7 +98,8 @@ func ReadKcp(b KChannel) (channel.Packet, error) {
 	datapack := b.NewPacket()
 	bytes := readKcpBf[0:readNum]
 	datapack.SetData(bytes)
-	logx.Info("receive:" + string(bytes))
+	logx.Info("receive kcp:" + string(bytes))
+	channel.RevStatis(datapack)
 	return datapack, err
 }
 
@@ -126,16 +127,12 @@ func WriteKcp(b KChannel, datapack channel.Packet) error {
 			panic(err)
 			return nil
 		}
-		logx.Info("write:", string(bytes))
+		logx.Info("write kcp:", string(bytes))
+		channel.SendStatis(datapack)
 		return err
 	} else {
 		logx.Info("packet is not prepare.")
 	}
-	return nil
-}
-
-func handlerMessage(datapack channel.Packet) error {
-	logx.Info("handler datapack:", datapack)
 	return nil
 }
 

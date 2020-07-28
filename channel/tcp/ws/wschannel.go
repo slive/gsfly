@@ -66,6 +66,9 @@ func (b *WsChannel) Read() (packet gchannel.Packet, err error) {
 	wspacket := b.NewPacket().(*WsPacket)
 	wspacket.MsgType = msgType
 	wspacket.SetData(data)
+	logx.Info("receive ws:", string(data))
+	gchannel.RevStatis(wspacket)
+
 	return wspacket, err
 }
 
@@ -79,6 +82,8 @@ func (b *WsChannel) Write(packet gchannel.Packet) error {
 	if err != nil {
 		return err
 	}
+	logx.Info("write ws:", string(data))
+	gchannel.SendStatis(wspacket)
 	return err
 }
 

@@ -5,6 +5,8 @@
 package config
 
 import (
+	"fmt"
+	"net/url"
 	"os"
 	"runtime"
 	"time"
@@ -32,10 +34,67 @@ type LogConf struct {
 	LogDir string
 }
 
-type TcpServerConf struct {
-	Ip            string
-	Port          int
+type AddrConf struct {
+	Ip   string
+	Port int
+}
+
+func (addr *AddrConf) GetAddrStr() string {
+	return addr.Ip + fmt.Sprintf(":%v", addr.Port)
+}
+
+type ServerConf struct {
+	AddrConf
+	ChannelConf
 	MaxAcceptSize int
+}
+
+type ClientConf struct {
+	AddrConf
+	ChannelConf
+}
+
+type KcpConf struct {
+	// TODO kcp相关的配置
+}
+
+type KcpClientConf struct {
+	ClientConf
+	KcpConf
+}
+
+type KcpServerConf struct {
+	ServerConf
+	KcpConf
+}
+
+type UdpServerConf struct {
+	ServerConf
+}
+
+type UdpClientConf struct {
+	ClientConf
+}
+
+type HttpxServerConf struct {
+	ServerConf
+}
+
+type HttpxClientConf struct {
+	ClientConf
+}
+
+type WsClientConf struct {
+	ClientConf
+	Scheme      string
+	SubProtocol []string
+	Path        string
+	Params      map[string]interface{}
+}
+
+func (wsClientConf *WsClientConf) GetUrl() string {
+	u := url.URL{Scheme: wsClientConf.Scheme, Host: wsClientConf.GetAddrStr(), Path: wsClientConf.Path}
+	return u.String()
 }
 
 type ReadPoolConf struct {
@@ -47,7 +106,7 @@ type GlobalConf struct {
 	ChannelConf   *ChannelConf
 	LogConf       *LogConf
 	ReadPoolConf  *ReadPoolConf
-	TcpServerConf *TcpServerConf
+	TcpServerConf *ServerConf
 }
 
 var (
@@ -68,9 +127,10 @@ var (
 		MaxReadPoolSize:  runtime.NumCPU() * 10,
 	}
 
-	tcpServerConf = &TcpServerConf{
-		Ip:            "127.0.0.1",
-		Port:          9981,
+	tcpServerConf = &ServerConf{
+		AddrConf: AddrConf{
+			Ip:   "127.0.0.1",
+			Port: 9981,},
 		MaxAcceptSize: 50000,
 	}
 )

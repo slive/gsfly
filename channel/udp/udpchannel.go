@@ -79,7 +79,8 @@ func (b *UdpChannel) Read() (packet gchannel.Packet, err error) {
 	bytes := readbf[0:readNum]
 	datapack := b.NewPacket()
 	datapack.SetData(bytes)
-	logx.Info("receive:", string(bytes))
+	logx.Info("receive udp:", string(bytes))
+	gchannel.RevStatis(datapack)
 	return datapack, err
 }
 
@@ -101,7 +102,8 @@ func (b *UdpChannel) Write(datapack gchannel.Packet) error {
 			panic(err)
 			return nil
 		}
-		logx.Info("write:", string(bytes))
+		logx.Info("write udp:", string(bytes))
+		gchannel.SendStatis(datapack)
 		return err
 	}
 	return nil
