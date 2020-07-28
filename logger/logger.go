@@ -7,14 +7,14 @@ package logger
 import (
 	"fmt"
 	logx "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/writer"
 	"gsfly/config"
+	"io/ioutil"
 	"log"
+	"os"
 	"path"
 	"runtime"
 	"strings"
-	"time"
-
-	"os"
 )
 
 const (
@@ -28,23 +28,62 @@ var logLevel logx.Level
 
 func init() {
 	logdir := config.Global_Conf.LogConf.LogDir
-	//创建日志文件夹
+	// 创建日志文件夹
 	_ = mkdirLog(logdir)
 
 	filePath := path.Join(logdir, config.Global_Conf.LogConf.LogFile)
 	log.Println("filePath:", filePath)
 	var logfile *os.File = nil
 	if checkFileExist(filePath) {
-		//文件存在，打开
+		// 文件存在，打开
 		logfile, _ = os.OpenFile(filePath, os.O_APPEND|os.O_RDWR, 0644)
 	} else {
-		//文件不存在，创建
+		// 文件不存在，创建
 		logfile, _ = os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	}
 	logLevel = logx.DebugLevel
 	logx.SetLevel(logLevel)
-	logx.SetOutput(logfile)
-	log.SetOutput(os.Stdout)
+
+	logx.SetFormatter(&logx.TextFormatter{
+		DisableTimestamp: false,
+		FullTimestamp:    true,
+		TimestampFormat:  "2006-01-02 15:04:05.999999999",
+		DisableSorting:   false,
+	})
+
+	logx.SetOutput(ioutil.Discard) // Send all logs to nowhere by default
+
+	logx.AddHook(&writer.Hook{ // Send logs with level higher than warning to stderr
+		Writer: os.Stderr,
+		LogLevels: []logx.Level{
+			logx.PanicLevel,
+			logx.FatalLevel,
+			logx.ErrorLevel,
+			logx.WarnLevel,
+		},
+	})
+
+	logx.AddHook(&writer.Hook{ // Send logs with level higher than warning to stderr
+		Writer: logfile,
+		LogLevels: []logx.Level{
+			logx.PanicLevel,
+			logx.FatalLevel,
+			logx.ErrorLevel,
+			logx.WarnLevel,
+			logx.InfoLevel,
+			logx.DebugLevel,
+		},
+	})
+
+	logx.AddHook(&writer.Hook{ // Send info and debug logs to stdout
+		Writer: os.Stdout,
+		LogLevels: []logx.Level{
+			logx.InfoLevel,
+			logx.DebugLevel,
+		},
+	})
+	logx.Info("This will go to stdout")
+	logx.Warn("This will go to stderr")
 }
 
 func checkFileExist(filename string) bool {
@@ -72,27 +111,33 @@ func mkdirLog(dir string) (e error) {
 func logwrite(level logx.Level, logs []interface{}) {
 	if logs != nil {
 		finalLog := convertFinalLog(logs)
-		log.Println(finalLog)
+		// finalOutLog := time.Now().Format("2006-01-02 15:04:05.999999999") + " " + finalLog
 		switch level {
 		case LOG_DEBUG:
 			logx.Debug(finalLog)
+			// loggOut.Debug(finalOutLog)
 			break
 		case LOG_INFO:
 			logx.Info(finalLog)
+			// loggOut.Info(finalOutLog)
 			break
 		case LOG_WARN:
 			logx.Warn(finalLog)
+			// loggOut.Warn(finalOutLog)
 			break
 		case LOG_ERROR:
-			logx.Error(finalLog)
+			logx.Debug(finalLog)
+			// loggOut.Debug(finalOutLog)
+			break
 		default:
 			logx.Println(finalLog)
+			// loggOut.Println(finalOutLog)
 		}
 	}
 }
 
 func convertFinalLog(logs []interface{}) string {
-	lfmt := time.Now().Format("2006-01-02 15:04:05.999999999") + " "
+	lfmt := ""
 	_, file, line, ok := runtime.Caller(3)
 	if ok {
 		sps := strings.Split(file, "/")

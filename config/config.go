@@ -32,6 +32,8 @@ type LogConf struct {
 
 	// LogDir 日志路径
 	LogDir string
+
+	Level int
 }
 
 type AddrConf struct {
