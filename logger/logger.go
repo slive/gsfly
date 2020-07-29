@@ -82,8 +82,6 @@ func init() {
 			logx.DebugLevel,
 		},
 	})
-	logx.Info("This will go to stdout")
-	logx.Warn("This will go to stderr")
 }
 
 func checkFileExist(filename string) bool {
@@ -96,7 +94,12 @@ func checkFileExist(filename string) bool {
 
 func mkdirLog(dir string) (e error) {
 	_, er := os.Stat(dir)
-	defer log.Println("mkdirLog error:", er)
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.Println("mkdirLog error:", err)
+		}
+	}()
 	b := er == nil || os.IsExist(er)
 	if !b {
 		if err := os.MkdirAll(dir, 0775); err != nil {
