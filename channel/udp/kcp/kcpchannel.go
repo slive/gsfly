@@ -15,20 +15,17 @@ import (
 
 type KcpChannel struct {
 	gch.BaseChannel
-	conn *kcp.UDPSession
-}
-
-type KChannel interface {
-	gch.Channel
-	GetConn() *kcp.UDPSession
+	conn     *kcp.UDPSession
+	protocol gch.Protocol
 }
 
 // TODO 配置化
 var readKcpBf []byte
 
-func newKcpChannel(kcpConn *kcp.UDPSession, conf *gconf.ChannelConf) *KcpChannel {
+func newKcpChannel(kcpConn *kcp.UDPSession, conf *gconf.ChannelConf, protocol gch.Protocol) *KcpChannel {
 	ch := &KcpChannel{conn: kcpConn}
 	ch.BaseChannel = *gch.NewDefaultBaseChannel(conf)
+	ch.protocol = protocol
 	readBufSize := conf.ReadBufSize
 	if readBufSize <= 0 {
 		readBufSize = 10 * 1024
@@ -44,13 +41,13 @@ func newKcpChannel(kcpConn *kcp.UDPSession, conf *gconf.ChannelConf) *KcpChannel
 	return ch
 }
 
-func NewKcpChannel(kcpConn *kcp.UDPSession, chConf *gconf.ChannelConf, msgFunc gch.HandleMsgFunc) *KcpChannel {
+func NewKcpChannel(kcpConn *kcp.UDPSession, chConf *gconf.ChannelConf, msgFunc gch.HandleMsgFunc, protocol gch.Protocol) *KcpChannel {
 	chHandle := gch.NewChHandle(msgFunc, nil, nil)
-	return NewKcpChannelWithHandle(kcpConn, chConf, chHandle)
+	return NewKcpChannelWithHandle(kcpConn, chConf, chHandle, protocol)
 }
 
-func NewKcpChannelWithHandle(kcpConn *kcp.UDPSession, chConf *gconf.ChannelConf, chHandle *gch.ChannelHandle) *KcpChannel {
-	ch := newKcpChannel(kcpConn, chConf)
+func NewKcpChannelWithHandle(kcpConn *kcp.UDPSession, chConf *gconf.ChannelConf, chHandle *gch.ChannelHandle, protocol gch.Protocol) *KcpChannel {
+	ch := newKcpChannel(kcpConn, chConf, protocol)
 	ch.ChannelHandle = *chHandle
 	return ch
 }
@@ -86,10 +83,6 @@ func (b *KcpChannel) GetChId() string {
 
 func (b *KcpChannel) Read() (packet gch.Packet, err error) {
 	// TODO 超时配置
-	return ReadKcp(b)
-}
-
-func ReadKcp(b KChannel) (gch.Packet, error) {
 	conf := b.GetChConf()
 	conn := b.GetConn()
 	conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
@@ -111,10 +104,6 @@ func ReadKcp(b KChannel) (gch.Packet, error) {
 }
 
 func (b *KcpChannel) Write(datapack gch.Packet) error {
-	return WriteKcp(b, datapack)
-}
-
-func WriteKcp(b KChannel, datapack gch.Packet) error {
 	defer func() {
 		i := recover()
 		if i != nil {
@@ -148,7 +137,23 @@ type KcpPacket struct {
 }
 
 func (b *KcpChannel) NewPacket() gch.Packet {
-	k := &KcpPacket{}
-	k.Basepacket = *gch.NewBasePacket(b, gch.PROTOCOL_KCP)
-	return k
+	if b.protocol == gch.PROTOCOL_KWS {
+		k := &KwsPacket{}
+		k.Basepacket = *gch.NewBasePacket(b, gch.PROTOCOL_KWS)
+		return k
+	} else {
+		k := &KcpPacket{}
+		k.Basepacket = *gch.NewBasePacket(b, gch.PROTOCOL_KCP)
+		return k
+	}
+}
+
+type KwsPacket struct {
+	KcpPacket
+	Frame Frame
+}
+
+func (packet *KwsPacket) SetData(data []byte) {
+	packet.Basepacket.SetData(data)
+	packet.Frame = NewInputFrame(data)
 }
