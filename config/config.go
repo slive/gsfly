@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+
 type ChannelConf struct {
 	// ReadTimeout 读超时时间间隔，单位ms，默认15s
 	ReadTimeout time.Duration
@@ -42,6 +43,9 @@ type AddrConf struct {
 }
 
 func (addr *AddrConf) GetAddrStr() string {
+	if addr.Port <= 0 {
+		return addr.Ip
+	}
 	return addr.Ip + fmt.Sprintf(":%v", addr.Port)
 }
 

@@ -1,4 +1,5 @@
 /*
+ * kcp-ws通信通道
  * Author:slive
  * DATE:2020/7/17
  */
@@ -17,37 +18,25 @@ type KwsChannel struct {
 	handleKwsFrame HandleKwsFrame
 }
 
-func NewKwsChannel(kcpconn *kcp.UDPSession, conf *config.ChannelConf) *KwsChannel {
-	ch := &KwsChannel{conn: kcpconn}
-	ch.KcpChannel = *NewKcpChannel(kcpconn, conf)
+func newKwsChannel(kcpConn *kcp.UDPSession, conf *config.ChannelConf) *KwsChannel {
+	ch := &KwsChannel{conn: kcpConn}
+	ch.KcpChannel = *newKcpChannel(kcpConn, conf)
 	return ch
 }
 
-func StartKwsChannel(kcpconn *kcp.UDPSession, conf *config.ChannelConf, handleKwsFrame HandleKwsFrame) (*KwsChannel, error) {
-	return StartKwsChannelWithHandle(kcpconn, conf, handleKwsFrame, nil, nil)
+func NewKwsChannel(kcpConn *kcp.UDPSession, conf *config.ChannelConf, handleKwsFrame HandleKwsFrame) *KwsChannel {
+	return NewKwsChannelWithHandle(kcpConn, conf, handleKwsFrame, nil, nil)
 }
 
-func StartKwsChannelWithHandle(kcpconn *kcp.UDPSession, conf *config.ChannelConf, handleKwsFrame HandleKwsFrame, handleStartFunc gchannel.HandleStartFunc,
-	handleCloseFunc gchannel.HandleCloseFunc) (*KwsChannel, error) {
-	defer func() {
-		re := recover()
-		if re != nil {
-			logx.Error("Start kwschannel error:", re)
-		}
-	}()
-	var err error
-	ch := NewKwsChannel(kcpconn, conf)
+func NewKwsChannelWithHandle(kcpConn *kcp.UDPSession, conf *config.ChannelConf, handleKwsFrame HandleKwsFrame, handleStartFunc gchannel.HandleStartFunc,
+	handleCloseFunc gchannel.HandleCloseFunc) *KwsChannel {
+	ch := newKwsChannel(kcpConn, conf)
 	ch.handleKwsFrame = handleKwsFrame
 	ch.SetHandleMsgFunc(handlerMessage)
-	go gchannel.StartReadLoop(ch)
 	handle := ch.ChannelHandle
-	startFunc := handle.HandleStartFunc
-	if startFunc != nil {
-		err = startFunc(ch)
-	}
 	handle.HandleStartFunc = handleStartFunc
 	handle.HandleCloseFunc = handleCloseFunc
-	return ch, err
+	return ch
 }
 
 func (b *KwsChannel) GetConn() *kcp.UDPSession {
@@ -72,6 +61,7 @@ func (b *KwsChannel) NewPacket() gchannel.Packet {
 	return k
 }
 
+// handlerMessage 实现消息处理，并调用HandleKwsFrame
 func handlerMessage(datapack gchannel.Packet) error {
 	bf := NewInputFrame(datapack.GetData())
 	logx.Info("baseFrame:", bf.ToJsonString())
@@ -81,4 +71,5 @@ func handlerMessage(datapack gchannel.Packet) error {
 	return nil
 }
 
+// HandleKwsFrame 处理kwsframe方法
 type HandleKwsFrame func(conn gchannel.Channel, frame Frame) error

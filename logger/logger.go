@@ -6,6 +6,8 @@ package logger
 
 import (
 	"fmt"
+	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
+	"github.com/rifflock/lfshook"
 	logx "github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/writer"
 	"gsfly/config"
@@ -15,6 +17,7 @@ import (
 	"path"
 	"runtime"
 	"strings"
+	"time"
 )
 
 const (
@@ -43,26 +46,7 @@ func init() {
 	}
 	logLevel = logx.DebugLevel
 	logx.SetLevel(logLevel)
-
-	logx.SetFormatter(&logx.TextFormatter{
-		DisableTimestamp: false,
-		FullTimestamp:    true,
-		TimestampFormat:  "2006-01-02 15:04:05.999999999",
-		DisableSorting:   false,
-	})
-
 	logx.SetOutput(ioutil.Discard) // Send all logs to nowhere by default
-
-	logx.AddHook(&writer.Hook{ // Send logs with level higher than warning to stderr
-		Writer: os.Stderr,
-		LogLevels: []logx.Level{
-			logx.PanicLevel,
-			logx.FatalLevel,
-			logx.ErrorLevel,
-			logx.WarnLevel,
-		},
-	})
-
 	logx.AddHook(&writer.Hook{ // Send logs with level higher than warning to stderr
 		Writer: logfile,
 		LogLevels: []logx.Level{
@@ -82,6 +66,25 @@ func init() {
 			logx.DebugLevel,
 		},
 	})
+
+	logx.AddHook(&writer.Hook{ // Send logs with level higher than warning to stderr
+		Writer: os.Stderr,
+		LogLevels: []logx.Level{
+			logx.PanicLevel,
+			logx.FatalLevel,
+			logx.ErrorLevel,
+			logx.WarnLevel,
+		},
+	})
+
+	tf := logx.TextFormatter{
+		DisableTimestamp: false,
+		FullTimestamp:    true,
+		TimestampFormat:  "2006-01-02 15:04:05.999999999",
+		DisableSorting:   false,
+	}
+	logx.SetFormatter(&tf)
+	logx.AddHook(newRlfHook(10, filePath, &tf))
 }
 
 func checkFileExist(filename string) bool {
@@ -111,44 +114,53 @@ func mkdirLog(dir string) (e error) {
 	return er
 }
 
+func newRlfHook(maxRemainCont uint, logName string, tf *logx.TextFormatter) logx.Hook {
+	writer, err := rotatelogs.New(logName+"%Y%m%d",
+		rotatelogs.WithLinkName(logName),
+		rotatelogs.WithRotationTime(time.Hour*24),
+		rotatelogs.WithRotationCount(maxRemainCont))
+	if err != nil {
+		logx.Errorf("config local file system for logger error: %v", err)
+	}
+
+	lfsHook := lfshook.NewHook(lfshook.WriterMap{
+		logx.DebugLevel: writer,
+		logx.InfoLevel:  writer,
+		logx.WarnLevel:  writer,
+		logx.ErrorLevel: writer,
+		logx.FatalLevel: writer,
+		logx.PanicLevel: writer,
+	}, tf)
+
+	return lfsHook
+}
+
 func logwrite(level logx.Level, logs []interface{}) {
 	if logs != nil {
-		finalLog := convertFinalLog(logs)
-		// finalOutLog := time.Now().Format("2006-01-02 15:04:05.999999999") + " " + finalLog
+		// finalLog := convertFinalLog(logs)
+		finalLog := logs
+
 		switch level {
 		case LOG_DEBUG:
-			logx.Debug(finalLog)
-			// loggOut.Debug(finalOutLog)
+			logx.WithField("file", caller()).Debug(finalLog)
 			break
 		case LOG_INFO:
-			logx.Info(finalLog)
-			// loggOut.Info(finalOutLog)
+			logx.WithField("file", caller()).Info(finalLog)
 			break
 		case LOG_WARN:
-			logx.Warn(finalLog)
-			// loggOut.Warn(finalOutLog)
+			logx.WithField("file", caller()).Warn(finalLog)
 			break
 		case LOG_ERROR:
-			logx.Debug(finalLog)
-			// loggOut.Debug(finalOutLog)
+			logx.WithField("file", caller()).Debug(finalLog)
 			break
 		default:
-			logx.Println(finalLog)
-			// loggOut.Println(finalOutLog)
+			logx.WithField("file", caller()).Println(finalLog)
 		}
 	}
 }
 
 func convertFinalLog(logs []interface{}) string {
-	lfmt := ""
-	_, file, line, ok := runtime.Caller(3)
-	if ok {
-		sps := strings.Split(file, "/")
-		if sps != nil {
-			file = sps[len(sps)-1]
-		}
-		lfmt += file + fmt.Sprintf("(%v) ", line)
-	}
+	lfmt := caller()
 
 	var index int = 1
 	logsLen := len(logs)
@@ -160,6 +172,19 @@ func convertFinalLog(logs []interface{}) string {
 		}
 	}
 
+	return lfmt
+}
+
+func caller() string {
+	lfmt := ""
+	_, file, line, ok := runtime.Caller(3)
+	if ok {
+		sps := strings.Split(file, "/")
+		if sps != nil {
+			file = sps[len(sps)-1]
+		}
+		lfmt += file + fmt.Sprintf("(%v) ", line)
+	}
 	return lfmt
 }
 

@@ -14,8 +14,12 @@ import (
 	"net"
 )
 
-func StartKwsListen(serverConf config.KcpServerConf, handleKwsFrame kcpx.HandleKwsFrame, startFunc gch.HandleStartFunc, closeFunc gch.HandleCloseFunc) error {
-	addr := serverConf.GetAddrStr()
+func StartSimpleKwsListen(kcpServerConf *config.KcpServerConf, handleKwsFrame kcpx.HandleKwsFrame) error {
+	return StartKwsListen(kcpServerConf, handleKwsFrame, nil, nil)
+}
+
+func StartKwsListen(kcpServerConf *config.KcpServerConf, handleKwsFrame kcpx.HandleKwsFrame, startFunc gch.HandleStartFunc, closeFunc gch.HandleCloseFunc) error {
+	addr := kcpServerConf.GetAddrStr()
 	logx.Info("listen kws addr:", addr)
 	list, err := kcp.ListenWithOptions(addr, nil, 0, 0)
 	if err != nil {
@@ -25,8 +29,9 @@ func StartKwsListen(serverConf config.KcpServerConf, handleKwsFrame kcpx.HandleK
 
 	kwsChannels := make(map[string]gch.Channel, 10)
 	defer func() {
-		for _, kch := range kwsChannels {
-			kch.Close()
+		for key, kch := range kwsChannels {
+			kch.StopChannel()
+			delete(kwsChannels, key)
 		}
 	}()
 
@@ -34,15 +39,20 @@ func StartKwsListen(serverConf config.KcpServerConf, handleKwsFrame kcpx.HandleK
 		conn, err := list.AcceptKCP()
 		if err != nil {
 			logx.Error("accept kcpwsconn error:", nil)
-			return nil
+			return err
 		}
-		ch, _ := kcpx.StartKwsChannelWithHandle(conn, &serverConf.ChannelConf, handleKwsFrame, startFunc, closeFunc)
-		kwsChannels[ch.GetChId()] = ch
+
+		kwsCh := kcpx.NewKwsChannelWithHandle(conn, &kcpServerConf.ChannelConf, handleKwsFrame, startFunc, closeFunc)
+		err = kwsCh.StartChannel(kwsCh)
+		if err != nil {
+			kwsChannels[kwsCh.GetChId()] = kwsCh
+		}
 	}
 	return nil
 }
-func StartKcpListen(serverConf config.KcpServerConf, channelHandle gch.ChannelHandle) error {
-	addr := serverConf.GetAddrStr()
+
+func StartKcpListen(kcpServerConf *config.KcpServerConf, chHandle *gch.ChannelHandle) error {
+	addr := kcpServerConf.GetAddrStr()
 	logx.Info("listen kcp addr:", addr)
 	list, err := kcp.ListenWithOptions(addr, nil, 0, 0)
 	if err != nil {
@@ -52,24 +62,29 @@ func StartKcpListen(serverConf config.KcpServerConf, channelHandle gch.ChannelHa
 
 	kwsChannels := make(map[string]gch.Channel, 10)
 	defer func() {
-		for _, kch := range kwsChannels {
-			kch.Close()
+		for key, kch := range kwsChannels {
+			kch.StopChannel()
+			delete(kwsChannels, key)
 		}
 	}()
 
 	for {
-		conn, err := list.AcceptKCP()
+		kcpConn, err := list.AcceptKCP()
 		if err != nil {
 			logx.Error("accept kcpconn error:", nil)
-			return nil
+			return err
 		}
-		ch, _ := kcpx.StartKcpChannelWithHandle(conn, &serverConf.ChannelConf, channelHandle)
-		kwsChannels[ch.GetChId()] = ch
+
+		kcpCh := kcpx.NewKcpChannelWithHandle(kcpConn, &kcpServerConf.ChannelConf, chHandle)
+		err = kcpCh.StartChannel(kcpCh)
+		if err != nil {
+			kwsChannels[kcpCh.GetChId()] = kcpCh
+		}
 	}
 	return nil
 }
 
-func StartUdpListen(serverConf config.UdpServerConf, channelHandle gch.ChannelHandle) error {
+func StartUdpListen(serverConf *config.UdpServerConf, channelHandle gch.ChannelHandle) error {
 	addr := serverConf.GetAddrStr()
 	logx.Info("dial udp addr:", addr)
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
@@ -96,7 +111,7 @@ func StartUdpListen(serverConf config.UdpServerConf, channelHandle gch.ChannelHa
 
 }
 
-func DialKws(clientConf config.KcpClientConf, handleKwsFrame kcpx.HandleKwsFrame, startFunc gch.HandleStartFunc, closeFunc gch.HandleCloseFunc) (gch.Channel, error) {
+func DialKws(clientConf *config.KcpClientConf, handleKwsFrame kcpx.HandleKwsFrame, startFunc gch.HandleStartFunc, closeFunc gch.HandleCloseFunc) (gch.Channel, error) {
 	addr := clientConf.GetAddrStr()
 	logx.Info("dial kws addr:", addr)
 	conn, err := kcp.DialWithOptions(addr, nil, 0, 0)
@@ -104,21 +119,25 @@ func DialKws(clientConf config.KcpClientConf, handleKwsFrame kcpx.HandleKwsFrame
 		logx.Error("dial kcpws conn error:", nil)
 		return nil, err
 	}
-	return kcpx.StartKwsChannelWithHandle(conn, &clientConf.ChannelConf, handleKwsFrame, startFunc, closeFunc)
+	kwsCh := kcpx.NewKwsChannelWithHandle(conn, &clientConf.ChannelConf, handleKwsFrame, startFunc, closeFunc)
+	err = kwsCh.StartChannel(kwsCh)
+	return kwsCh, err
 }
 
-func DialKcp(clientConf config.KcpClientConf, channelHandle gch.ChannelHandle) (gch.Channel, error) {
-	addr := clientConf.GetAddrStr()
+func DialKcp(kcpClientConf *config.KcpClientConf, chHandle *gch.ChannelHandle) (gch.Channel, error) {
+	addr := kcpClientConf.GetAddrStr()
 	logx.Info("dial kws addr:", addr)
 	conn, err := kcp.DialWithOptions(addr, nil, 0, 0)
 	if err != nil {
 		logx.Error("dial kcpws conn error:", nil)
 		return nil, err
 	}
-	return kcpx.StartKcpChannelWithHandle(conn, &clientConf.ChannelConf, channelHandle)
+	kcpCh := kcpx.NewKcpChannelWithHandle(conn, &kcpClientConf.ChannelConf, chHandle)
+	err = kcpCh.StartChannel(kcpCh)
+	return kcpCh, err
 }
 
-func DialUdp(clientConf config.UdpClientConf, channelHandle gch.ChannelHandle) (gch.Channel, error) {
+func DialUdp(clientConf *config.UdpClientConf, chHandle *gch.ChannelHandle) (gch.Channel, error) {
 	addr := clientConf.GetAddrStr()
 	logx.Info("dial udp addr:", addr)
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
@@ -131,5 +150,7 @@ func DialUdp(clientConf config.UdpClientConf, channelHandle gch.ChannelHandle) (
 		logx.Error("dial udp conn error:", nil)
 		return nil, err
 	}
-	return udp.StartUdpChannelWithHandle(conn, &clientConf.ChannelConf, channelHandle)
+	udpCh := udp.NewUdpChannelWithHandle(conn, &clientConf.ChannelConf, chHandle)
+	err = udpCh.StartChannel(udpCh)
+	return udpCh, err
 }

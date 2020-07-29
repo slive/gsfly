@@ -1,11 +1,12 @@
 /*
+ * Udp通信通道
  * Author:slive
  * DATE:2020/7/17
  */
 package udp
 
 import (
-	gchannel "gsfly/channel"
+	gch "gsfly/channel"
 	"gsfly/config"
 	logx "gsfly/logger"
 	"net"
@@ -13,22 +14,20 @@ import (
 )
 
 type UdpChannel struct {
-	gchannel.BaseChannel
-	conn *net.UDPConn
+	gch.BaseChannel
+	conn   *net.UDPConn
+	readbf []byte
 }
 
-// TODO 配置化
-var readbf []byte
-
-func NewUdpChannel(conn *net.UDPConn, conf *config.ChannelConf) *UdpChannel {
+func newUdpChannel(conn *net.UDPConn, conf *config.ChannelConf) *UdpChannel {
 	ch := &UdpChannel{conn: conn}
-	ch.BaseChannel = *gchannel.NewBaseChannel(conf)
+	ch.BaseChannel = *gch.NewDefaultBaseChannel(conf)
 	readBufSize := conf.ReadBufSize
 	if readBufSize <= 0 {
 		readBufSize = 10 * 1024
 	}
 	conn.SetReadBuffer(readBufSize)
-	readbf = make([]byte, readBufSize)
+	ch.readbf = make([]byte, readBufSize)
 
 	writeBufSize := conf.WriteBufSize
 	if writeBufSize <= 0 {
@@ -38,39 +37,49 @@ func NewUdpChannel(conn *net.UDPConn, conf *config.ChannelConf) *UdpChannel {
 	return ch
 }
 
-func StartUdpChannel(wsconn *net.UDPConn, conf *config.ChannelConf, msgFunc gchannel.HandleMsgFunc) (*UdpChannel, error) {
-	return StartUdpChannelWithHandle(wsconn, conf, gchannel.ChannelHandle{
-		HandleMsgFunc: msgFunc,
-	})
+// NewUdpChannel 创建udpchannel，需实现handleMsgFunc方法
+func NewUdpChannel(udpConn *net.UDPConn, chConf *config.ChannelConf, msgFunc gch.HandleMsgFunc) *UdpChannel {
+	chHandle := gch.NewChHandle(msgFunc, nil, nil)
+	return NewUdpChannelWithHandle(udpConn, chConf, chHandle)
 }
 
-func StartUdpChannelWithHandle(conn *net.UDPConn, conf *config.ChannelConf, channelHandle gchannel.ChannelHandle) (*UdpChannel, error) {
-	defer func() {
-		re := recover()
-		if re != nil {
-			logx.Error("Start updchannel error:", re)
-		}
-	}()
-	var err error
-	ch := NewUdpChannel(conn, conf)
-	ch.ChannelHandle = channelHandle
-	go gchannel.StartReadLoop(ch)
-	handle := ch.ChannelHandle
-	startFunc := handle.HandleStartFunc
-	if startFunc != nil {
-		err = startFunc(ch)
-	}
-	return ch, err
+// NewUdpChannelWithHandle 创建udpchannel，需实现ChannelHandle
+func NewUdpChannelWithHandle(udpConn *net.UDPConn, chConf *config.ChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
+	ch := newUdpChannel(udpConn, chConf)
+	ch.ChannelHandle = *chHandle
+	return ch
 }
+
+// func (b *UdpChannel) StartChannel() error {
+// 	defer func() {
+// 		re := recover()
+// 		if re != nil {
+// 			logx.Error("Start updchannel error:", re)
+// 		}
+// 	}()
+// 	go b.StartReadLoop(b)
+//
+// 	// 启动后处理方法
+// 	startFunc := b.HandleStartFunc
+// 	if startFunc != nil {
+// 		err := startFunc(b)
+// 		if err != nil {
+// 			b.StopChannel()
+// 		}
+// 		return err
+// 	}
+// 	return nil
+// }
 
 func (b *UdpChannel) GetChId() string {
 	return b.conn.LocalAddr().String() + ":" + b.conn.RemoteAddr().String()
 }
 
-func (b *UdpChannel) Read() (packet gchannel.Packet, err error) {
+func (b *UdpChannel) Read() (packet gch.Packet, err error) {
 	// TODO 超时配置
-	conf := b.GetConf()
+	conf := b.GetChConf()
 	b.conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
+	readbf := b.readbf
 	readNum, err := b.conn.Read(readbf)
 	if err != nil {
 		return nil, err
@@ -80,21 +89,21 @@ func (b *UdpChannel) Read() (packet gchannel.Packet, err error) {
 	datapack := b.NewPacket()
 	datapack.SetData(bytes)
 	logx.Info("receive udp:", string(bytes))
-	gchannel.RevStatis(datapack)
+	gch.RevStatis(datapack)
 	return datapack, err
 }
 
-func (b *UdpChannel) Write(datapack gchannel.Packet) error {
+func (b *UdpChannel) Write(datapack gch.Packet) error {
 	defer func() {
 		i := recover()
 		if i != nil {
 			logx.Error("recover error:", i)
-			b.Close()
+			b.StopChannel()
 		}
 	}()
-	if datapack.GetPrepare() {
+	if datapack.IsPrepare() {
 		bytes := datapack.GetData()
-		conf := b.GetConf()
+		conf := b.GetChConf()
 		b.conn.SetWriteDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
 		_, err := b.conn.Write(bytes)
 		if err != nil {
@@ -103,18 +112,19 @@ func (b *UdpChannel) Write(datapack gchannel.Packet) error {
 			return nil
 		}
 		logx.Info("write udp:", string(bytes))
-		gchannel.SendStatis(datapack)
+		gch.SendStatis(datapack)
 		return err
 	}
 	return nil
 }
 
-func (b *UdpChannel) NewPacket() gchannel.Packet {
+func (b *UdpChannel) NewPacket() gch.Packet {
 	w := &UdpPacket{}
-	w.Basepacket = *gchannel.NewBasePacket(b, gchannel.PROTOCOL_UDP)
+	w.Basepacket = *gch.NewBasePacket(b, gch.PROTOCOL_UDP)
 	return w
 }
 
+// UdpPacket Udp包
 type UdpPacket struct {
-	gchannel.Basepacket
+	gch.Basepacket
 }

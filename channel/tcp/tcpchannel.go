@@ -5,7 +5,7 @@
 package tcp
 
 import (
-	"gsfly/channel"
+	gch "gsfly/channel"
 	"gsfly/config"
 	logx "gsfly/logger"
 	"net"
@@ -13,7 +13,7 @@ import (
 )
 
 type TcpChannel struct {
-	channel.BaseChannel
+	gch.BaseChannel
 	conn     *net.TCPConn
 	readerr  *int
 	writeerr *int
@@ -22,54 +22,40 @@ type TcpChannel struct {
 // TODO 配置化
 var readbf []byte
 
-func NewTcpChannel(conn *net.TCPConn, conf *config.ChannelConf) *TcpChannel {
-	ch := &TcpChannel{conn: conn}
-	ch.BaseChannel = *channel.NewBaseChannel(conf)
-	readBufSize := conf.ReadBufSize
+func newTcpChannel(tcpConn *net.TCPConn, chConf *config.ChannelConf) *TcpChannel {
+	ch := &TcpChannel{conn: tcpConn}
+	ch.BaseChannel = *gch.NewDefaultBaseChannel(chConf)
+	readBufSize := chConf.ReadBufSize
 	if readBufSize <= 0 {
 		readBufSize = 10 * 1024
 	}
-	conn.SetReadBuffer(readBufSize)
+	tcpConn.SetReadBuffer(readBufSize)
 	readbf = make([]byte, readBufSize)
 
-	writeBufSize := conf.WriteBufSize
+	writeBufSize := chConf.WriteBufSize
 	if writeBufSize <= 0 {
 		writeBufSize = 10 * 1024
 	}
-	conn.SetWriteBuffer(writeBufSize)
+	tcpConn.SetWriteBuffer(writeBufSize)
 	return ch
 }
 
-func StartTcpChannel(conn *net.TCPConn, conf *config.ChannelConf, msgFunc channel.HandleMsgFunc) (*TcpChannel, error) {
-	return StartTcpChannelWithHandle(conn, conf, channel.ChannelHandle{
-		HandleMsgFunc: msgFunc,
-	})
+func NewTcpChannel(tcpConn *net.TCPConn, chConf *config.ChannelConf, msgFunc gch.HandleMsgFunc) *TcpChannel {
+	chHandle := gch.NewChHandle(msgFunc, nil, nil)
+	return NewTcpChannelWithHandle(tcpConn, chConf, chHandle)
 }
 
-func StartTcpChannelWithHandle(conn *net.TCPConn, conf *config.ChannelConf, channelHandle channel.ChannelHandle) (*TcpChannel, error) {
-	defer func() {
-		re := recover()
-		if re != nil {
-			logx.Error("Start tcpchannel error:", re)
-		}
-	}()
-	var err error
-	ch := NewTcpChannel(conn, conf)
-	ch.ChannelHandle = channelHandle
-	go channel.StartReadLoop(ch)
-	handle := ch.ChannelHandle
-	startFunc := handle.HandleStartFunc
-	if startFunc != nil {
-		err = startFunc(ch)
-	}
-	return ch, err
+func NewTcpChannelWithHandle(tcpConn *net.TCPConn, chConf *config.ChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
+	ch := newTcpChannel(tcpConn, chConf)
+	ch.ChannelHandle = *chHandle
+	return ch
 }
 
 func (b *TcpChannel) GetChId() string {
 	return b.conn.LocalAddr().String() + ":" + b.conn.RemoteAddr().String()
 }
 
-func (b *TcpChannel) Read() (packet channel.Packet, err error) {
+func (b *TcpChannel) Read() (packet gch.Packet, err error) {
 	// TODO 超时配置
 	conf := config.Global_Conf.ChannelConf
 	b.conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
@@ -82,22 +68,22 @@ func (b *TcpChannel) Read() (packet channel.Packet, err error) {
 	datapack := b.NewPacket()
 	datapack.SetData(bytes)
 	logx.Info("receive tcp:", string(bytes))
-	channel.RevStatis(datapack)
+	gch.RevStatis(datapack)
 	return datapack, err
 }
 
-func (b *TcpChannel) Write(datapack channel.Packet) error {
+func (b *TcpChannel) Write(datapack gch.Packet) error {
 	defer func() {
 		i := recover()
 		if i != nil {
 			logx.Error("recover error:", i)
-			b.Close()
+			b.StopChannel()
 		}
 	}()
-	if datapack.GetPrepare() {
+	if datapack.IsPrepare() {
 		bytes := datapack.GetData()
 		conf := config.Global_Conf.ChannelConf
-		b.conn.SetWriteDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
+		b.conn.SetWriteDeadline(time.Now().Add(conf.WriteTimeout * time.Second))
 		_, err := b.conn.Write(bytes)
 		if err != nil {
 			logx.Error("write error:", err)
@@ -105,18 +91,19 @@ func (b *TcpChannel) Write(datapack channel.Packet) error {
 			return nil
 		}
 		logx.Info("write tcp:", string(bytes))
-		channel.SendStatis(datapack)
+		gch.SendStatis(datapack)
 		return err
 	}
 	return nil
 }
 
-func (b *TcpChannel) NewPacket() channel.Packet {
+func (b *TcpChannel) NewPacket() gch.Packet {
 	w := &TcpPacket{}
-	w.Basepacket = *channel.NewBasePacket(b, channel.PROTOCOL_TCP)
+	w.Basepacket = *gch.NewBasePacket(b, gch.PROTOCOL_TCP)
 	return w
 }
 
+// TcpPacket Tcp包
 type TcpPacket struct {
-	channel.Basepacket
+	gch.Basepacket
 }
