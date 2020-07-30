@@ -62,7 +62,7 @@ func StartHttpxListen(tcpls *HttpxListen) {
 	acceptChannels := make(map[string]gch.Channel, 10)
 	defer func() {
 		for key, ch := range acceptChannels {
-			ch.StopChannel()
+			ch.StopChannel(ch)
 			delete(acceptChannels, key)
 		}
 		logx.Info("stop httpx listen.")

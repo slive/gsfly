@@ -9,6 +9,7 @@ import (
 	gch "gsfly/channel"
 	"gsfly/config"
 	logx "gsfly/logger"
+	"net"
 	"time"
 )
 
@@ -32,11 +33,8 @@ func NewWsChannelWithHandle(wsConn *gws.Conn, chConf *config.ChannelConf, chHand
 	ch := newWsChannel(wsConn, chConf)
 	ch.ChannelHandle = *chHandle
 	wsConn.SetReadLimit(int64(chConf.ReadBufSize))
+	ch.SetChId(wsConn.LocalAddr().String() + ":" + wsConn.RemoteAddr().String())
 	return ch
-}
-
-func (b *WsChannel) GetChId() string {
-	return b.conn.LocalAddr().String() + ":" + b.conn.RemoteAddr().String()
 }
 
 func (b *WsChannel) Read() (packet gch.Packet, err error) {
@@ -52,13 +50,20 @@ func (b *WsChannel) Read() (packet gch.Packet, err error) {
 	wspacket := b.NewPacket().(*WsPacket)
 	wspacket.MsgType = msgType
 	wspacket.SetData(data)
-	logx.Info("receive ws:", string(data))
 	gch.RevStatis(wspacket)
-
+	logx.Info(b.GetChStatis().StringRev())
 	return wspacket, err
 }
 
 func (b *WsChannel) Write(packet gch.Packet) error {
+	defer func() {
+		i := recover()
+		if i != nil {
+			logx.Error("recover error:", i)
+			b.StopChannel(b)
+		}
+	}()
+
 	// TODO 设置超时？
 	wspacket := packet.(*WsPacket)
 	data := wspacket.GetData()
@@ -66,11 +71,21 @@ func (b *WsChannel) Write(packet gch.Packet) error {
 	b.conn.SetWriteDeadline(time.Now().Add(conf.WriteTimeout * time.Second))
 	err := b.conn.WriteMessage(wspacket.MsgType, data)
 	if err != nil {
+		panic(err)
 		return err
 	}
-	logx.Info("write ws:", string(data))
+
 	gch.SendStatis(wspacket)
+	logx.Info(b.GetChStatis().StringSend())
 	return err
+}
+
+func (b *WsChannel) LocalAddr() net.Addr {
+	return b.conn.LocalAddr()
+}
+
+func (b *WsChannel) RemoteAddr() net.Addr {
+	return b.conn.RemoteAddr()
 }
 
 func (b *WsChannel) NewPacket() gch.Packet {

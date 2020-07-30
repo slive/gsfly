@@ -6,8 +6,11 @@
 package channel
 
 import (
+	"fmt"
+	"github.com/pkg/errors"
 	"gsfly/config"
 	logx "gsfly/logger"
+	"net"
 	"time"
 )
 
@@ -22,6 +25,9 @@ type Channel interface {
 
 	// GetChId 通道Id
 	GetChId() string
+
+	// IsClosed 是否是关闭的
+	IsClosed() bool
 
 	// Read 读取方法
 	Read() (packet Packet, err error)
@@ -38,8 +44,12 @@ type Channel interface {
 	// GetChStatis 获取通道统计相关
 	GetChStatis() *ChannelStatis
 
+	LocalAddr() net.Addr
+
+	RemoteAddr() net.Addr
+
 	// 停止通道
-	StopChannel()
+	StopChannel(channel Channel)
 }
 
 // ChannelHandle 通信通道处理结构，针对如开始，关闭和收到消息的方法
@@ -88,12 +98,21 @@ func NewChStatis() *ChannelStatis {
 	}
 }
 
+func (s *ChannelStatis) StringSend() string {
+	return fmt.Sprintf("SendTime:%v, SendByteNum:%v, SendPacketNum:%v", s.SendTime, s.SendByteNum, s.SendPacketNum)
+}
+func (s *ChannelStatis) StringRev() string {
+	return fmt.Sprintf("RevTime:%v, RevByteNum:%v, RevPacketNum:%v", s.RevTime, s.RevByteNum, s.RevPacketNum)
+}
+
 // BaseChannel channel基类
 type BaseChannel struct {
 	ChannelHandle
 	ChannelStatis
 	chConf    *config.ChannelConf
 	readPool  *ReadPool
+	chId      string
+	closed    bool
 	closeExit chan bool
 }
 
@@ -108,11 +127,24 @@ func NewDefaultBaseChannel(conf *config.ChannelConf) *BaseChannel {
 }
 
 func NewBaseChannel(conf *config.ChannelConf, readPool *ReadPool) *BaseChannel {
-	conn := &BaseChannel{chConf: conf, closeExit: make(chan bool, 1), ChannelHandle: ChannelHandle{}, ChannelStatis: *NewChStatis(), readPool: readPool}
-	return conn
+	channel := &BaseChannel{
+		ChannelHandle: ChannelHandle{},
+		ChannelStatis: *NewChStatis(),
+		chConf:        conf,
+		readPool:      readPool,
+		closeExit:     make(chan bool, 1),
+	}
+	channel.SetClosed(true)
+	channel.SetChId("")
+	return channel
 }
 
 func (b *BaseChannel) StartChannel(channel Channel) error {
+	if !channel.IsClosed() {
+		id := b.GetChId()
+		return errors.New("channel is open, chId:" + id)
+	}
+
 	defer func() {
 		re := recover()
 		if re != nil {
@@ -126,11 +158,12 @@ func (b *BaseChannel) StartChannel(channel Channel) error {
 	if startFunc != nil {
 		err := startFunc(channel)
 		if err != nil {
-			b.StopChannel()
+			b.StopChannel(channel)
 		}
 		return err
 	}
 	logx.Info("finish to start channel, chId:", channel.GetChId())
+	b.SetClosed(false)
 	return nil
 }
 
@@ -139,7 +172,19 @@ func (b *BaseChannel) NewPacket() Packet {
 }
 
 func (b *BaseChannel) GetChId() string {
-	panic("implement me")
+	return b.chId
+}
+
+func (b *BaseChannel) SetChId(chId string) {
+	b.chId = chId
+}
+
+func (b *BaseChannel) IsClosed() bool {
+	return b.closed
+}
+
+func (b *BaseChannel) SetClosed(closed bool) {
+	b.closed = closed
 }
 
 func (b *BaseChannel) Read() (packet Packet, err error) {
@@ -166,19 +211,35 @@ func (b *BaseChannel) GetHandleMsgFunc() HandleMsgFunc {
 	return b.ChannelHandle.HandleMsgFunc
 }
 
-func (b *BaseChannel) StopChannel() {
+func (b *BaseChannel) StopChannel(channel Channel) {
+	// 关闭状态不再执行后面的内容
+	if channel.IsClosed() {
+		logx.Info("channel is closed, chId:", b.GetChId())
+		return
+	}
+
+	defer func() {
+		err := recover()
+		if err != nil {
+			logx.Warn("close error, chId:", b.GetChId(), err)
+		}
+	}()
+
+	// 清理关闭相关
+	b.SetClosed(true)
 	b.closeExit <- true
 	close(b.closeExit)
 
+	// 执行关闭后的方法
 	// TODO 各自处理？
 	closeFunc := b.HandleCloseFunc
 	if closeFunc != nil {
-		closeFunc(b)
+		closeFunc(channel)
 	}
 }
 
 // StartReadLoop 启动循环读取，读取到数据包后，放入#ReadQueue中，等待处理
-func (b *BaseChannel) startReadLoop(channel Channel) error {
+func (b *BaseChannel) startReadLoop(channel Channel) {
 	defer func() {
 		i := recover()
 		if i != nil {
@@ -188,7 +249,8 @@ func (b *BaseChannel) startReadLoop(channel Channel) error {
 	for {
 		rev, err := channel.Read()
 		if err != nil {
-			return err
+			logx.Info("read loop error:", err)
+			return
 		}
 
 		if rev != nil && rev.IsPrepare() {
@@ -205,6 +267,14 @@ func (b *BaseChannel) startReadLoop(channel Channel) error {
 			}
 		}
 	}
+}
+
+func (b *BaseChannel) LocalAddr() net.Addr {
+	return nil
+}
+
+func (b *BaseChannel) RemoteAddr() net.Addr {
+	return nil
 }
 
 // 读取统计

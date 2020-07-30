@@ -10,6 +10,7 @@ import (
 	gch "gsfly/channel"
 	gconf "gsfly/config"
 	logx "gsfly/logger"
+	"net"
 	"time"
 )
 
@@ -49,6 +50,7 @@ func NewKcpChannel(kcpConn *kcp.UDPSession, chConf *gconf.ChannelConf, msgFunc g
 func NewKcpChannelWithHandle(kcpConn *kcp.UDPSession, chConf *gconf.ChannelConf, chHandle *gch.ChannelHandle, protocol gch.Protocol) *KcpChannel {
 	ch := newKcpChannel(kcpConn, chConf, protocol)
 	ch.ChannelHandle = *chHandle
+	ch.SetChId(kcpConn.LocalAddr().String() + ":" + kcpConn.RemoteAddr().String() + ":" + fmt.Sprintf("%v", kcpConn.GetConv()))
 	return ch
 }
 
@@ -77,10 +79,6 @@ func (b *KcpChannel) GetConn() *kcp.UDPSession {
 	return b.conn
 }
 
-func (b *KcpChannel) GetChId() string {
-	return b.conn.LocalAddr().String() + ":" + b.conn.RemoteAddr().String() + ":" + fmt.Sprintf("%v", b.conn.GetConv())
-}
-
 func (b *KcpChannel) Read() (packet gch.Packet, err error) {
 	// TODO 超时配置
 	conf := b.GetChConf()
@@ -88,6 +86,7 @@ func (b *KcpChannel) Read() (packet gch.Packet, err error) {
 	conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
 	readNum, err := conn.Read(readKcpBf)
 	if err != nil {
+		// TODO 超时后抛出异常？
 		return nil, err
 	}
 	// 接收到8个字节数据，是bug?
@@ -98,8 +97,8 @@ func (b *KcpChannel) Read() (packet gch.Packet, err error) {
 	datapack := b.NewPacket()
 	bytes := readKcpBf[0:readNum]
 	datapack.SetData(bytes)
-	logx.Info("receive kcp:" + string(bytes))
 	gch.RevStatis(datapack)
+	logx.Info(b.GetChStatis().StringRev())
 	return datapack, err
 }
 
@@ -108,7 +107,7 @@ func (b *KcpChannel) Write(datapack gch.Packet) error {
 		i := recover()
 		if i != nil {
 			logx.Error("recover error:", i)
-			b.StopChannel()
+			b.StopChannel(b)
 		}
 	}()
 
@@ -123,8 +122,8 @@ func (b *KcpChannel) Write(datapack gch.Packet) error {
 			panic(err)
 			return nil
 		}
-		logx.Info("write kcp:", string(bytes))
 		gch.SendStatis(datapack)
+		logx.Info(b.GetChStatis().StringSend())
 		return err
 	} else {
 		logx.Info("packet is not prepare.")
@@ -137,15 +136,23 @@ type KcpPacket struct {
 }
 
 func (b *KcpChannel) NewPacket() gch.Packet {
-	if b.protocol == gch.PROTOCOL_KWS {
+	if b.protocol == gch.PROTOCOL_KWS00 {
 		k := &KwsPacket{}
-		k.Basepacket = *gch.NewBasePacket(b, gch.PROTOCOL_KWS)
+		k.Basepacket = *gch.NewBasePacket(b, gch.PROTOCOL_KWS00)
 		return k
 	} else {
 		k := &KcpPacket{}
 		k.Basepacket = *gch.NewBasePacket(b, gch.PROTOCOL_KCP)
 		return k
 	}
+}
+
+func (b *KcpChannel) LocalAddr() net.Addr {
+	return b.conn.LocalAddr()
+}
+
+func (b *KcpChannel) RemoteAddr() net.Addr {
+	return b.conn.RemoteAddr()
 }
 
 type KwsPacket struct {

@@ -9,14 +9,14 @@ package channel
 type Protocol int
 
 const (
-	// 协议类型，如0:tcp,1:udp,2:http,3:websocket,4:kcpws
+	// 协议类型
 	PROTOCOL_TCP   Protocol = 1
 	PROTOCOL_HTTP  Protocol = 2
 	PROTOCOL_WS    Protocol = 4
 	PROTOCOL_UDP   Protocol = 8
 	PROTOCOL_KCP   Protocol = 16
-	PROTOCOL_KWS   Protocol = 32
-	PROTOCOL_KHTTP Protocol = 64
+	PROTOCOL_KWS00 Protocol = 32
+	PROTOCOL_KWS01 Protocol = 64
 	PROTOCOL_HTTPX Protocol = PROTOCOL_HTTP | PROTOCOL_WS
 )
 
@@ -28,7 +28,7 @@ type Packet interface {
 	// IsPrepare 是否准备好可以进行收发后续处理
 	IsPrepare() bool
 
-	// GetPType 协议类型，如0:tcp,1:http,2:websocket...
+	// GetPType 协议类型
 	GetPType() Protocol
 
 	// SetPType 设置协议类型

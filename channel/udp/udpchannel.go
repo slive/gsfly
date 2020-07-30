@@ -47,32 +47,8 @@ func NewUdpChannel(udpConn *net.UDPConn, chConf *config.ChannelConf, msgFunc gch
 func NewUdpChannelWithHandle(udpConn *net.UDPConn, chConf *config.ChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
 	ch := newUdpChannel(udpConn, chConf)
 	ch.ChannelHandle = *chHandle
+	ch.SetChId(udpConn.LocalAddr().String() + ":" + udpConn.RemoteAddr().String())
 	return ch
-}
-
-// func (b *UdpChannel) StartChannel() error {
-// 	defer func() {
-// 		re := recover()
-// 		if re != nil {
-// 			logx.Error("Start updchannel error:", re)
-// 		}
-// 	}()
-// 	go b.StartReadLoop(b)
-//
-// 	// 启动后处理方法
-// 	startFunc := b.HandleStartFunc
-// 	if startFunc != nil {
-// 		err := startFunc(b)
-// 		if err != nil {
-// 			b.StopChannel()
-// 		}
-// 		return err
-// 	}
-// 	return nil
-// }
-
-func (b *UdpChannel) GetChId() string {
-	return b.conn.LocalAddr().String() + ":" + b.conn.RemoteAddr().String()
 }
 
 func (b *UdpChannel) Read() (packet gch.Packet, err error) {
@@ -88,7 +64,7 @@ func (b *UdpChannel) Read() (packet gch.Packet, err error) {
 	bytes := readbf[0:readNum]
 	datapack := b.NewPacket()
 	datapack.SetData(bytes)
-	logx.Info("receive udp:", string(bytes))
+	logx.Info(b.GetChStatis().StringRev())
 	gch.RevStatis(datapack)
 	return datapack, err
 }
@@ -97,8 +73,9 @@ func (b *UdpChannel) Write(datapack gch.Packet) error {
 	defer func() {
 		i := recover()
 		if i != nil {
-			logx.Error("recover error:", i)
-			b.StopChannel()
+			logx.Error("write error:", i)
+			// 有异常，终止执行
+			b.StopChannel(b)
 		}
 	}()
 	if datapack.IsPrepare() {
@@ -109,13 +86,21 @@ func (b *UdpChannel) Write(datapack gch.Packet) error {
 		if err != nil {
 			logx.Error("write error:", err)
 			panic(err)
-			return nil
+			return err
 		}
-		logx.Info("write udp:", string(bytes))
 		gch.SendStatis(datapack)
+		logx.Info(b.GetChStatis().StringSend())
 		return err
 	}
 	return nil
+}
+
+func (b *UdpChannel) LocalAddr() net.Addr {
+	return b.conn.LocalAddr()
+}
+
+func (b *UdpChannel) RemoteAddr() net.Addr {
+	return b.conn.RemoteAddr()
 }
 
 func (b *UdpChannel) NewPacket() gch.Packet {

@@ -14,9 +14,7 @@ import (
 
 type TcpChannel struct {
 	gch.BaseChannel
-	conn     *net.TCPConn
-	readerr  *int
-	writeerr *int
+	conn *net.TCPConn
 }
 
 // TODO 配置化
@@ -48,11 +46,8 @@ func NewTcpChannel(tcpConn *net.TCPConn, chConf *config.ChannelConf, msgFunc gch
 func NewTcpChannelWithHandle(tcpConn *net.TCPConn, chConf *config.ChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
 	ch := newTcpChannel(tcpConn, chConf)
 	ch.ChannelHandle = *chHandle
+	ch.SetChId(tcpConn.LocalAddr().String() + ":" + tcpConn.RemoteAddr().String())
 	return ch
-}
-
-func (b *TcpChannel) GetChId() string {
-	return b.conn.LocalAddr().String() + ":" + b.conn.RemoteAddr().String()
 }
 
 func (b *TcpChannel) Read() (packet gch.Packet, err error) {
@@ -67,8 +62,8 @@ func (b *TcpChannel) Read() (packet gch.Packet, err error) {
 	bytes := readbf[0:readNum]
 	datapack := b.NewPacket()
 	datapack.SetData(bytes)
-	logx.Info("receive tcp:", string(bytes))
 	gch.RevStatis(datapack)
+	logx.Info(b.GetChStatis().StringRev())
 	return datapack, err
 }
 
@@ -77,7 +72,7 @@ func (b *TcpChannel) Write(datapack gch.Packet) error {
 		i := recover()
 		if i != nil {
 			logx.Error("recover error:", i)
-			b.StopChannel()
+			b.StopChannel(b)
 		}
 	}()
 	if datapack.IsPrepare() {
@@ -90,11 +85,19 @@ func (b *TcpChannel) Write(datapack gch.Packet) error {
 			panic(err)
 			return nil
 		}
-		logx.Info("write tcp:", string(bytes))
 		gch.SendStatis(datapack)
+		logx.Info(b.GetChStatis().StringSend())
 		return err
 	}
 	return nil
+}
+
+func (b *TcpChannel) LocalAddr() net.Addr {
+	return b.conn.LocalAddr()
+}
+
+func (b *TcpChannel) RemoteAddr() net.Addr {
+	return b.conn.RemoteAddr()
 }
 
 func (b *TcpChannel) NewPacket() gch.Packet {

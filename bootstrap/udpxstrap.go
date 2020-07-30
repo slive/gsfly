@@ -63,7 +63,7 @@ func StartKcpListen(kcpServerConf *config.KcpServerConf, chHandle *gch.ChannelHa
 	kwsChannels := make(map[string]gch.Channel, 10)
 	defer func() {
 		for key, kch := range kwsChannels {
-			kch.StopChannel()
+			kch.StopChannel(kch)
 			delete(kwsChannels, key)
 		}
 	}()
