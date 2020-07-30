@@ -41,9 +41,17 @@ func (b *WsChannel) Read() (packet gch.Packet, err error) {
 	// TODO 超时配置
 	conf := b.GetChConf()
 	b.conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
+	defer func() {
+		i := recover()
+		if i != nil {
+			logx.Error("recover, read error:", i)
+			b.StopChannel(b)
+		}
+	}()
 	msgType, data, err := b.conn.ReadMessage()
 	if err != nil {
-		logx.Info("receive err:", err)
+		logx.Info("read err:", err)
+		panic(err)
 		return nil, err
 	}
 
@@ -59,7 +67,7 @@ func (b *WsChannel) Write(packet gch.Packet) error {
 	defer func() {
 		i := recover()
 		if i != nil {
-			logx.Error("recover error:", i)
+			logx.Error("recover, write error:", i)
 			b.StopChannel(b)
 		}
 	}()
@@ -78,6 +86,13 @@ func (b *WsChannel) Write(packet gch.Packet) error {
 	gch.SendStatis(wspacket)
 	logx.Info(b.GetChStatis().StringSend())
 	return err
+}
+
+func (b *WsChannel) StopChannel(channel gch.Channel) {
+	if !b.IsClosed() {
+		b.conn.Close()
+	}
+	b.BaseChannel.StopChannel(channel)
 }
 
 func (b *WsChannel) LocalAddr() net.Addr {

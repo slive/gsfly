@@ -20,9 +20,6 @@ type KcpChannel struct {
 	protocol gch.Protocol
 }
 
-// TODO 配置化
-var readKcpBf []byte
-
 func newKcpChannel(kcpConn *kcp.UDPSession, conf *gconf.ChannelConf, protocol gch.Protocol) *KcpChannel {
 	ch := &KcpChannel{conn: kcpConn}
 	ch.BaseChannel = *gch.NewDefaultBaseChannel(conf)
@@ -31,8 +28,6 @@ func newKcpChannel(kcpConn *kcp.UDPSession, conf *gconf.ChannelConf, protocol gc
 	if readBufSize <= 0 {
 		readBufSize = 10 * 1024
 	}
-	kcpConn.SetReadBuffer(readBufSize)
-	readKcpBf = make([]byte, readBufSize)
 
 	writeBufSize := conf.WriteBufSize
 	if writeBufSize <= 0 {
@@ -81,10 +76,11 @@ func (b *KcpChannel) GetConn() *kcp.UDPSession {
 
 func (b *KcpChannel) Read() (packet gch.Packet, err error) {
 	// TODO 超时配置
-	conf := b.GetChConf()
 	conn := b.GetConn()
+	conf := b.GetChConf()
 	conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
-	readNum, err := conn.Read(readKcpBf)
+	readbf := make([]byte, conf.ReadBufSize)
+	readNum, err := conn.Read(readbf)
 	if err != nil {
 		// TODO 超时后抛出异常？
 		return nil, err
@@ -95,10 +91,11 @@ func (b *KcpChannel) Read() (packet gch.Packet, err error) {
 	}
 
 	datapack := b.NewPacket()
-	bytes := readKcpBf[0:readNum]
+	bytes := readbf[0:readNum]
 	datapack.SetData(bytes)
 	gch.RevStatis(datapack)
 	logx.Info(b.GetChStatis().StringRev())
+
 	return datapack, err
 }
 
@@ -113,8 +110,8 @@ func (b *KcpChannel) Write(datapack gch.Packet) error {
 
 	if datapack.IsPrepare() {
 		bytes := datapack.GetData()
-		conf := b.GetChConf()
 		conn := b.GetConn()
+		conf := b.GetChConf()
 		conn.SetWriteDeadline(time.Now().Add(conf.WriteTimeout * time.Second))
 		_, err := conn.Write(bytes)
 		if err != nil {
@@ -145,6 +142,13 @@ func (b *KcpChannel) NewPacket() gch.Packet {
 		k.Basepacket = *gch.NewBasePacket(b, gch.PROTOCOL_KCP)
 		return k
 	}
+}
+
+func (b *KcpChannel) StopChannel(channel gch.Channel) {
+	if !b.IsClosed() {
+		b.conn.Close()
+	}
+	b.BaseChannel.StopChannel(channel)
 }
 
 func (b *KcpChannel) LocalAddr() net.Addr {

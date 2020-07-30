@@ -16,7 +16,6 @@ import (
 type UdpChannel struct {
 	gch.BaseChannel
 	conn   *net.UDPConn
-	readbf []byte
 }
 
 func newUdpChannel(conn *net.UDPConn, conf *config.ChannelConf) *UdpChannel {
@@ -27,7 +26,6 @@ func newUdpChannel(conn *net.UDPConn, conf *config.ChannelConf) *UdpChannel {
 		readBufSize = 10 * 1024
 	}
 	conn.SetReadBuffer(readBufSize)
-	ch.readbf = make([]byte, readBufSize)
 
 	writeBufSize := conf.WriteBufSize
 	if writeBufSize <= 0 {
@@ -55,7 +53,7 @@ func (b *UdpChannel) Read() (packet gch.Packet, err error) {
 	// TODO 超时配置
 	conf := b.GetChConf()
 	b.conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
-	readbf := b.readbf
+	readbf := make([]byte, conf.ReadBufSize)
 	readNum, err := b.conn.Read(readbf)
 	if err != nil {
 		return nil, err
@@ -93,6 +91,13 @@ func (b *UdpChannel) Write(datapack gch.Packet) error {
 		return err
 	}
 	return nil
+}
+
+func (b *UdpChannel) StopChannel(channel gch.Channel){
+	if !b.IsClosed(){
+		b.conn.Close()
+	}
+	b.BaseChannel.StopChannel(channel)
 }
 
 func (b *UdpChannel) LocalAddr() net.Addr {

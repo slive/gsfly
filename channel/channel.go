@@ -244,28 +244,37 @@ func (b *BaseChannel) startReadLoop(channel Channel) {
 		i := recover()
 		if i != nil {
 			logx.Error("read loop error:", i)
+			_, ok := i.(error)
+			if ok {
+				b.StopChannel(channel)
+			}
 		}
 	}()
 	for {
-		rev, err := channel.Read()
-		if err != nil {
-			logx.Info("read loop error:", err)
+		select {
+		case <-b.closeExit:
+			logx.Info("stop read loop.")
 			return
-		}
-
-		if rev != nil && rev.IsPrepare() {
-			readPool := b.readPool
-			if readPool != nil {
-				// 放入读取协程池等待处理
-				readPool.Cache(rev)
-			} else {
-				// 否则默认直接处理
-				msgFunc := channel.GetHandleMsgFunc()
-				if msgFunc != nil {
-					msgFunc(rev)
-				}
+		default:
+			rev, err := channel.Read()
+			if err != nil {
+				logx.Info("read loop error:", err)
+				return
 			}
-		}
+
+			if rev != nil && rev.IsPrepare() {
+				readPool := b.readPool
+				if readPool != nil {
+					// 放入读取协程池等待处理
+					readPool.Cache(rev)
+				} else {
+					// 否则默认直接处理
+					msgFunc := channel.GetHandleMsgFunc()
+					if msgFunc != nil {
+						msgFunc(rev)
+					}
+				}
+			}}
 	}
 }
 

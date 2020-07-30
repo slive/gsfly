@@ -17,9 +17,6 @@ type TcpChannel struct {
 	conn *net.TCPConn
 }
 
-// TODO 配置化
-var readbf []byte
-
 func newTcpChannel(tcpConn *net.TCPConn, chConf *config.ChannelConf) *TcpChannel {
 	ch := &TcpChannel{conn: tcpConn}
 	ch.BaseChannel = *gch.NewDefaultBaseChannel(chConf)
@@ -28,7 +25,6 @@ func newTcpChannel(tcpConn *net.TCPConn, chConf *config.ChannelConf) *TcpChannel
 		readBufSize = 10 * 1024
 	}
 	tcpConn.SetReadBuffer(readBufSize)
-	readbf = make([]byte, readBufSize)
 
 	writeBufSize := chConf.WriteBufSize
 	if writeBufSize <= 0 {
@@ -54,6 +50,7 @@ func (b *TcpChannel) Read() (packet gch.Packet, err error) {
 	// TODO 超时配置
 	conf := config.Global_Conf.ChannelConf
 	b.conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
+	readbf := make([]byte, conf.ReadBufSize)
 	readNum, err := b.conn.Read(readbf)
 	if err != nil {
 		return nil, err
@@ -90,6 +87,13 @@ func (b *TcpChannel) Write(datapack gch.Packet) error {
 		return err
 	}
 	return nil
+}
+
+func (b *TcpChannel) StopChannel(channel gch.Channel){
+	if !b.IsClosed(){
+		b.conn.Close()
+	}
+	b.BaseChannel.StopChannel(channel)
 }
 
 func (b *TcpChannel) LocalAddr() net.Addr {
