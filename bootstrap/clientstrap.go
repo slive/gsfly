@@ -54,7 +54,7 @@ func DialKcp(kcpClientConf *KcpClientConf, chHandle *gch.ChannelHandle, protocol
 		logx.Error("dial kcpws conn error:", nil)
 		return nil, err
 	}
-	kcpCh := kcpx.NewKcpChannelWithHandle(conn, &kcpClientConf.ChannelConf, chHandle, protocol)
+	kcpCh := kcpx.NewKcpChannelWithHandle(conn, &kcpClientConf.ChannelConf, chHandle)
 	err = kcpCh.StartChannel(kcpCh)
 	return kcpCh, err
 }
