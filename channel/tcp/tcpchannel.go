@@ -6,7 +6,6 @@ package tcp
 
 import (
 	gch "gsfly/channel"
-	"gsfly/config"
 	logx "gsfly/logger"
 	"net"
 	"time"
@@ -17,7 +16,7 @@ type TcpChannel struct {
 	conn *net.TCPConn
 }
 
-func newTcpChannel(tcpConn *net.TCPConn, chConf *config.ChannelConf) *TcpChannel {
+func newTcpChannel(tcpConn *net.TCPConn, chConf *gch.ChannelConf) *TcpChannel {
 	ch := &TcpChannel{conn: tcpConn}
 	ch.BaseChannel = *gch.NewDefaultBaseChannel(chConf)
 	readBufSize := chConf.ReadBufSize
@@ -34,12 +33,12 @@ func newTcpChannel(tcpConn *net.TCPConn, chConf *config.ChannelConf) *TcpChannel
 	return ch
 }
 
-func NewTcpChannel(tcpConn *net.TCPConn, chConf *config.ChannelConf, msgFunc gch.HandleMsgFunc) *TcpChannel {
+func NewTcpChannel(tcpConn *net.TCPConn, chConf *gch.ChannelConf, msgFunc gch.HandleMsgFunc) *TcpChannel {
 	chHandle := gch.NewChHandle(msgFunc, nil, nil)
 	return NewTcpChannelWithHandle(tcpConn, chConf, chHandle)
 }
 
-func NewTcpChannelWithHandle(tcpConn *net.TCPConn, chConf *config.ChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
+func NewTcpChannelWithHandle(tcpConn *net.TCPConn, chConf *gch.ChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
 	ch := newTcpChannel(tcpConn, chConf)
 	ch.ChannelHandle = *chHandle
 	ch.SetChId(tcpConn.LocalAddr().String() + ":" + tcpConn.RemoteAddr().String())
@@ -48,7 +47,7 @@ func NewTcpChannelWithHandle(tcpConn *net.TCPConn, chConf *config.ChannelConf, c
 
 func (b *TcpChannel) Read() (packet gch.Packet, err error) {
 	// TODO 超时配置
-	conf := config.Global_Conf.ChannelConf
+	conf := gch.Global_Conf.ChannelConf
 	b.conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
 	readbf := make([]byte, conf.ReadBufSize)
 	readNum, err := b.conn.Read(readbf)
@@ -74,7 +73,7 @@ func (b *TcpChannel) Write(datapack gch.Packet) error {
 	}()
 	if datapack.IsPrepare() {
 		bytes := datapack.GetData()
-		conf := config.Global_Conf.ChannelConf
+		conf := gch.Global_Conf.ChannelConf
 		b.conn.SetWriteDeadline(time.Now().Add(conf.WriteTimeout * time.Second))
 		_, err := b.conn.Write(bytes)
 		if err != nil {

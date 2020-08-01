@@ -8,7 +8,6 @@ package channel
 import (
 	"fmt"
 	"github.com/pkg/errors"
-	"gsfly/config"
 	logx "gsfly/logger"
 	"net"
 	"time"
@@ -39,7 +38,7 @@ type Channel interface {
 	GetHandleMsgFunc() HandleMsgFunc
 
 	// GetChConf 获取通道配置
-	GetChConf() *config.ChannelConf
+	GetChConf() *ChannelConf
 
 	// GetChStatis 获取通道统计相关
 	GetChStatis() *ChannelStatis
@@ -109,24 +108,30 @@ func (s *ChannelStatis) StringRev() string {
 type BaseChannel struct {
 	ChannelHandle
 	ChannelStatis
-	chConf    *config.ChannelConf
+	chConf    *ChannelConf
 	readPool  *ReadPool
 	chId      string
 	closed    bool
 	closeExit chan bool
 }
 
-var Default_Read_Pool_Conf = config.Global_Conf.ReadPoolConf
+var Default_Read_Pool_Conf *ReadPoolConf
 
 // 初始化读协程池，全局配置
-var Default_ReadPool *ReadPool = NewReadPool(Default_Read_Pool_Conf.MaxReadPoolSize, Default_Read_Pool_Conf.MaxReadQueueSize)
+var Default_ReadPool *ReadPool
+
+func init() {
+	LoadDefaultConf()
+	Default_Read_Pool_Conf = Global_Conf.ReadPoolConf
+	Default_ReadPool = NewReadPool(Default_Read_Pool_Conf.MaxReadPoolSize, Default_Read_Pool_Conf.MaxReadQueueSize)
+}
 
 // NewDefaultBaseChannel 创建默认基础通信通道
-func NewDefaultBaseChannel(conf *config.ChannelConf) *BaseChannel {
+func NewDefaultBaseChannel(conf *ChannelConf) *BaseChannel {
 	return NewBaseChannel(conf, Default_ReadPool)
 }
 
-func NewBaseChannel(conf *config.ChannelConf, readPool *ReadPool) *BaseChannel {
+func NewBaseChannel(conf *ChannelConf, readPool *ReadPool) *BaseChannel {
 	channel := &BaseChannel{
 		ChannelHandle: ChannelHandle{},
 		ChannelStatis: *NewChStatis(),
@@ -195,7 +200,7 @@ func (b *BaseChannel) Write(packet Packet) error {
 	panic("implement me")
 }
 
-func (b *BaseChannel) GetChConf() *config.ChannelConf {
+func (b *BaseChannel) GetChConf() *ChannelConf {
 	return b.chConf
 }
 

@@ -10,7 +10,7 @@ import (
 	"github.com/rifflock/lfshook"
 	logx "github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/writer"
-	"gsfly/config"
+	"gsfly/util"
 	"io/ioutil"
 	"log"
 	"os"
@@ -27,14 +27,33 @@ const (
 	LOG_ERROR = logx.ErrorLevel
 )
 
+type LogConf struct {
+	// LogFile 日志文件
+	LogFile string
+
+	// LogDir 日志路径
+	LogDir string
+
+	Level int
+}
+
+func NewDefaultLogConf() *LogConf {
+	logConf := &LogConf{
+		LogFile: "log-gsfly.log",
+		LogDir:  util.GetPwd() + "/log",
+	}
+	return logConf
+}
+
 var logLevel logx.Level
 
 func init() {
-	logdir := config.Global_Conf.LogConf.LogDir
+	logConf := NewDefaultLogConf()
+	logdir := logConf.LogDir
 	// 创建日志文件夹
 	_ = mkdirLog(logdir)
 
-	filePath := path.Join(logdir, config.Global_Conf.LogConf.LogFile)
+	filePath := path.Join(logdir, logConf.LogFile)
 	log.Println("filePath:", filePath)
 	var logfile *os.File = nil
 	if checkFileExist(filePath) {

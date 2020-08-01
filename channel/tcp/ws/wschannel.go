@@ -7,7 +7,6 @@ package ws
 import (
 	gws "github.com/gorilla/websocket"
 	gch "gsfly/channel"
-	"gsfly/config"
 	logx "gsfly/logger"
 	"net"
 	"time"
@@ -18,18 +17,18 @@ type WsChannel struct {
 	conn *gws.Conn
 }
 
-func newWsChannel(wsconn *gws.Conn, conf *config.ChannelConf) *WsChannel {
+func newWsChannel(wsconn *gws.Conn, conf *gch.ChannelConf) *WsChannel {
 	ch := &WsChannel{conn: wsconn}
 	ch.BaseChannel = *gch.NewDefaultBaseChannel(conf)
 	return ch
 }
 
-func NewWsChannel(wsConn *gws.Conn, chConf *config.ChannelConf, msgFunc gch.HandleMsgFunc) *WsChannel {
+func NewWsChannel(wsConn *gws.Conn, chConf *gch.ChannelConf, msgFunc gch.HandleMsgFunc) *WsChannel {
 	chHandle := gch.NewChHandle(msgFunc, nil, nil)
 	return NewWsChannelWithHandle(wsConn, chConf, chHandle)
 }
 
-func NewWsChannelWithHandle(wsConn *gws.Conn, chConf *config.ChannelConf, chHandle *gch.ChannelHandle) *WsChannel {
+func NewWsChannelWithHandle(wsConn *gws.Conn, chConf *gch.ChannelConf, chHandle *gch.ChannelHandle) *WsChannel {
 	ch := newWsChannel(wsConn, chConf)
 	ch.ChannelHandle = *chHandle
 	wsConn.SetReadLimit(int64(chConf.ReadBufSize))

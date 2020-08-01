@@ -7,7 +7,6 @@ package udp
 
 import (
 	gch "gsfly/channel"
-	"gsfly/config"
 	logx "gsfly/logger"
 	"net"
 	"time"
@@ -15,10 +14,10 @@ import (
 
 type UdpChannel struct {
 	gch.BaseChannel
-	conn   *net.UDPConn
+	conn *net.UDPConn
 }
 
-func newUdpChannel(conn *net.UDPConn, conf *config.ChannelConf) *UdpChannel {
+func newUdpChannel(conn *net.UDPConn, conf *gch.ChannelConf) *UdpChannel {
 	ch := &UdpChannel{conn: conn}
 	ch.BaseChannel = *gch.NewDefaultBaseChannel(conf)
 	readBufSize := conf.ReadBufSize
@@ -36,13 +35,13 @@ func newUdpChannel(conn *net.UDPConn, conf *config.ChannelConf) *UdpChannel {
 }
 
 // NewUdpChannel 创建udpchannel，需实现handleMsgFunc方法
-func NewUdpChannel(udpConn *net.UDPConn, chConf *config.ChannelConf, msgFunc gch.HandleMsgFunc) *UdpChannel {
+func NewUdpChannel(udpConn *net.UDPConn, chConf *gch.ChannelConf, msgFunc gch.HandleMsgFunc) *UdpChannel {
 	chHandle := gch.NewChHandle(msgFunc, nil, nil)
 	return NewUdpChannelWithHandle(udpConn, chConf, chHandle)
 }
 
 // NewUdpChannelWithHandle 创建udpchannel，需实现ChannelHandle
-func NewUdpChannelWithHandle(udpConn *net.UDPConn, chConf *config.ChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
+func NewUdpChannelWithHandle(udpConn *net.UDPConn, chConf *gch.ChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
 	ch := newUdpChannel(udpConn, chConf)
 	ch.ChannelHandle = *chHandle
 	ch.SetChId(udpConn.LocalAddr().String() + ":" + udpConn.RemoteAddr().String())
@@ -54,19 +53,22 @@ func (b *UdpChannel) Read() (packet gch.Packet, err error) {
 	conf := b.GetChConf()
 	b.conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
 	readbf := make([]byte, conf.ReadBufSize)
-	readNum, err := b.conn.Read(readbf)
+	readNum, addr, err := b.conn.ReadFrom(readbf)
 	if err != nil {
 		return nil, err
 	}
 
 	bytes := readbf[0:readNum]
-	datapack := b.NewPacket()
+	nPacket := b.NewPacket()
+	datapack := nPacket.(*UdpPacket)
 	datapack.SetData(bytes)
+	datapack.Addr = addr
 	logx.Info(b.GetChStatis().StringRev())
 	gch.RevStatis(datapack)
 	return datapack, err
 }
 
+// Write datapack需要设置目标addr
 func (b *UdpChannel) Write(datapack gch.Packet) error {
 	defer func() {
 		i := recover()
@@ -77,10 +79,17 @@ func (b *UdpChannel) Write(datapack gch.Packet) error {
 		}
 	}()
 	if datapack.IsPrepare() {
-		bytes := datapack.GetData()
+		writePacket := datapack.(*UdpPacket)
+		bytes := writePacket.GetData()
 		conf := b.GetChConf()
 		b.conn.SetWriteDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
-		_, err := b.conn.Write(bytes)
+		addr := writePacket.Addr
+		var err error
+		if addr != nil {
+			_, err = b.conn.WriteTo(bytes, addr)
+		} else {
+			_, err = b.conn.Write(bytes)
+		}
 		if err != nil {
 			logx.Error("write error:", err)
 			panic(err)
@@ -93,8 +102,8 @@ func (b *UdpChannel) Write(datapack gch.Packet) error {
 	return nil
 }
 
-func (b *UdpChannel) StopChannel(channel gch.Channel){
-	if !b.IsClosed(){
+func (b *UdpChannel) StopChannel(channel gch.Channel) {
+	if !b.IsClosed() {
 		b.conn.Close()
 	}
 	b.BaseChannel.StopChannel(channel)
@@ -117,4 +126,5 @@ func (b *UdpChannel) NewPacket() gch.Packet {
 // UdpPacket Udp包
 type UdpPacket struct {
 	gch.Basepacket
+	Addr net.Addr
 }

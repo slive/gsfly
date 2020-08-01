@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"github.com/xtaci/kcp-go"
 	gch "gsfly/channel"
-	gconf "gsfly/config"
 	logx "gsfly/logger"
 	"net"
 	"time"
@@ -20,7 +19,7 @@ type KcpChannel struct {
 	protocol gch.Protocol
 }
 
-func newKcpChannel(kcpConn *kcp.UDPSession, conf *gconf.ChannelConf, protocol gch.Protocol) *KcpChannel {
+func newKcpChannel(kcpConn *kcp.UDPSession, conf *gch.ChannelConf, protocol gch.Protocol) *KcpChannel {
 	ch := &KcpChannel{conn: kcpConn}
 	ch.BaseChannel = *gch.NewDefaultBaseChannel(conf)
 	ch.protocol = protocol
@@ -37,13 +36,13 @@ func newKcpChannel(kcpConn *kcp.UDPSession, conf *gconf.ChannelConf, protocol gc
 	return ch
 }
 
-func NewKcpChannel(kcpConn *kcp.UDPSession, chConf *gconf.ChannelConf, msgFunc gch.HandleMsgFunc, protocol gch.Protocol) *KcpChannel {
+func NewKcpChannel(kcpConn *kcp.UDPSession, chConf *gch.ChannelConf, msgFunc gch.HandleMsgFunc) *KcpChannel {
 	chHandle := gch.NewChHandle(msgFunc, nil, nil)
-	return NewKcpChannelWithHandle(kcpConn, chConf, chHandle, protocol)
+	return NewKcpChannelWithHandle(kcpConn, chConf, chHandle)
 }
 
-func NewKcpChannelWithHandle(kcpConn *kcp.UDPSession, chConf *gconf.ChannelConf, chHandle *gch.ChannelHandle, protocol gch.Protocol) *KcpChannel {
-	ch := newKcpChannel(kcpConn, chConf, protocol)
+func NewKcpChannelWithHandle(kcpConn *kcp.UDPSession, chConf *gch.ChannelConf, chHandle *gch.ChannelHandle) *KcpChannel {
+	ch := newKcpChannel(kcpConn, chConf, chConf.Protocol)
 	ch.ChannelHandle = *chHandle
 	ch.SetChId(kcpConn.LocalAddr().String() + ":" + kcpConn.RemoteAddr().String() + ":" + fmt.Sprintf("%v", kcpConn.GetConv()))
 	return ch
