@@ -230,6 +230,7 @@ func (b *BaseChannel) StopChannel(channel Channel) {
 		}
 	}()
 
+	logx.Info("start to close channel, chId:", b.GetChId())
 	// 清理关闭相关
 	b.SetClosed(true)
 	b.closeExit <- true
@@ -241,6 +242,7 @@ func (b *BaseChannel) StopChannel(channel Channel) {
 	if closeFunc != nil {
 		closeFunc(channel)
 	}
+	logx.Info("finish to close channel, chId:", b.GetChId())
 }
 
 // StartReadLoop 启动循环读取，读取到数据包后，放入#ReadQueue中，等待处理
@@ -255,6 +257,7 @@ func (b *BaseChannel) startReadLoop(channel Channel) {
 			}
 		}
 	}()
+	logx.Info("start to readloop, chId:", b.GetChId())
 	for {
 		select {
 		case <-b.closeExit:
