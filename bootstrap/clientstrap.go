@@ -16,7 +16,22 @@ import (
 	"net"
 )
 
-func DialWs(wsClientConf *WsClientConf, handle *gch.ChannelHandle) (gch.Channel, error) {
+type WsClient struct {
+	BaseClient
+	ClientConf *WsClientConf
+}
+
+func NewWsClient(wsClientConf *WsClientConf, handle *gch.ChannelHandle) Client {
+	b := &WsClient{
+		ClientConf: wsClientConf,
+	}
+	b.BaseCommunication = *NewCommunication(handle)
+	return b
+}
+
+func (wc *WsClient) Start() error {
+	wsClientConf := wc.ClientConf
+	handle := wc.ChannelHandle
 	url := wsClientConf.GetUrl()
 	params := wsClientConf.Params
 	if params != nil && len(params) > 0 {
@@ -36,43 +51,83 @@ func DialWs(wsClientConf *WsClientConf, handle *gch.ChannelHandle) (gch.Channel,
 	conn, response, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
 		logx.Error("dial ws error:", err)
-		return nil, err
+		return err
 	}
 
 	// TODO 处理resonse？
 	logx.Info("ws response:", response)
 	wsCh := ws.NewWsChannelWithHandle(conn, &wsClientConf.ChannelConf, handle)
 	err = wsCh.StartChannel(wsCh)
-	return wsCh, err
+	if err == nil {
+		wc.Channel = wsCh
+	}
+	return err
 }
 
-func DialKcp(kcpClientConf *KcpClientConf, chHandle *gch.ChannelHandle, protocol gch.Protocol) (gch.Channel, error) {
+type KcpClient struct {
+	BaseClient
+	ClientConf *KcpClientConf
+}
+
+func NewKcpClient(kcpClientConf *KcpClientConf, handle *gch.ChannelHandle) Client {
+	b := &KcpClient{
+		ClientConf: kcpClientConf,
+	}
+	b.BaseCommunication = *NewCommunication(handle)
+	return b
+}
+
+func (kc *KcpClient) Start() error {
+	kcpClientConf := kc.ClientConf
+	chHandle := kc.ChannelHandle
 	addr := kcpClientConf.GetAddrStr()
 	logx.Info("dial kws addr:", addr)
 	conn, err := kcp.DialWithOptions(addr, nil, 0, 0)
 	if err != nil {
 		logx.Error("dial kcpws conn error:", nil)
-		return nil, err
+		return err
 	}
 	kcpCh := kcpx.NewKcpChannelWithHandle(conn, &kcpClientConf.ChannelConf, chHandle)
 	err = kcpCh.StartChannel(kcpCh)
-	return kcpCh, err
+	if err == nil {
+		kc.Channel = kcpCh
+	}
+	return err
 }
 
-func DialUdp(clientConf *UdpClientConf, chHandle *gch.ChannelHandle) (gch.Channel, error) {
+type UdpClient struct {
+	BaseClient
+	ClientConf *UdpClientConf
+}
+
+func NewUdpClient(clientConf *UdpClientConf, handle *gch.ChannelHandle) Client {
+	b := &UdpClient{
+		ClientConf: clientConf,
+	}
+	b.BaseCommunication = *NewCommunication(handle)
+	return b
+}
+
+func (uc *UdpClient) Start() error {
+	clientConf := uc.ClientConf
+	chHandle := uc.ChannelHandle
 	addr := clientConf.GetAddrStr()
 	logx.Info("dial udp addr:", addr)
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		logx.Error("resolve updaddr error:", err)
-		return nil, err
+		return err
 	}
 	conn, err := net.DialUDP("udp", nil, udpAddr)
 	if err != nil {
 		logx.Error("dial udp conn error:", nil)
-		return nil, err
+		return err
 	}
+
 	udpCh := udp.NewUdpChannelWithHandle(conn, &clientConf.ChannelConf, chHandle)
 	err = udpCh.StartChannel(udpCh)
-	return udpCh, err
+	if err == nil {
+		uc.Channel = udpCh
+	}
+	return err
 }

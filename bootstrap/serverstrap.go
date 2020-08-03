@@ -38,9 +38,8 @@ func NewServer(serverConf *ServerConf) Server {
 		httpHandlers: make(map[string]HttpHandleFunc),
 		msgHandlers:  make(map[string]*gch.ChannelHandle),
 	}
+	t.BaseCommunication = *NewCommunication(nil)
 	t.ServerConf = serverConf
-	t.Closed = true
-	t.Exit = make(chan bool)
 	t.Channels = make(map[string]gch.Channel, 10)
 	return t
 }
@@ -53,6 +52,12 @@ func (t *HttpWsServer) AddHttpHandleFunc(pattern string, httpHandleFunc HttpHand
 // AddWsHandleFunc 添加Websocket处理方法
 func (t *HttpWsServer) AddWsHandleFunc(pattern string, wsHandleFunc *gch.ChannelHandle) {
 	t.msgHandlers[pattern] = wsHandleFunc
+}
+
+// GetChannelHandle 暂时不支持，用GetMsgHandlers()代替
+func (t *HttpWsServer) GetChannelHandle() *gch.ChannelHandle {
+	logx.Panic("unsupport")
+	return nil
 }
 
 func (t *HttpWsServer) GetMsgHandlers() map[string]*gch.ChannelHandle {
@@ -72,14 +77,14 @@ func (tcpls *HttpWsServer) Start() error {
 		}
 	}
 
-	// ws处理事件
-	acceptChannels := tcpls.Channels
 	defer func() {
 		tcpls.Stop()
 	}()
 
 	wsHandlers := tcpls.GetMsgHandlers()
 	if wsHandlers != nil {
+		// ws处理事件
+		acceptChannels := tcpls.Channels
 		for key, f := range wsHandlers {
 			httpx.HandleFunc(key, func(writer httpx.ResponseWriter, r *httpx.Request) {
 				logx.Info("requestWs:", r.URL)
@@ -129,7 +134,7 @@ func startWs(w httpx.ResponseWriter, r *httpx.Request, serverConf *ServerConf, h
 
 	wsCh := ws.NewWsChannelWithHandle(conn, gch.Global_Conf.ChannelConf, handle)
 	err = wsCh.StartChannel(wsCh)
-	if err != nil {
+	if err == nil {
 		// TODO 线程安全？
 		acceptChannels[wsCh.GetChId()] = wsCh
 	}
@@ -145,9 +150,7 @@ func NewKcpServer(kcpServerConf *KcpServerConf, chHandle *gch.ChannelHandle) Ser
 	k := &KcpServer{
 		ServerConf: kcpServerConf,
 	}
-	k.ChannelHandle = chHandle
-	k.Closed = true
-	k.Exit = make(chan bool)
+	k.BaseCommunication = *NewCommunication(chHandle)
 	k.Channels = make(map[string]gch.Channel, 10)
 	return k
 }
@@ -166,7 +169,7 @@ func (k *KcpServer) Start() error {
 		return err
 	}
 
-	kwsChannels := make(map[string]gch.Channel, 10)
+	kwsChannels := k.Channels
 	defer func() {
 		for key, kch := range kwsChannels {
 			kch.StopChannel(kch)
@@ -183,7 +186,7 @@ func (k *KcpServer) Start() error {
 
 		kcpCh := kcpx.NewKcpChannelWithHandle(kcpConn, &kcpServerConf.ChannelConf, k.ChannelHandle)
 		err = kcpCh.StartChannel(kcpCh)
-		if err != nil {
+		if err == nil {
 			kwsChannels[kcpCh.GetChId()] = kcpCh
 		}
 	}
@@ -195,14 +198,11 @@ type UdpServer struct {
 	ServerConf *UdpServerConf
 }
 
-
-func NewUdpServer(serverConf *UdpServerConf, channelHandle *gch.ChannelHandle) Server{
+func NewUdpServer(serverConf *UdpServerConf, channelHandle *gch.ChannelHandle) Server {
 	k := &UdpServer{
 		ServerConf: serverConf,
 	}
-	k.ChannelHandle = channelHandle
-	k.Closed = true
-	k.Exit = make(chan bool)
+	k.BaseCommunication = *NewCommunication(channelHandle)
 	k.Channels = make(map[string]gch.Channel, 10)
 	return k
 }
@@ -225,4 +225,4 @@ func (u *UdpServer) Start() error {
 	ch := udp.NewUdpChannelWithHandle(conn, &serverConf.ChannelConf, u.ChannelHandle)
 	err = ch.StartChannel(ch)
 	return err
- }
+}

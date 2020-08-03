@@ -25,6 +25,8 @@ const (
 	LOG_INFO  = logx.InfoLevel
 	LOG_WARN  = logx.WarnLevel
 	LOG_ERROR = logx.ErrorLevel
+	LOG_FATAL = logx.FatalLevel
+	LOG_PANIC = logx.PanicLevel
 )
 
 type LogConf struct {
@@ -35,12 +37,15 @@ type LogConf struct {
 	LogDir string
 
 	Level int
+
+	MaxRemainCount uint
 }
 
 func NewDefaultLogConf() *LogConf {
 	logConf := &LogConf{
-		LogFile: "log-gsfly.log",
-		LogDir:  util.GetPwd() + "/log",
+		LogFile:        "log-gsfly.log",
+		LogDir:         util.GetPwd() + "/log",
+		MaxRemainCount: 20,
 	}
 	return logConf
 }
@@ -103,7 +108,11 @@ func init() {
 		DisableSorting:   false,
 	}
 	logx.SetFormatter(&tf)
-	logx.AddHook(newRlfHook(10, filePath, &tf))
+	maxRemainCount := logConf.MaxRemainCount
+	if maxRemainCount <= 0 {
+		maxRemainCount = 10
+	}
+	logx.AddHook(newRlfHook(maxRemainCount, filePath, &tf))
 }
 
 func checkFileExist(filename string) bool {
@@ -156,31 +165,29 @@ func newRlfHook(maxRemainCont uint, logName string, tf *logx.TextFormatter) logx
 
 func logwrite(level logx.Level, logs []interface{}) {
 	if logs != nil {
-		// finalLog := convertFinalLog(logs)
 		finalLog := logs
-
+		field := logx.WithField("file", caller())
 		switch level {
 		case LOG_DEBUG:
-			logx.WithField("file", caller()).Debug(finalLog)
+			field.Debug(finalLog)
 			break
 		case LOG_INFO:
-			logx.WithField("file", caller()).Info(finalLog)
+			field.Info(finalLog)
 			break
 		case LOG_WARN:
-			logx.WithField("file", caller()).Warn(finalLog)
+			field.Warn(finalLog)
 			break
 		case LOG_ERROR:
-			logx.WithField("file", caller()).Debug(finalLog)
+			field.Debug(finalLog)
 			break
 		default:
-			logx.WithField("file", caller()).Println(finalLog)
+			field.Println(finalLog)
 		}
 	}
 }
 
 func convertFinalLog(logs []interface{}) string {
 	lfmt := caller()
-
 	var index int = 1
 	logsLen := len(logs)
 	for _, val := range logs {
@@ -196,7 +203,7 @@ func convertFinalLog(logs []interface{}) string {
 
 func caller() string {
 	lfmt := ""
-	_, file, line, ok := runtime.Caller(3)
+	_, file, line, ok := runtime.Caller(2)
 	if ok {
 		sps := strings.Split(file, "/")
 		if sps != nil {
@@ -208,21 +215,71 @@ func caller() string {
 }
 
 func Println(logs ...interface{}) {
-	logwrite(logLevel, logs)
+	field := logx.WithField("file", caller())
+	field.Println(logs)
+}
+
+func Printf(format string, logs ...interface{}) {
+	field := logx.WithField("file", caller())
+	field.Printf(format, logs)
 }
 
 func Debug(logs ...interface{}) {
-	logwrite(LOG_DEBUG, logs)
+	field := logx.WithField("file", caller())
+	field.Debug(logs)
+}
+
+func Debugf(format string, logs ...interface{}) {
+	field := logx.WithField("file", caller())
+	field.Debugf(format, logs)
 }
 
 func Info(logs ...interface{}) {
-	logwrite(LOG_INFO, logs)
+	field := logx.WithField("file", caller())
+	field.Info(logs)
+}
+
+func Infof(format string, logs ...interface{}) {
+	field := logx.WithField("file", caller())
+	field.Infof(format, logs)
 }
 
 func Warn(logs ...interface{}) {
-	logwrite(LOG_WARN, logs)
+	field := logx.WithField("file", caller())
+	field.Warn(logs)
+}
+
+func Warnf(format string, logs ...interface{}) {
+	field := logx.WithField("file", caller())
+	field.Warnf(format, logs)
 }
 
 func Error(logs ...interface{}) {
-	logwrite(LOG_ERROR, logs)
+	field := logx.WithField("file", caller())
+	field.Error(logs)
+}
+
+func Errorf(format string, logs ...interface{}) {
+	field := logx.WithField("file", caller())
+	field.Errorf(format, logs)
+}
+
+func Fatal(logs ...interface{}) {
+	field := logx.WithField("file", caller())
+	field.Fatal(logs)
+}
+
+func Fatalf(format string, logs ...interface{}) {
+	field := logx.WithField("file", caller())
+	field.Fatalf(format, logs)
+}
+
+func Panic(logs ...interface{}) {
+	field := logx.WithField("file", caller())
+	field.Panic(logs)
+}
+
+func Panicf(format string, logs ...interface{}) {
+	field := logx.WithField("file", caller())
+	field.Panicf(format, logs)
 }

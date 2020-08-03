@@ -9,7 +9,7 @@ import (
 	logx "gsfly/logger"
 )
 
-type Server interface {
+type Communication interface {
 	GetId() string
 
 	Start() error
@@ -21,25 +21,40 @@ type Server interface {
 	GetChannelHandle() *gch.ChannelHandle
 }
 
-type BaseServer struct {
-	ServerConf    *ServerConf
-	Channels      map[string]gch.Channel
+type BaseCommunication struct {
 	Closed        bool
 	Exit          chan bool
 	ChannelHandle *gch.ChannelHandle
 }
 
+func NewCommunication(handle *gch.ChannelHandle) *BaseCommunication {
+	b := &BaseCommunication{
+		Closed:        true,
+		Exit:          make(chan bool, 1),
+		ChannelHandle: handle}
+	return b
+}
+
+func (bc *BaseCommunication) IsClosed() bool {
+	return bc.Closed
+}
+
+func (bc *BaseCommunication) GetChannelHandle() *gch.ChannelHandle {
+	return bc.ChannelHandle
+}
+
+type Server interface {
+	Communication
+}
+
+type BaseServer struct {
+	BaseCommunication
+	ServerConf *ServerConf
+	Channels   map[string]gch.Channel
+}
+
 func (tcpls *BaseServer) GetId() string {
 	return tcpls.ServerConf.GetAddrStr()
-}
-
-func (tcpls *BaseServer) IsClosed() bool {
-	return tcpls.Closed
-}
-
-// GetChannelHandle 暂不支持
-func (tcpls *BaseServer) GetChannelHandle() *gch.ChannelHandle {
-	return tcpls.ChannelHandle
 }
 
 func (tcpls *BaseServer) Stop() {
@@ -52,5 +67,36 @@ func (tcpls *BaseServer) Stop() {
 			delete(acceptChannels, key)
 		}
 		logx.Info("stop httpx listen.")
+	}
+}
+
+type BaseClient struct {
+	BaseCommunication
+	ClientConf *ClientConf
+	Channel    gch.Channel
+}
+
+type Client interface {
+	Communication
+	GetChannel() gch.Channel
+}
+
+func (bc *BaseClient) GetId() string {
+	return bc.ClientConf.GetAddrStr()
+}
+
+func (bc *BaseClient) GetChannel() gch.Channel {
+	return bc.Channel
+}
+
+func (bc *BaseClient) Stop() {
+	if !bc.Closed {
+		id := bc.GetId()
+		logx.Info("start to stop client, id:", id)
+		bc.Closed = true
+		bc.Exit <- true
+		bc.Channel.StopChannel(bc.Channel)
+		bc.Channel = nil
+		logx.Info("stop to stop client, id:", id)
 	}
 }
