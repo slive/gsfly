@@ -20,15 +20,6 @@ import (
 	"time"
 )
 
-const (
-	LOG_DEBUG = logx.DebugLevel
-	LOG_INFO  = logx.InfoLevel
-	LOG_WARN  = logx.WarnLevel
-	LOG_ERROR = logx.ErrorLevel
-	LOG_FATAL = logx.FatalLevel
-	LOG_PANIC = logx.PanicLevel
-)
-
 type LogConf struct {
 	// LogFile 日志文件
 	LogFile string
@@ -161,29 +152,6 @@ func newRlfHook(maxRemainCont uint, logName string, tf *logx.TextFormatter) logx
 	}, tf)
 
 	return lfsHook
-}
-
-func logwrite(level logx.Level, logs []interface{}) {
-	if logs != nil {
-		finalLog := logs
-		field := logx.WithField("file", caller())
-		switch level {
-		case LOG_DEBUG:
-			field.Debug(finalLog)
-			break
-		case LOG_INFO:
-			field.Info(finalLog)
-			break
-		case LOG_WARN:
-			field.Warn(finalLog)
-			break
-		case LOG_ERROR:
-			field.Debug(finalLog)
-			break
-		default:
-			field.Println(finalLog)
-		}
-	}
 }
 
 func convertFinalLog(logs []interface{}) string {
