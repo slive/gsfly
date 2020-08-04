@@ -266,7 +266,8 @@ func (b *BaseChannel) startReadLoop(channel Channel) {
 		default:
 			rev, err := channel.Read()
 			if err != nil {
-				logx.Info("read loop error:", err)
+				// TODO 区分不同的的异常进行处理？
+				logx.Panic("read loop error:", err)
 				return
 			}
 
@@ -300,6 +301,7 @@ func RevStatis(packet Packet) {
 	statis.RevByteNum += int64(len(packet.GetData()))
 	statis.RevPacketNum += 1
 	statis.RevTime = time.Now()
+	logx.Debug("rev:", string(packet.GetData()))
 }
 
 // 写统计
@@ -308,4 +310,5 @@ func SendStatis(packet Packet) {
 	statis.SendByteNum += int64(len(packet.GetData()))
 	statis.SendPacketNum += 1
 	statis.SendTime = time.Now()
+	logx.Debug("write:", string(packet.GetData()))
 }
