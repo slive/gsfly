@@ -19,69 +19,39 @@ type KcpChannel struct {
 	protocol gch.Protocol
 }
 
-func newKcpChannel(kcpConn *kcp.UDPSession, conf *gch.ChannelConf, protocol gch.Protocol) *KcpChannel {
+func newKcpChannel(kcpConn *kcp.UDPSession, conf *gch.BaseChannelConf, protocol gch.Protocol) *KcpChannel {
 	ch := &KcpChannel{conn: kcpConn}
 	ch.BaseChannel = *gch.NewDefaultBaseChannel(conf)
 	ch.protocol = protocol
-	readBufSize := conf.ReadBufSize
-	if readBufSize <= 0 {
-		readBufSize = 10 * 1024
-	}
-
-	writeBufSize := conf.WriteBufSize
-	if writeBufSize <= 0 {
-		writeBufSize = 10 * 1024
-	}
+	readBufSize := conf.GetReadBufSize()
+	kcpConn.SetReadBuffer(readBufSize)
+	writeBufSize := conf.GetWriteBufSize()
 	kcpConn.SetWriteBuffer(writeBufSize)
 	return ch
 }
 
-func NewKcpChannel(kcpConn *kcp.UDPSession, chConf *gch.ChannelConf, msgFunc gch.HandleMsgFunc) *KcpChannel {
+func NewKcpChannel(kcpConn *kcp.UDPSession, chConf *gch.BaseChannelConf, msgFunc gch.HandleMsgFunc) *KcpChannel {
 	chHandle := gch.NewChHandle(msgFunc, nil, nil)
 	return NewKcpChannelWithHandle(kcpConn, chConf, chHandle)
 }
 
-func NewKcpChannelWithHandle(kcpConn *kcp.UDPSession, chConf *gch.ChannelConf, chHandle *gch.ChannelHandle) *KcpChannel {
+func NewKcpChannelWithHandle(kcpConn *kcp.UDPSession, chConf *gch.BaseChannelConf, chHandle *gch.ChannelHandle) *KcpChannel {
 	ch := newKcpChannel(kcpConn, chConf, chConf.Protocol)
 	ch.ChannelHandle = *chHandle
-	ch.SetChId(kcpConn.LocalAddr().String() + ":" + kcpConn.RemoteAddr().String() + ":" + fmt.Sprintf("%v", kcpConn.GetConv()))
+	ch.SetChId("kcp-" + kcpConn.LocalAddr().String() + "-" + kcpConn.RemoteAddr().String() + "-" + fmt.Sprintf("%v", kcpConn.GetConv()))
 	return ch
 }
 
-// func (b *KcpChannel) StartChannel() error {
-// 	defer func() {
-// 		re := recover()
-// 		if re != nil {
-// 			logx.Error("Start kcpChannel error:", re)
-// 		}
-// 	}()
-// 	go b.StartReadLoop(b)
-//
-// 	// 启动后处理方法
-// 	startFunc := b.HandleStartFunc
-// 	if startFunc != nil {
-// 		err := startFunc(b)
-// 		if err != nil {
-// 			b.StopChannel()
-// 		}
-// 		return err
-// 	}
-// 	return nil
-// }
-
-func (b *KcpChannel) GetConn() *kcp.UDPSession {
-	return b.conn
-}
-
-func (b *KcpChannel) Read() (packet gch.Packet, err error) {
+func (b *KcpChannel) Read() (gch.Packet, error) {
 	// TODO 超时配置
-	conn := b.GetConn()
+	conn := b.conn
 	conf := b.GetChConf()
-	conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
-	readbf := make([]byte, conf.ReadBufSize)
+	// conn.SetReadDeadline(time.Now().Add(conf.GetReadTimeout() * time.Second))
+	readbf := make([]byte, conf.GetReadBufSize())
 	readNum, err := conn.Read(readbf)
 	if err != nil {
 		// TODO 超时后抛出异常？
+		logx.Info("read kcp err:", err)
 		return nil, err
 	}
 	// 接收到8个字节数据，是bug?
@@ -98,6 +68,10 @@ func (b *KcpChannel) Read() (packet gch.Packet, err error) {
 	return datapack, err
 }
 
+func (b *KcpChannel) IsReadLoopContinued(err error) bool {
+	return false
+}
+
 func (b *KcpChannel) Write(datapack gch.Packet) error {
 	defer func() {
 		i := recover()
@@ -109,9 +83,9 @@ func (b *KcpChannel) Write(datapack gch.Packet) error {
 
 	if datapack.IsPrepare() {
 		bytes := datapack.GetData()
-		conn := b.GetConn()
+		conn := b.conn
 		conf := b.GetChConf()
-		conn.SetWriteDeadline(time.Now().Add(conf.WriteTimeout * time.Second))
+		conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
 		_, err := conn.Write(bytes)
 		if err != nil {
 			logx.Error("write error:", err)

@@ -184,7 +184,7 @@ func (k *KcpServer) Start() error {
 			return err
 		}
 
-		kcpCh := kcpx.NewKcpChannelWithHandle(kcpConn, &kcpServerConf.ChannelConf, k.ChannelHandle)
+		kcpCh := kcpx.NewKcpChannelWithHandle(kcpConn, &kcpServerConf.BaseChannelConf, k.ChannelHandle)
 		err = kcpCh.StartChannel(kcpCh)
 		if err == nil {
 			kwsChannels[kcpCh.GetChId()] = kcpCh
@@ -222,7 +222,7 @@ func (u *UdpServer) Start() error {
 		return err
 	}
 	// TODO udp有源和目标地址之分，待实现
-	ch := udp.NewUdpChannelWithHandle(conn, &serverConf.ChannelConf, u.ChannelHandle)
+	ch := udp.NewUdpChannelWithHandle(conn, &serverConf.BaseChannelConf, u.ChannelHandle)
 	err = ch.StartChannel(ch)
 	return err
 }

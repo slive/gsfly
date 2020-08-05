@@ -17,42 +17,37 @@ type UdpChannel struct {
 	conn *net.UDPConn
 }
 
-func newUdpChannel(conn *net.UDPConn, conf *gch.ChannelConf) *UdpChannel {
+func newUdpChannel(conn *net.UDPConn, conf *gch.BaseChannelConf) *UdpChannel {
 	ch := &UdpChannel{conn: conn}
 	ch.BaseChannel = *gch.NewDefaultBaseChannel(conf)
-	readBufSize := conf.ReadBufSize
-	if readBufSize <= 0 {
-		readBufSize = 10 * 1024
-	}
+	readBufSize := conf.GetReadBufSize()
 	conn.SetReadBuffer(readBufSize)
 
-	writeBufSize := conf.WriteBufSize
-	if writeBufSize <= 0 {
-		writeBufSize = 10 * 1024
-	}
+	writeBufSize := conf.GetWriteBufSize()
 	conn.SetWriteBuffer(writeBufSize)
 	return ch
 }
 
 // NewUdpChannel 创建udpchannel，需实现handleMsgFunc方法
-func NewUdpChannel(udpConn *net.UDPConn, chConf *gch.ChannelConf, msgFunc gch.HandleMsgFunc) *UdpChannel {
+func NewUdpChannel(udpConn *net.UDPConn, chConf *gch.BaseChannelConf, msgFunc gch.HandleMsgFunc) *UdpChannel {
 	chHandle := gch.NewChHandle(msgFunc, nil, nil)
 	return NewUdpChannelWithHandle(udpConn, chConf, chHandle)
 }
 
 // NewUdpChannelWithHandle 创建udpchannel，需实现ChannelHandle
-func NewUdpChannelWithHandle(udpConn *net.UDPConn, chConf *gch.ChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
+func NewUdpChannelWithHandle(udpConn *net.UDPConn, chConf *gch.BaseChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
 	ch := newUdpChannel(udpConn, chConf)
 	ch.ChannelHandle = *chHandle
-	ch.SetChId(udpConn.LocalAddr().String() + ":" + udpConn.RemoteAddr().String())
+	ch.SetChId("udp-" + udpConn.LocalAddr().String() + "-" + udpConn.RemoteAddr().String())
 	return ch
 }
 
-func (b *UdpChannel) Read() (packet gch.Packet, err error) {
+func (b *UdpChannel) Read() (gch.Packet, error) {
 	// TODO 超时配置
 	conf := b.GetChConf()
-	b.conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
-	readbf := make([]byte, conf.ReadBufSize)
+	b.conn.SetReadDeadline(time.Now().Add(conf.GetReadTimeout() * time.Second))
+	// TODO 是否有性能问题？
+	readbf := make([]byte, conf.GetReadBufSize())
 	readNum, addr, err := b.conn.ReadFrom(readbf)
 	if err != nil {
 		return nil, err
@@ -82,7 +77,7 @@ func (b *UdpChannel) Write(datapack gch.Packet) error {
 		writePacket := datapack.(*UdpPacket)
 		bytes := writePacket.GetData()
 		conf := b.GetChConf()
-		b.conn.SetWriteDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
+		b.conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
 		addr := writePacket.Addr
 		var err error
 		if addr != nil {

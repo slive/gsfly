@@ -17,40 +17,32 @@ type WsChannel struct {
 	conn *gws.Conn
 }
 
-func newWsChannel(wsconn *gws.Conn, conf *gch.ChannelConf) *WsChannel {
+func newWsChannel(wsconn *gws.Conn, conf *gch.BaseChannelConf) *WsChannel {
 	ch := &WsChannel{conn: wsconn}
 	ch.BaseChannel = *gch.NewDefaultBaseChannel(conf)
 	return ch
 }
 
-func NewWsChannel(wsConn *gws.Conn, chConf *gch.ChannelConf, msgFunc gch.HandleMsgFunc) *WsChannel {
+func NewWsChannel(wsConn *gws.Conn, chConf *gch.BaseChannelConf, msgFunc gch.HandleMsgFunc) *WsChannel {
 	chHandle := gch.NewChHandle(msgFunc, nil, nil)
 	return NewWsChannelWithHandle(wsConn, chConf, chHandle)
 }
 
-func NewWsChannelWithHandle(wsConn *gws.Conn, chConf *gch.ChannelConf, chHandle *gch.ChannelHandle) *WsChannel {
+func NewWsChannelWithHandle(wsConn *gws.Conn, chConf *gch.BaseChannelConf, chHandle *gch.ChannelHandle) *WsChannel {
 	ch := newWsChannel(wsConn, chConf)
 	ch.ChannelHandle = *chHandle
 	wsConn.SetReadLimit(int64(chConf.ReadBufSize))
-	ch.SetChId(wsConn.LocalAddr().String() + ":" + wsConn.RemoteAddr().String())
+	ch.SetChId("ws-" + wsConn.LocalAddr().String() + "-" + wsConn.RemoteAddr().String())
 	return ch
 }
 
-func (b *WsChannel) Read() (packet gch.Packet, err error) {
+func (b *WsChannel) Read() (gch.Packet, error) {
 	// TODO 超时配置
-	conf := b.GetChConf()
-	b.conn.SetReadDeadline(time.Now().Add(conf.ReadTimeout * time.Second))
-	defer func() {
-		i := recover()
-		if i != nil {
-			logx.Error("recover, read error:", i)
-			b.StopChannel(b)
-		}
-	}()
+	// conf := b.GetChConf()
+	// b.conn.SetReadDeadline(time.Now().Add(conf.GetReadTimeout() * time.Second))
 	msgType, data, err := b.conn.ReadMessage()
 	if err != nil {
-		logx.Info("read err:", err)
-		panic(err)
+		logx.Info("read ws err:", err)
 		return nil, err
 	}
 
@@ -75,7 +67,7 @@ func (b *WsChannel) Write(packet gch.Packet) error {
 	wspacket := packet.(*WsPacket)
 	data := wspacket.GetData()
 	conf := b.GetChConf()
-	b.conn.SetWriteDeadline(time.Now().Add(conf.WriteTimeout * time.Second))
+	b.conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
 	err := b.conn.WriteMessage(wspacket.MsgType, data)
 	if err != nil {
 		panic(err)
@@ -92,6 +84,10 @@ func (b *WsChannel) StopChannel(channel gch.Channel) {
 		b.conn.Close()
 	}
 	b.BaseChannel.StopChannel(channel)
+}
+
+func (b *WsChannel) IsReadLoopContinued(err error) bool {
+	return false
 }
 
 func (b *WsChannel) LocalAddr() net.Addr {

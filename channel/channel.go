@@ -29,7 +29,7 @@ type Channel interface {
 	IsClosed() bool
 
 	// Read 读取方法
-	Read() (packet Packet, err error)
+	Read() (Packet, error)
 
 	// Write 写入方法
 	Write(packet Packet) error
@@ -38,7 +38,7 @@ type Channel interface {
 	GetHandleMsgFunc() HandleMsgFunc
 
 	// GetChConf 获取通道配置
-	GetChConf() *ChannelConf
+	GetChConf() *BaseChannelConf
 
 	// GetChStatis 获取通道统计相关
 	GetChStatis() *ChannelStatis
@@ -49,6 +49,10 @@ type Channel interface {
 
 	// 停止通道
 	StopChannel(channel Channel)
+
+	GetConn() net.Conn
+
+	IsReadLoopContinued(err error) bool
 }
 
 // ChannelHandle 通信通道处理结构，针对如开始，关闭和收到消息的方法
@@ -108,7 +112,8 @@ func (s *ChannelStatis) StringRev() string {
 type BaseChannel struct {
 	ChannelHandle
 	ChannelStatis
-	chConf    *ChannelConf
+	// conn      net.Conn
+	chConf    *BaseChannelConf
 	readPool  *ReadPool
 	chId      string
 	closed    bool
@@ -127,11 +132,11 @@ func init() {
 }
 
 // NewDefaultBaseChannel 创建默认基础通信通道
-func NewDefaultBaseChannel(conf *ChannelConf) *BaseChannel {
+func NewDefaultBaseChannel(conf *BaseChannelConf) *BaseChannel {
 	return NewBaseChannel(conf, Default_ReadPool)
 }
 
-func NewBaseChannel(conf *ChannelConf, readPool *ReadPool) *BaseChannel {
+func NewBaseChannel(conf *BaseChannelConf, readPool *ReadPool) *BaseChannel {
 	channel := &BaseChannel{
 		ChannelHandle: ChannelHandle{},
 		ChannelStatis: *NewChStatis(),
@@ -141,6 +146,7 @@ func NewBaseChannel(conf *ChannelConf, readPool *ReadPool) *BaseChannel {
 	}
 	channel.SetClosed(true)
 	channel.SetChId("")
+	logx.Info("create base channel, conf:", conf)
 	return channel
 }
 
@@ -200,12 +206,20 @@ func (b *BaseChannel) Write(packet Packet) error {
 	panic("implement me")
 }
 
-func (b *BaseChannel) GetChConf() *ChannelConf {
+func (b *BaseChannel) GetChConf() *BaseChannelConf {
 	return b.chConf
 }
 
 func (b *BaseChannel) GetChStatis() *ChannelStatis {
 	return &b.ChannelStatis
+}
+
+func (b *BaseChannel) GetConn() net.Conn {
+	return nil
+}
+
+func (b *BaseChannel) IsReadLoopContinued(err error) bool {
+	return true
 }
 
 func (b *BaseChannel) SetHandleMsgFunc(handleMsgFunc HandleMsgFunc) {
@@ -235,7 +249,10 @@ func (b *BaseChannel) StopChannel(channel Channel) {
 	b.SetClosed(true)
 	b.closeExit <- true
 	close(b.closeExit)
-
+	conn := channel.GetConn()
+	if conn != nil {
+		conn.Close()
+	}
 	// 执行关闭后的方法
 	// TODO 各自处理？
 	closeFunc := b.HandleCloseFunc
@@ -248,14 +265,8 @@ func (b *BaseChannel) StopChannel(channel Channel) {
 // StartReadLoop 启动循环读取，读取到数据包后，放入#ReadQueue中，等待处理
 func (b *BaseChannel) startReadLoop(channel Channel) {
 	defer func() {
-		i := recover()
-		if i != nil {
-			logx.Error("read loop error:", i)
-			_, ok := i.(error)
-			if ok {
-				b.StopChannel(channel)
-			}
-		}
+		recover()
+		b.StopChannel(channel)
 	}()
 	logx.Info("start to readloop, chId:", b.GetChId())
 	for {
@@ -266,9 +277,12 @@ func (b *BaseChannel) startReadLoop(channel Channel) {
 		default:
 			rev, err := channel.Read()
 			if err != nil {
-				// TODO 区分不同的的异常进行处理？
-				logx.Panic("read loop error:", err)
-				return
+				if !channel.IsReadLoopContinued(err) {
+					logx.Panic("read loop error:", err)
+					return
+				} else {
+					continue
+				}
 			}
 
 			if rev != nil && rev.IsPrepare() {

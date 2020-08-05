@@ -154,21 +154,6 @@ func newRlfHook(maxRemainCont uint, logName string, tf *logx.TextFormatter) logx
 	return lfsHook
 }
 
-func convertFinalLog(logs []interface{}) string {
-	lfmt := caller()
-	var index int = 1
-	logsLen := len(logs)
-	for _, val := range logs {
-		lfmt += fmt.Sprint(val)
-		index += 1
-		if index < logsLen {
-			lfmt += ","
-		}
-	}
-
-	return lfmt
-}
-
 func caller() string {
 	lfmt := ""
 	_, file, line, ok := runtime.Caller(2)
@@ -184,70 +169,70 @@ func caller() string {
 
 func Println(logs ...interface{}) {
 	field := logx.WithField("file", caller())
-	field.Println(logs)
+	field.Println(logs...)
 }
 
 func Printf(format string, logs ...interface{}) {
 	field := logx.WithField("file", caller())
-	field.Printf(format, logs)
+	field.Printf(format, logs...)
 }
 
 func Debug(logs ...interface{}) {
 	field := logx.WithField("file", caller())
-	field.Debug(logs)
+	field.Debug(logs...)
 }
 
 func Debugf(format string, logs ...interface{}) {
 	field := logx.WithField("file", caller())
-	field.Debugf(format, logs)
+	field.Debugf(format, logs...)
 }
 
 func Info(logs ...interface{}) {
 	field := logx.WithField("file", caller())
-	field.Info(logs)
+	field.Info(logs...)
 }
 
 func Infof(format string, logs ...interface{}) {
 	field := logx.WithField("file", caller())
-	field.Infof(format, logs)
+	field.Infof(format, logs...)
 }
 
 func Warn(logs ...interface{}) {
 	field := logx.WithField("file", caller())
-	field.Warn(logs)
+	field.Warn(logs...)
 }
 
 func Warnf(format string, logs ...interface{}) {
 	field := logx.WithField("file", caller())
-	field.Warnf(format, logs)
+	field.Warnf(format, logs...)
 }
 
 func Error(logs ...interface{}) {
 	field := logx.WithField("file", caller())
-	field.Error(logs)
+	field.Error(logs...)
 }
 
 func Errorf(format string, logs ...interface{}) {
 	field := logx.WithField("file", caller())
-	field.Errorf(format, logs)
+	field.Errorf(format, logs...)
 }
 
 func Fatal(logs ...interface{}) {
 	field := logx.WithField("file", caller())
-	field.Fatal(logs)
+	field.Fatal(logs...)
 }
 
 func Fatalf(format string, logs ...interface{}) {
 	field := logx.WithField("file", caller())
-	field.Fatalf(format, logs)
+	field.Fatalf(format, logs...)
 }
 
 func Panic(logs ...interface{}) {
 	field := logx.WithField("file", caller())
-	field.Panic(logs)
+	field.Panic(logs...)
 }
 
 func Panicf(format string, logs ...interface{}) {
 	field := logx.WithField("file", caller())
-	field.Panicf(format, logs)
+	field.Panicf(format, logs...)
 }

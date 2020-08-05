@@ -10,14 +10,14 @@ import (
 )
 
 type ServerConf struct {
-	channel.AddrConf
-	channel.ChannelConf
+	channel.BaseAddrConf
+	channel.BaseChannelConf
 	MaxAcceptSize int
 }
 
 type ClientConf struct {
-	channel.AddrConf
-	channel.ChannelConf
+	channel.BaseAddrConf
+	channel.BaseChannelConf
 }
 
 

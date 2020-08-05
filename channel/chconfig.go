@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-type ChannelConf struct {
+type BaseChannelConf struct {
 	// ReadTimeout 读超时时间间隔，单位ms，默认15s
 	ReadTimeout time.Duration
 
@@ -27,12 +27,106 @@ type ChannelConf struct {
 	Protocol Protocol
 }
 
-type AddrConf struct {
+type ChannelConf interface {
+	GetReadTimeout() time.Duration
+	GetReadBufSize() int
+	GetWriteTimeout() time.Duration
+	GetWriteBufSize() int
+
+	// GetProtocol 获取通道协议类型
+	// @see Protocol
+	GetProtocol() Protocol
+}
+
+const (
+	READ_TIMEOUT  = 15
+	READ_BUFSIZE  = 10 * 1024
+	WRITE_TIMEOUT = 15
+	WRITE_BUFSIZE = 10 * 1024
+)
+
+func NewBaseChannelConf(readTimeout time.Duration, readBufSize int, writeTimeout time.Duration, writeBufSize int, protocol Protocol) ChannelConf {
+	b := &BaseChannelConf{
+		ReadTimeout:  readTimeout,
+		WriteTimeout: writeTimeout,
+		ReadBufSize:  readBufSize,
+		WriteBufSize: writeBufSize,
+		Protocol:     protocol,
+	}
+	return b
+}
+
+func NewDefaultChannelConf() ChannelConf {
+	return NewBaseChannelConf(READ_TIMEOUT, READ_BUFSIZE, WRITE_TIMEOUT, WRITE_BUFSIZE, PROTOCOL_TCP)
+}
+
+func (bc *BaseChannelConf) GetReadTimeout() time.Duration {
+	timeout := bc.ReadTimeout
+	if timeout <= 0 {
+		timeout = READ_TIMEOUT
+	}
+	return timeout
+}
+
+func (bc *BaseChannelConf) GetReadBufSize() int {
+	ret := bc.ReadBufSize
+	if ret <= 0 {
+		ret = READ_BUFSIZE
+	}
+	return ret
+}
+
+func (bc *BaseChannelConf) GetWriteTimeout() time.Duration {
+	timeout := bc.WriteTimeout
+	if timeout <= 0 {
+		timeout = WRITE_TIMEOUT
+	}
+	return timeout
+}
+
+func (bc *BaseChannelConf) GetWriteBufSize() int {
+	ret := bc.WriteBufSize
+	if ret <= 0 {
+		ret = WRITE_BUFSIZE
+	}
+	return ret
+}
+
+// GetProtocol 获取通道协议类型
+func (bc *BaseChannelConf) GetProtocol() Protocol {
+	return bc.Protocol
+}
+
+type BaseAddrConf struct {
 	Ip   string
 	Port int
 }
 
-func (addr *AddrConf) GetAddrStr() string {
+type AddrConf interface {
+	// GetIp 获取ip或者url
+	GetIp() string
+
+	// GetPort 获取端口
+	GetPort() int
+
+	// GetAddrStr 获取完整地址
+	GetAddrStr() string
+}
+
+func NewBaseAddrConf(ip string, port int) AddrConf {
+	b := &BaseAddrConf{Ip: ip, Port: port}
+	return b
+}
+
+func (addr *BaseAddrConf) GetIp() string {
+	return addr.Ip
+}
+
+func (addr *BaseAddrConf) GetPort() int {
+	return addr.Port
+}
+
+func (addr *BaseAddrConf) GetAddrStr() string {
 	if addr.Port <= 0 {
 		return addr.Ip
 	}
@@ -45,16 +139,16 @@ type ReadPoolConf struct {
 }
 
 type DefaultConf struct {
-	ChannelConf  *ChannelConf
+	ChannelConf  *BaseChannelConf
 	ReadPoolConf *ReadPoolConf
 }
 
 var (
-	channelConf = &ChannelConf{
-		ReadTimeout:  15,
-		ReadBufSize:  10 * 1024,
-		WriteTimeout: 15,
-		WriteBufSize: 10 * 1024,
+	channelConf = &BaseChannelConf{
+		ReadTimeout:  READ_TIMEOUT,
+		ReadBufSize:  READ_BUFSIZE,
+		WriteTimeout: WRITE_TIMEOUT,
+		WriteBufSize: WRITE_BUFSIZE,
 	}
 
 	readPoolConf = &ReadPoolConf{
