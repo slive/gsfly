@@ -33,7 +33,7 @@ type HttpWsServer struct {
 }
 
 // Http和Websocket 的服务监听
-func NewServer(serverConf *ServerConf) Server {
+func NewServer(serverConf *BaseServerConf) Server {
 	t := &HttpWsServer{
 		httpHandlers: make(map[string]HttpHandleFunc),
 		msgHandlers:  make(map[string]*gch.ChannelHandle),
@@ -114,9 +114,9 @@ func (tcpls *HttpWsServer) Start() error {
 type HttpHandleFunc func(httpx.ResponseWriter, *httpx.Request)
 
 // startWs 启动ws处理
-func startWs(w httpx.ResponseWriter, r *httpx.Request, serverConf *ServerConf, handle *gch.ChannelHandle, acceptChannels map[string]gch.Channel) error {
+func startWs(w httpx.ResponseWriter, r *httpx.Request, serverConf *BaseServerConf, handle *gch.ChannelHandle, acceptChannels map[string]gch.Channel) error {
 	connLen := len(acceptChannels)
-	maxAcceptSize := serverConf.MaxAcceptSize
+	maxAcceptSize := serverConf.GetMaxChannelSize()
 	if connLen >= maxAcceptSize {
 		return errors.New("max accept size:" + fmt.Sprintf("%v", maxAcceptSize))
 	}

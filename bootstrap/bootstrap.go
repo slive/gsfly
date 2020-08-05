@@ -49,7 +49,7 @@ type Server interface {
 
 type BaseServer struct {
 	BaseCommunication
-	ServerConf *ServerConf
+	ServerConf *BaseServerConf
 	Channels   map[string]gch.Channel
 }
 
@@ -72,7 +72,7 @@ func (tcpls *BaseServer) Stop() {
 
 type BaseClient struct {
 	BaseCommunication
-	ClientConf *ClientConf
+	ClientConf *BaseClientConf
 	Channel    gch.Channel
 }
 

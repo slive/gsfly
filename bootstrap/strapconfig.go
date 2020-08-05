@@ -9,51 +9,64 @@ import (
 	"net/url"
 )
 
-type ServerConf struct {
-	channel.BaseAddrConf
-	channel.BaseChannelConf
-	MaxAcceptSize int
+type ServerConf interface {
+	channel.AddrConf
+	channel.ChannelConf
+	GetMaxChannelSize() int
 }
 
-type ClientConf struct {
+type BaseServerConf struct {
+	channel.BaseAddrConf
+	channel.BaseChannelConf
+	MaxChannelSize int
+}
+
+func (bs *BaseServerConf) GetMaxChannelSize() int {
+	return bs.MaxChannelSize
+}
+
+type ClientConf interface {
+	channel.AddrConf
+	channel.ChannelConf
+}
+
+type BaseClientConf struct {
 	channel.BaseAddrConf
 	channel.BaseChannelConf
 }
-
 
 type KcpConf struct {
 	// TODO kcp相关的配置
 }
 
-
 type KcpClientConf struct {
-	ClientConf
+	BaseClientConf
 	KcpConf
 }
 
 type KcpServerConf struct {
-	ServerConf
+	BaseServerConf
 	KcpConf
 }
 
 type UdpServerConf struct {
-	ServerConf
+	BaseServerConf
 }
 
 type UdpClientConf struct {
-	ClientConf
+	BaseClientConf
 }
 
 type HttpxServerConf struct {
-	ServerConf
+	BaseServerConf
 }
 
 type HttpxClientConf struct {
-	ClientConf
+	BaseClientConf
 }
 
 type WsClientConf struct {
-	ClientConf
+	BaseClientConf
 	Scheme      string
 	SubProtocol []string
 	Path        string
