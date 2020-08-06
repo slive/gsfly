@@ -100,6 +100,7 @@ func (bc *BaseChannelConf) GetProtocol() Protocol {
 type BaseAddrConf struct {
 	Ip   string
 	Port int
+	Protocol Protocol
 }
 
 type AddrConf interface {

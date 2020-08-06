@@ -28,12 +28,13 @@ var upgrader = websocket.Upgrader{
 
 type HttpWsServer struct {
 	BaseServer
+	ServerConf   *HttpxServerConf
 	msgHandlers  map[string]*gch.ChannelHandle
 	httpHandlers map[string]HttpHandleFunc
 }
 
 // Http和Websocket 的服务监听
-func NewServer(serverConf *BaseServerConf) Server {
+func NewHttpxServer(serverConf *HttpxServerConf) Server {
 	t := &HttpWsServer{
 		httpHandlers: make(map[string]HttpHandleFunc),
 		msgHandlers:  make(map[string]*gch.ChannelHandle),
@@ -114,7 +115,7 @@ func (tcpls *HttpWsServer) Start() error {
 type HttpHandleFunc func(httpx.ResponseWriter, *httpx.Request)
 
 // startWs 启动ws处理
-func startWs(w httpx.ResponseWriter, r *httpx.Request, serverConf *BaseServerConf, handle *gch.ChannelHandle, acceptChannels map[string]gch.Channel) error {
+func startWs(w httpx.ResponseWriter, r *httpx.Request, serverConf *HttpxServerConf, handle *gch.ChannelHandle, acceptChannels map[string]gch.Channel) error {
 	connLen := len(acceptChannels)
 	maxAcceptSize := serverConf.GetMaxChannelSize()
 	if connLen >= maxAcceptSize {

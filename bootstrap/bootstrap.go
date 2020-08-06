@@ -49,7 +49,7 @@ type Server interface {
 
 type BaseServer struct {
 	BaseCommunication
-	ServerConf *BaseServerConf
+	ServerConf ServerConf
 	Channels   map[string]gch.Channel
 }
 
@@ -59,6 +59,12 @@ func (tcpls *BaseServer) GetId() string {
 
 func (tcpls *BaseServer) Stop() {
 	if !tcpls.Closed {
+		id := tcpls.GetId()
+		defer func() {
+			ret := recover()
+			logx.Infof("finish to stop httpx listen, id:%v, ret:%v", id, ret)
+		}()
+		logx.Info("start to stop httpx listen, id:", id)
 		tcpls.Closed = true
 		tcpls.Exit <- true
 		acceptChannels := tcpls.Channels
@@ -66,19 +72,19 @@ func (tcpls *BaseServer) Stop() {
 			ch.StopChannel(ch)
 			delete(acceptChannels, key)
 		}
-		logx.Info("stop httpx listen.")
 	}
 }
 
 type BaseClient struct {
 	BaseCommunication
-	ClientConf *BaseClientConf
+	ClientConf ClientConf
 	Channel    gch.Channel
 }
 
 type Client interface {
 	Communication
 	GetChannel() gch.Channel
+	GetClientConf() ClientConf
 }
 
 func (bc *BaseClient) GetId() string {
@@ -89,14 +95,21 @@ func (bc *BaseClient) GetChannel() gch.Channel {
 	return bc.Channel
 }
 
+func (bc *BaseClient) GetClientConf() ClientConf {
+	return bc.ClientConf
+}
+
 func (bc *BaseClient) Stop() {
 	if !bc.Closed {
 		id := bc.GetId()
+		defer func() {
+			ret := recover()
+			logx.Infof("finish to stop client, id:%v, ret:%v", id, ret)
+		}()
 		logx.Info("start to stop client, id:", id)
 		bc.Closed = true
 		bc.Exit <- true
 		bc.Channel.StopChannel(bc.Channel)
 		bc.Channel = nil
-		logx.Info("stop to stop client, id:", id)
 	}
 }

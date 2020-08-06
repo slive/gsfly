@@ -232,19 +232,20 @@ func (b *BaseChannel) GetHandleMsgFunc() HandleMsgFunc {
 
 func (b *BaseChannel) StopChannel(channel Channel) {
 	// 关闭状态不再执行后面的内容
+	id := b.GetChId()
 	if channel.IsClosed() {
-		logx.Info("channel is closed, chId:", b.GetChId())
+		logx.Info("channel is closed, chId:", id)
 		return
 	}
 
 	defer func() {
 		err := recover()
 		if err != nil {
-			logx.Warn("close error, chId:", b.GetChId(), err)
+			logx.Warn("close error, chId:", id, err)
 		}
 	}()
 
-	logx.Info("start to close channel, chId:", b.GetChId())
+	logx.Info("start to close channel, chId:", id)
 	// 清理关闭相关
 	b.SetClosed(true)
 	b.closeExit <- true
@@ -259,7 +260,7 @@ func (b *BaseChannel) StopChannel(channel Channel) {
 	if closeFunc != nil {
 		closeFunc(channel)
 	}
-	logx.Info("finish to close channel, chId:", b.GetChId())
+	logx.Info("finish to close channel, chId:", id)
 }
 
 // StartReadLoop 启动循环读取，读取到数据包后，放入#ReadQueue中，等待处理
