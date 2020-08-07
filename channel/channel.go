@@ -6,16 +6,22 @@
 package channel
 
 import (
-	"fmt"
 	"github.com/pkg/errors"
 	logx "gsfly/logger"
+	"gsfly/util"
 	"net"
-	"time"
+)
+
+const (
+	ERR_READ  = "ERR_READ"
+	ERR_MSG   = "ERR_MSG"
+	ERR_WRITE = "ERR_WRITE"
+	ERR_STOP  = "ERR_STOP"
+	ERR_START = "ERR_START"
 )
 
 // Channel 通信通道接口
 type Channel interface {
-
 	// 启动通信通道
 	StartChannel(channel Channel) error
 
@@ -35,10 +41,10 @@ type Channel interface {
 	Write(packet Packet) error
 
 	// GetHandleMsgFunc 处理读取消息方法的方法
-	GetHandleMsgFunc() HandleMsgFunc
+	// GetHandleMsgFunc() OnMsgHandle
 
 	// GetChConf 获取通道配置
-	GetChConf() *BaseChannelConf
+	GetChConf() ChannelConf
 
 	// GetChStatis 获取通道统计相关
 	GetChStatis() *ChannelStatis
@@ -53,71 +59,20 @@ type Channel interface {
 	GetConn() net.Conn
 
 	IsReadLoopContinued(err error) bool
-}
 
-// ChannelHandle 通信通道处理结构，针对如开始，关闭和收到消息的方法
-type ChannelHandle struct {
-	HandleStartFunc HandleStartFunc
-	HandleMsgFunc   HandleMsgFunc
-	HandleCloseFunc HandleCloseFunc
-}
-
-// HandleMsgFunc 处理消息方法
-type HandleMsgFunc func(packet Packet) error
-
-// HandleCloseFunc 处理关闭时的方法
-type HandleCloseFunc func(channel Channel) error
-
-// HandleStartFunc 处理启动时的方法
-type HandleStartFunc func(channel Channel) error
-
-// NewChHandle 创建处理方法类
-func NewChHandle(handleMsgFunc HandleMsgFunc, handleStartFunc HandleStartFunc, handleCloseFunc HandleCloseFunc) *ChannelHandle {
-	return &ChannelHandle{
-		HandleStartFunc: handleStartFunc,
-		HandleMsgFunc:   handleMsgFunc,
-		HandleCloseFunc: handleCloseFunc,
-	}
-}
-
-// ChannelStatis 统计相关，比如收发包数目，收发次数
-type ChannelStatis struct {
-	RevByteNum    int64
-	RevPacketNum  int64
-	RevTime       time.Time
-	SendByteNum   int64
-	SendPacketNum int64
-	SendTime      time.Time
-}
-
-func NewChStatis() *ChannelStatis {
-	return &ChannelStatis{
-		RevByteNum:    0,
-		RevPacketNum:  0,
-		RevTime:       time.Now(),
-		SendByteNum:   0,
-		SendPacketNum: 0,
-		SendTime:      time.Now(),
-	}
-}
-
-func (s *ChannelStatis) StringSend() string {
-	return fmt.Sprintf("SendTime:%v, SendByteNum:%v, SendPacketNum:%v", s.SendTime, s.SendByteNum, s.SendPacketNum)
-}
-func (s *ChannelStatis) StringRev() string {
-	return fmt.Sprintf("RevTime:%v, RevByteNum:%v, RevPacketNum:%v", s.RevTime, s.RevByteNum, s.RevPacketNum)
+	GetChHandle() *ChannelHandle
 }
 
 // BaseChannel channel基类
 type BaseChannel struct {
-	ChannelHandle
-	ChannelStatis
-	// conn      net.Conn
-	chConf    *BaseChannelConf
-	readPool  *ReadPool
-	chId      string
-	closed    bool
-	closeExit chan bool
+	ChannelHandle *ChannelHandle
+	ChannelStatis *ChannelStatis
+	conn          net.Conn
+	chConf        ChannelConf
+	readPool      *ReadPool
+	chId          string
+	closed        bool
+	closeExit     chan bool
 }
 
 var Default_Read_Pool_Conf *ReadPoolConf
@@ -132,46 +87,56 @@ func init() {
 }
 
 // NewDefaultBaseChannel 创建默认基础通信通道
-func NewDefaultBaseChannel(conf *BaseChannelConf) *BaseChannel {
-	return NewBaseChannel(conf, Default_ReadPool)
+func NewDefaultBaseChannel(chConf ChannelConf, chHandle *ChannelHandle) *BaseChannel {
+	return NewBaseChannel(chConf, Default_ReadPool, chHandle)
 }
 
-func NewBaseChannel(conf *BaseChannelConf, readPool *ReadPool) *BaseChannel {
+func NewBaseChannel(chConf ChannelConf, readPool *ReadPool, chHandle *ChannelHandle) *BaseChannel {
+	if chHandle == nil {
+		errMsg := "ChannelHandle is nil"
+		logx.Error(errMsg)
+		panic(errMsg)
+	}
 	channel := &BaseChannel{
-		ChannelHandle: ChannelHandle{},
-		ChannelStatis: *NewChStatis(),
-		chConf:        conf,
+		ChannelHandle: chHandle,
+		ChannelStatis: NewChStatis(),
+		chConf:        chConf,
 		readPool:      readPool,
 		closeExit:     make(chan bool, 1),
 	}
 	channel.SetClosed(true)
 	channel.SetChId("")
-	logx.Info("create base channel, conf:", conf)
+	logx.Info("create base channel, chConf:", chConf)
 	return channel
 }
 
 func (b *BaseChannel) StartChannel(channel Channel) error {
+	id := b.GetChId()
 	if !channel.IsClosed() {
-		id := b.GetChId()
 		return errors.New("channel is open, chId:" + id)
 	}
 
 	defer func() {
-		re := recover()
-		if re != nil {
-			logx.Error("Start updchannel error:", re)
+		rec := recover()
+		if rec != nil {
+			logx.Errorf("Start channel error, chId:%v, ret:%v", id, rec)
+			err, ok := rec.(error)
+			if ok {
+				// 捕获处理消息异常
+				channel.GetChHandle().OnErrorHandle(channel, util.NewError1(ERR_START, err))
+			}
+			b.StopChannel(channel)
 		}
 	}()
 	go b.startReadLoop(channel)
 
 	// 启动后处理方法
-	startFunc := b.HandleStartFunc
+	startFunc := b.GetChHandle().OnStartHandle
 	if startFunc != nil {
 		err := startFunc(channel)
 		if err != nil {
-			b.StopChannel(channel)
+			return err
 		}
-		return err
 	}
 	logx.Info("finish to start channel, chId:", channel.GetChId())
 	b.SetClosed(false)
@@ -206,12 +171,12 @@ func (b *BaseChannel) Write(packet Packet) error {
 	panic("implement me")
 }
 
-func (b *BaseChannel) GetChConf() *BaseChannelConf {
+func (b *BaseChannel) GetChConf() ChannelConf {
 	return b.chConf
 }
 
 func (b *BaseChannel) GetChStatis() *ChannelStatis {
-	return &b.ChannelStatis
+	return b.ChannelStatis
 }
 
 func (b *BaseChannel) GetConn() net.Conn {
@@ -222,12 +187,8 @@ func (b *BaseChannel) IsReadLoopContinued(err error) bool {
 	return true
 }
 
-func (b *BaseChannel) SetHandleMsgFunc(handleMsgFunc HandleMsgFunc) {
-	b.ChannelHandle.HandleMsgFunc = handleMsgFunc
-}
-
-func (b *BaseChannel) GetHandleMsgFunc() HandleMsgFunc {
-	return b.ChannelHandle.HandleMsgFunc
+func (b *BaseChannel) GetChHandle() *ChannelHandle {
+	return b.ChannelHandle
 }
 
 func (b *BaseChannel) StopChannel(channel Channel) {
@@ -239,9 +200,16 @@ func (b *BaseChannel) StopChannel(channel Channel) {
 	}
 
 	defer func() {
-		err := recover()
-		if err != nil {
-			logx.Warn("close error, chId:", id, err)
+		rec := recover()
+		if rec != nil {
+			logx.Warn("close error, chId:", id, rec)
+			err, ok := rec.(error)
+			if ok {
+				// 捕获处理消息异常
+				channel.GetChHandle().OnErrorHandle(channel, util.NewError1(ERR_STOP, err))
+			}
+		} else {
+			logx.Info("finish to close channel, chId:", id)
 		}
 	}()
 
@@ -256,18 +224,25 @@ func (b *BaseChannel) StopChannel(channel Channel) {
 	}
 	// 执行关闭后的方法
 	// TODO 各自处理？
-	closeFunc := b.HandleCloseFunc
+	closeFunc := b.GetChHandle().OnStopHandle
 	if closeFunc != nil {
 		closeFunc(channel)
 	}
-	logx.Info("finish to close channel, chId:", id)
 }
 
 // StartReadLoop 启动循环读取，读取到数据包后，放入#ReadQueue中，等待处理
 func (b *BaseChannel) startReadLoop(channel Channel) {
 	defer func() {
-		recover()
-		b.StopChannel(channel)
+		rec := recover()
+		if rec != nil {
+			err, ok := rec.(error)
+			if ok {
+				logx.Errorf("readloop error, chId:%v, err:%v", b.GetChId(), err)
+				// 捕获处理消息异常
+				channel.GetChHandle().OnErrorHandle(channel, util.NewError1(ERR_READ, err))
+				b.StopChannel(channel)
+			}
+		}
 	}()
 	logx.Info("start to readloop, chId:", b.GetChId())
 	for {
@@ -293,10 +268,7 @@ func (b *BaseChannel) startReadLoop(channel Channel) {
 					readPool.Cache(rev)
 				} else {
 					// 否则默认直接处理
-					msgFunc := channel.GetHandleMsgFunc()
-					if msgFunc != nil {
-						msgFunc(rev)
-					}
+					channel.GetChHandle().innerMsgHandleFunc(rev)
 				}
 			}}
 	}
@@ -308,22 +280,4 @@ func (b *BaseChannel) LocalAddr() net.Addr {
 
 func (b *BaseChannel) RemoteAddr() net.Addr {
 	return nil
-}
-
-// 读取统计
-func RevStatis(packet Packet) {
-	statis := packet.GetChannel().GetChStatis()
-	statis.RevByteNum += int64(len(packet.GetData()))
-	statis.RevPacketNum += 1
-	statis.RevTime = time.Now()
-	logx.Debug("rev:", string(packet.GetData()))
-}
-
-// 写统计
-func SendStatis(packet Packet) {
-	statis := packet.GetChannel().GetChStatis()
-	statis.SendByteNum += int64(len(packet.GetData()))
-	statis.SendPacketNum += 1
-	statis.SendTime = time.Now()
-	logx.Debug("write:", string(packet.GetData()))
 }

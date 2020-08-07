@@ -133,7 +133,7 @@ func startWs(w httpx.ResponseWriter, r *httpx.Request, serverConf *HttpxServerCo
 		return err
 	}
 
-	wsCh := ws.NewWsChannelWithHandle(conn, gch.Global_Conf.ChannelConf, handle)
+	wsCh := ws.NewWsChannel(conn, serverConf, handle)
 	err = wsCh.StartChannel(wsCh)
 	if err == nil {
 		// TODO 线程安全？
@@ -185,7 +185,7 @@ func (k *KcpServer) Start() error {
 			return err
 		}
 
-		kcpCh := kcpx.NewKcpChannelWithHandle(kcpConn, &kcpServerConf.BaseChannelConf, k.ChannelHandle)
+		kcpCh := kcpx.NewKcpChannel(kcpConn, kcpServerConf, k.ChannelHandle)
 		err = kcpCh.StartChannel(kcpCh)
 		if err == nil {
 			kwsChannels[kcpCh.GetChId()] = kcpCh
@@ -223,7 +223,7 @@ func (u *UdpServer) Start() error {
 		return err
 	}
 	// TODO udp有源和目标地址之分，待实现
-	ch := udp.NewUdpChannelWithHandle(conn, &serverConf.BaseChannelConf, u.ChannelHandle)
+	ch := udp.NewUdpChannel(conn, serverConf, u.ChannelHandle)
 	err = ch.StartChannel(ch)
 	return err
 }

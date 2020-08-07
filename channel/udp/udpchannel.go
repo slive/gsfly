@@ -6,8 +6,11 @@
 package udp
 
 import (
+	"fmt"
+	"github.com/pkg/errors"
 	gch "gsfly/channel"
 	logx "gsfly/logger"
+	"gsfly/util"
 	"net"
 	"time"
 )
@@ -17,9 +20,9 @@ type UdpChannel struct {
 	conn *net.UDPConn
 }
 
-func newUdpChannel(conn *net.UDPConn, conf *gch.BaseChannelConf) *UdpChannel {
+func newUdpChannel(conn *net.UDPConn, conf gch.ChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
 	ch := &UdpChannel{conn: conn}
-	ch.BaseChannel = *gch.NewDefaultBaseChannel(conf)
+	ch.BaseChannel = *gch.NewDefaultBaseChannel(conf, chHandle)
 	readBufSize := conf.GetReadBufSize()
 	conn.SetReadBuffer(readBufSize)
 
@@ -28,16 +31,15 @@ func newUdpChannel(conn *net.UDPConn, conf *gch.BaseChannelConf) *UdpChannel {
 	return ch
 }
 
-// NewUdpChannel 创建udpchannel，需实现handleMsgFunc方法
-func NewUdpChannel(udpConn *net.UDPConn, chConf *gch.BaseChannelConf, msgFunc gch.HandleMsgFunc) *UdpChannel {
-	chHandle := gch.NewChHandle(msgFunc, nil, nil)
-	return NewUdpChannelWithHandle(udpConn, chConf, chHandle)
+// NewSimpleUdpChannel 创建udpchannel，需实现handleMsgFunc方法
+func NewSimpleUdpChannel(udpConn *net.UDPConn, chConf gch.ChannelConf, msgFunc gch.OnMsgHandle) *UdpChannel {
+	chHandle := gch.NewDefaultChHandle(msgFunc)
+	return NewUdpChannel(udpConn, chConf, chHandle)
 }
 
-// NewUdpChannelWithHandle 创建udpchannel，需实现ChannelHandle
-func NewUdpChannelWithHandle(udpConn *net.UDPConn, chConf *gch.BaseChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
-	ch := newUdpChannel(udpConn, chConf)
-	ch.ChannelHandle = *chHandle
+// NewUdpChannel 创建udpchannel，需实现ChannelHandle
+func NewUdpChannel(udpConn *net.UDPConn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
+	ch := newUdpChannel(udpConn, chConf, chHandle)
 	ch.SetChId("udp-" + udpConn.LocalAddr().String() + "-" + udpConn.RemoteAddr().String())
 	return ch
 }
@@ -45,11 +47,14 @@ func NewUdpChannelWithHandle(udpConn *net.UDPConn, chConf *gch.BaseChannelConf, 
 func (b *UdpChannel) Read() (gch.Packet, error) {
 	// TODO 超时配置
 	conf := b.GetChConf()
-	b.conn.SetReadDeadline(time.Now().Add(conf.GetReadTimeout() * time.Second))
+	now := time.Now()
+	b.conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
 	// TODO 是否有性能问题？
 	readbf := make([]byte, conf.GetReadBufSize())
 	readNum, addr, err := b.conn.ReadFrom(readbf)
 	if err != nil {
+		logx.Warn("read udp err:", err)
+		gch.RevStatisFail(b, now)
 		return nil, err
 	}
 
@@ -59,16 +64,26 @@ func (b *UdpChannel) Read() (gch.Packet, error) {
 	datapack.SetData(bytes)
 	datapack.Addr = addr
 	logx.Info(b.GetChStatis().StringRev())
-	gch.RevStatis(datapack)
+	gch.RevStatis(datapack, true)
 	return datapack, err
 }
 
 // Write datapack需要设置目标addr
 func (b *UdpChannel) Write(datapack gch.Packet) error {
+	if b.IsClosed() {
+		return errors.New("udpchannel had closed, chId:" + b.GetChId())
+	}
+
 	defer func() {
-		i := recover()
-		if i != nil {
-			logx.Error("write error:", i)
+		rec := recover()
+		if rec != nil {
+			logx.Error("write udp error, chId:%v, error:%v", b.GetChId(), rec)
+			err, ok := rec.(error)
+			if !ok {
+				err = errors.New(fmt.Sprintf("%v", rec))
+			}
+			// 捕获处理消息异常
+			b.GetChHandle().OnErrorHandle(b, util.NewError1(gch.ERR_WRITE, err))
 			// 有异常，终止执行
 			b.StopChannel(b)
 		}
@@ -86,11 +101,12 @@ func (b *UdpChannel) Write(datapack gch.Packet) error {
 			_, err = b.conn.Write(bytes)
 		}
 		if err != nil {
-			logx.Error("write error:", err)
+			logx.Error("write udp error:", err)
+			gch.SendStatis(datapack, false)
 			panic(err)
 			return err
 		}
-		gch.SendStatis(datapack)
+		gch.SendStatis(datapack, true)
 		logx.Info(b.GetChStatis().StringSend())
 		return err
 	}

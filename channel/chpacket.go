@@ -5,6 +5,8 @@
  */
 package channel
 
+import "time"
+
 // 定义协议类型
 type Protocol int
 
@@ -39,12 +41,15 @@ type Packet interface {
 
 	// SetData 设置收发数据
 	SetData(data []byte)
+
+	GetInitTime() time.Time
 }
 
 type Basepacket struct {
-	channel Channel
-	ptype   Protocol
-	data    []byte
+	channel  Channel
+	ptype    Protocol
+	data     []byte
+	initTime time.Time
 }
 
 func (b *Basepacket) GetChannel() Channel {
@@ -71,10 +76,15 @@ func (b *Basepacket) IsPrepare() bool {
 	return len(b.data) > 0
 }
 
+func (b *Basepacket) GetInitTime() time.Time {
+	return b.initTime
+}
+
 func NewBasePacket(channel Channel, ptype Protocol) *Basepacket {
 	b := &Basepacket{
-		channel: channel,
-		ptype:   ptype,
+		channel:  channel,
+		ptype:    ptype,
+		initTime: time.Now(),
 	}
 	return b
 }

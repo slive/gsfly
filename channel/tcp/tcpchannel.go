@@ -5,8 +5,11 @@
 package tcp
 
 import (
+	"errors"
+	"fmt"
 	gch "gsfly/channel"
 	logx "gsfly/logger"
+	"gsfly/util"
 	"net"
 	"time"
 )
@@ -16,9 +19,9 @@ type TcpChannel struct {
 	conn *net.TCPConn
 }
 
-func newTcpChannel(tcpConn *net.TCPConn, chConf *gch.BaseChannelConf) *TcpChannel {
+func newTcpChannel(tcpConn *net.TCPConn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
 	ch := &TcpChannel{conn: tcpConn}
-	ch.BaseChannel = *gch.NewDefaultBaseChannel(chConf)
+	ch.BaseChannel = *gch.NewDefaultBaseChannel(chConf, chHandle)
 	readBufSize := chConf.GetReadBufSize()
 	tcpConn.SetReadBuffer(readBufSize)
 
@@ -27,14 +30,13 @@ func newTcpChannel(tcpConn *net.TCPConn, chConf *gch.BaseChannelConf) *TcpChanne
 	return ch
 }
 
-func NewTcpChannel(tcpConn *net.TCPConn, chConf *gch.BaseChannelConf, msgFunc gch.HandleMsgFunc) *TcpChannel {
-	chHandle := gch.NewChHandle(msgFunc, nil, nil)
-	return NewTcpChannelWithHandle(tcpConn, chConf, chHandle)
+func NewSimpleTcpChannel(tcpConn *net.TCPConn, chConf gch.ChannelConf, msgFunc gch.OnMsgHandle) *TcpChannel {
+	chHandle := gch.NewDefaultChHandle(msgFunc)
+	return NewTcpChannel(tcpConn, chConf, chHandle)
 }
 
-func NewTcpChannelWithHandle(tcpConn *net.TCPConn, chConf *gch.BaseChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
-	ch := newTcpChannel(tcpConn, chConf)
-	ch.ChannelHandle = *chHandle
+func NewTcpChannel(tcpConn *net.TCPConn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
+	ch := newTcpChannel(tcpConn, chConf, chHandle)
 	ch.SetChId("tcp-" + tcpConn.LocalAddr().String() + "-" + tcpConn.RemoteAddr().String())
 	return ch
 }
@@ -42,27 +44,40 @@ func NewTcpChannelWithHandle(tcpConn *net.TCPConn, chConf *gch.BaseChannelConf, 
 func (b *TcpChannel) Read() (gch.Packet, error) {
 	// TODO 超时配置
 	conf := b.GetChConf()
-	b.conn.SetReadDeadline(time.Now().Add(conf.GetReadTimeout() * time.Second))
+	now := time.Now()
+	b.conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
 	readbf := make([]byte, conf.GetReadBufSize())
 	readNum, err := b.conn.Read(readbf)
 	if err != nil {
-		logx.Error("read tcp error:", err)
+		logx.Warn("read udp err:", err)
+		gch.RevStatisFail(b, now)
 		return nil, err
 	}
 
 	bytes := readbf[0:readNum]
 	datapack := b.NewPacket()
 	datapack.SetData(bytes)
-	gch.RevStatis(datapack)
+	gch.RevStatis(datapack, true)
 	logx.Info(b.GetChStatis().StringRev())
 	return datapack, err
 }
 
 func (b *TcpChannel) Write(datapack gch.Packet) error {
+	if b.IsClosed() {
+		return errors.New("tcpchannel had closed, chId:" + b.GetChId())
+	}
+
 	defer func() {
-		i := recover()
-		if i != nil {
-			logx.Error("recover error:", i)
+		rec := recover()
+		if rec != nil {
+			logx.Error("write tcp error, chId:%v, error:%v", b.GetChId(), rec)
+			err, ok := rec.(error)
+			if !ok {
+				err = errors.New(fmt.Sprintf("%v", rec))
+			}
+			// 捕获处理消息异常
+			b.GetChHandle().OnErrorHandle(b, util.NewError1(gch.ERR_WRITE, err))
+			// 有异常，终止执行
 			b.StopChannel(b)
 		}
 	}()
@@ -72,11 +87,12 @@ func (b *TcpChannel) Write(datapack gch.Packet) error {
 		b.conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
 		_, err := b.conn.Write(bytes)
 		if err != nil {
-			logx.Error("write error:", err)
+			logx.Error("write tcp error:", err)
+			gch.SendStatis(datapack, false)
 			panic(err)
-			return nil
+			return err
 		}
-		gch.SendStatis(datapack)
+		gch.SendStatis(datapack, true)
 		logx.Info(b.GetChStatis().StringSend())
 		return err
 	}

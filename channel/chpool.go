@@ -7,6 +7,7 @@ package channel
 
 import (
 	logx "gsfly/logger"
+	"gsfly/util"
 	"hash/crc32"
 	"runtime"
 	"sync"
@@ -80,10 +81,21 @@ func handelReadQueue(queue *ReadQueue) {
 		select {
 		case packet := <-queue.readChan:
 			if packet != nil {
-				msgFunc := packet.GetChannel().GetHandleMsgFunc()
-				if msgFunc != nil {
-					msgFunc(packet)
-				}
+				func() {
+					channel := packet.GetChannel()
+					defer func() {
+						rec := recover()
+						if rec != nil {
+							logx.Error("handle message error:", rec)
+							err, ok := rec.(error)
+							if ok {
+								// 捕获处理消息异常
+								channel.GetChHandle().OnErrorHandle(channel, util.NewError1(ERR_MSG, err))
+							}
+						}
+					}()
+					channel.GetChHandle().innerMsgHandleFunc(packet)
+				}()
 			}
 			break
 		}
