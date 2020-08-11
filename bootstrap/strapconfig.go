@@ -44,6 +44,14 @@ type KcpClientConf struct {
 	KcpConf
 }
 
+type Kws00ClientConf struct {
+	KcpClientConf
+	// Path 可选，代表所在的相对路径，用于可能存在的路由，类似http的request url，如"/admin/user"
+	Path string
+	// Params 可选，代表建立dial所需的参数
+	Params map[string]interface{}
+}
+
 type KcpServerConf struct {
 	BaseServerConf
 	KcpConf

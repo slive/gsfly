@@ -6,10 +6,12 @@
 package channel
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
+	"gsfly/common"
 	logx "gsfly/logger"
-	"gsfly/util"
 	"net"
+	"sync"
 )
 
 const (
@@ -18,12 +20,29 @@ const (
 	ERR_WRITE = "ERR_WRITE"
 	ERR_STOP  = "ERR_STOP"
 	ERR_START = "ERR_START"
+	ERR_REG   = "ERR_REG"
 )
 
 // Channel 通信通道接口
 type Channel interface {
+
 	// 启动通信通道
-	StartChannel(channel Channel) error
+	Start() error
+
+	// 停止通道
+	Stop()
+
+	// 启动通信通道，内部方法
+	// StartChannel(channel Channel) error
+
+	// 停止通道，内部方法
+	// StopChannel(channel Channel)
+
+	// 通过conn写
+	WriteByConn(packet Packet) error
+
+	// 读出错是是否继续
+	IsReadLoopContinued(err error) bool
 
 	// NewPacket 创建收发包
 	NewPacket() Packet
@@ -40,9 +59,6 @@ type Channel interface {
 	// Write 写入方法
 	Write(packet Packet) error
 
-	// GetHandleMsgFunc 处理读取消息方法的方法
-	// GetHandleMsgFunc() OnMsgHandle
-
 	// GetChConf 获取通道配置
 	GetChConf() ChannelConf
 
@@ -53,26 +69,34 @@ type Channel interface {
 
 	RemoteAddr() net.Addr
 
-	// 停止通道
-	StopChannel(channel Channel)
-
 	GetConn() net.Conn
 
-	IsReadLoopContinued(err error) bool
-
 	GetChHandle() *ChannelHandle
+
+	IsRegistered() bool
+
+	SetRegisterd(register bool)
+
+	AddAttach(key string, val interface{})
+
+	GetAttach(key string) interface{}
 }
 
 // BaseChannel channel基类
 type BaseChannel struct {
 	ChannelHandle *ChannelHandle
 	ChannelStatis *ChannelStatis
-	conn          net.Conn
+	Conn          net.Conn
 	chConf        ChannelConf
 	readPool      *ReadPool
 	chId          string
 	closed        bool
 	closeExit     chan bool
+	registered    bool
+
+	// channel存放附件，可以是任意key-value值
+	attach map[string]interface{}
+	amut   sync.RWMutex
 }
 
 var Default_Read_Pool_Conf *ReadPoolConf
@@ -106,8 +130,18 @@ func NewBaseChannel(chConf ChannelConf, readPool *ReadPool, chHandle *ChannelHan
 	}
 	channel.SetClosed(true)
 	channel.SetChId("")
+	channel.SetRegisterd(false)
+	channel.attach = make(map[string]interface{})
 	logx.Info("create base channel, chConf:", chConf)
 	return channel
+}
+
+func (b *BaseChannel) Start() error {
+	return b.StartChannel(b)
+}
+
+func (b *BaseChannel) Stop() {
+	b.StopChannel(b)
 }
 
 func (b *BaseChannel) StartChannel(channel Channel) error {
@@ -116,6 +150,7 @@ func (b *BaseChannel) StartChannel(channel Channel) error {
 		return errors.New("channel is open, chId:" + id)
 	}
 
+	handle := channel.GetChHandle()
 	defer func() {
 		rec := recover()
 		if rec != nil {
@@ -123,23 +158,23 @@ func (b *BaseChannel) StartChannel(channel Channel) error {
 			err, ok := rec.(error)
 			if ok {
 				// 捕获处理消息异常
-				channel.GetChHandle().OnErrorHandle(channel, util.NewError1(ERR_START, err))
+				handle.OnErrorHandle(channel, common.NewError1(ERR_START, err))
 			}
-			b.StopChannel(channel)
+			channel.Stop()
 		}
 	}()
 	go b.startReadLoop(channel)
 
 	// 启动后处理方法
-	startFunc := b.GetChHandle().OnStartHandle
+	startFunc := handle.OnStartHandle
 	if startFunc != nil {
 		err := startFunc(channel)
 		if err != nil {
 			return err
 		}
 	}
-	logx.Info("finish to start channel, chId:", channel.GetChId())
 	b.SetClosed(false)
+	logx.Info("finish to start channel, chId:", channel.GetChId())
 	return nil
 }
 
@@ -167,7 +202,61 @@ func (b *BaseChannel) Read() (packet Packet, err error) {
 	panic("implement me")
 }
 
-func (b *BaseChannel) Write(packet Packet) error {
+func (b *BaseChannel) Write(datapacket Packet) error {
+	if b.IsClosed() {
+		return errors.New("wschannel had closed, chId:" + b.GetChId())
+	}
+
+	channel := datapacket.GetChannel()
+	chHandle := channel.GetChHandle()
+	defer func() {
+		rec := recover()
+		if rec != nil {
+			logx.Error("write ws error, chId:%v, error:%v", b.GetChId(), rec)
+			err, ok := rec.(error)
+			if !ok {
+				err = errors.New(fmt.Sprintf("%v", rec))
+			}
+			// 捕获处理消息异常
+			chHandle.OnErrorHandle(channel, common.NewError1(ERR_WRITE, err))
+			// 有异常，终止执行
+			channel.Stop()
+		}
+	}()
+
+	if datapacket.IsPrepare() {
+		// 发送前的处理
+		befWriteHandle := chHandle.OnBefWriteHandle
+		if befWriteHandle != nil {
+			err := befWriteHandle(datapacket)
+			if err != nil {
+				logx.Error("befWriteHandle error:", err)
+				return err
+			}
+		}
+
+		// 发送
+		err := channel.WriteByConn(datapacket)
+		if err != nil {
+			return err
+		}
+
+		SendStatis(datapacket, true)
+		logx.Info(b.GetChStatis().StringSend())
+		// 发送成功后的处理
+		aftWriteHandle := chHandle.OnAftWriteHandle
+		if aftWriteHandle != nil {
+			aftWriteHandle(datapacket)
+		}
+		return err
+	} else {
+		logx.Warn("datapacket is not prepare.")
+	}
+	return nil
+}
+
+// WriteByConn 实现通过conn发送
+func (b *BaseChannel) WriteByConn(datapacket Packet) error {
 	panic("implement me")
 }
 
@@ -180,7 +269,7 @@ func (b *BaseChannel) GetChStatis() *ChannelStatis {
 }
 
 func (b *BaseChannel) GetConn() net.Conn {
-	return nil
+	return b.Conn
 }
 
 func (b *BaseChannel) IsReadLoopContinued(err error) bool {
@@ -191,6 +280,14 @@ func (b *BaseChannel) GetChHandle() *ChannelHandle {
 	return b.ChannelHandle
 }
 
+func (b *BaseChannel) IsRegistered() bool {
+	return b.registered
+}
+
+func (b *BaseChannel) SetRegisterd(register bool) {
+	b.registered = register
+}
+
 func (b *BaseChannel) StopChannel(channel Channel) {
 	// 关闭状态不再执行后面的内容
 	id := b.GetChId()
@@ -199,6 +296,7 @@ func (b *BaseChannel) StopChannel(channel Channel) {
 		return
 	}
 
+	handle := channel.GetChHandle()
 	defer func() {
 		rec := recover()
 		if rec != nil {
@@ -206,9 +304,14 @@ func (b *BaseChannel) StopChannel(channel Channel) {
 			err, ok := rec.(error)
 			if ok {
 				// 捕获处理消息异常
-				channel.GetChHandle().OnErrorHandle(channel, util.NewError1(ERR_STOP, err))
+				handle.OnErrorHandle(channel, common.NewError1(ERR_STOP, err))
 			}
 		} else {
+			// 执行关闭后的方法
+			closeFunc := handle.OnStopHandle
+			if closeFunc != nil {
+				closeFunc(channel)
+			}
 			logx.Info("finish to close channel, chId:", id)
 		}
 	}()
@@ -222,12 +325,6 @@ func (b *BaseChannel) StopChannel(channel Channel) {
 	if conn != nil {
 		conn.Close()
 	}
-	// 执行关闭后的方法
-	// TODO 各自处理？
-	closeFunc := b.GetChHandle().OnStopHandle
-	if closeFunc != nil {
-		closeFunc(channel)
-	}
 }
 
 // StartReadLoop 启动循环读取，读取到数据包后，放入#ReadQueue中，等待处理
@@ -239,8 +336,8 @@ func (b *BaseChannel) startReadLoop(channel Channel) {
 			if ok {
 				logx.Errorf("readloop error, chId:%v, err:%v", b.GetChId(), err)
 				// 捕获处理消息异常
-				channel.GetChHandle().OnErrorHandle(channel, util.NewError1(ERR_READ, err))
-				b.StopChannel(channel)
+				channel.GetChHandle().OnErrorHandle(channel, common.NewError1(ERR_READ, err))
+				b.Stop()
 			}
 		}
 	}()
@@ -280,4 +377,16 @@ func (b *BaseChannel) LocalAddr() net.Addr {
 
 func (b *BaseChannel) RemoteAddr() net.Addr {
 	return nil
+}
+
+func (b *BaseChannel) AddAttach(key string, val interface{}) {
+	b.amut.Lock()
+	defer b.amut.Unlock()
+	b.attach[key] = val
+}
+
+func (b *BaseChannel) GetAttach(key string) interface{} {
+	b.amut.RLock()
+	defer b.amut.RUnlock()
+	return b.attach[key]
 }

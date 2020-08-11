@@ -1,8 +1,9 @@
 /*
+ * http channel简单实现
  * Author:slive
  * DATE:2020/7/17
  */
-package tcp
+package httpx
 
 import (
 	"net/http"

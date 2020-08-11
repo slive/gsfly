@@ -2,7 +2,7 @@
  * Author:slive
  * DATE:2020/8/7
  */
-package util
+package common
 
 import "errors"
 

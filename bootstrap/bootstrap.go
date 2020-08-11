@@ -69,7 +69,7 @@ func (tcpls *BaseServer) Stop() {
 		tcpls.Exit <- true
 		acceptChannels := tcpls.Channels
 		for key, ch := range acceptChannels {
-			ch.StopChannel(ch)
+			ch.Stop()
 			delete(acceptChannels, key)
 		}
 	}
@@ -109,7 +109,7 @@ func (bc *BaseClient) Stop() {
 		logx.Info("start to stop client, id:", id)
 		bc.Closed = true
 		bc.Exit <- true
-		bc.Channel.StopChannel(bc.Channel)
+		bc.Channel.Stop()
 		bc.Channel = nil
 	}
 }

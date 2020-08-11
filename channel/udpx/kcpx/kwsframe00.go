@@ -3,7 +3,7 @@
  * Author:slive
  * DATE:2020/7/7
  */
-package kcp
+package kcpx
 
 import (
 	"bytes"
@@ -33,12 +33,12 @@ type Frame interface {
 }
 
 const (
-	VERSION_0              = 0x00
-	OPCODE_TEXT_SESSION    = 0x01
-	OPCODE_TEXT_SIGNALLING = 0X02
-	OPCODE_CLOSE           = 0X08
-	OPCODE_PING            = 0X09
-	OPCODE_PONG            = 0X0A
+	VERSION_00             = uint16(0x00)
+	OPCODE_TEXT_SESSION    = uint16(0x01)
+	OPCODE_TEXT_SIGNALLING = uint16(0X02)
+	OPCODE_CLOSE           = uint16(0X08)
+	OPCODE_PING            = uint16(0X09)
+	OPCODE_PONG            = uint16(0X0A)
 )
 
 // BaseFrame 基于kcp数据之上定义的数据帧

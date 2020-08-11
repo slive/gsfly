@@ -15,7 +15,7 @@ type StatisUnit struct {
 	// 字节数
 	ByteNum   int64     `json:"byteNum"`
 	Time      time.Time `json:"time"`
-	SpendTime int64     `json:"spendTime"`
+	SpendTime float64   `json:"spendTime"`
 	IsOk      bool      `json:"isOk"`
 }
 
@@ -57,22 +57,9 @@ func newStatis() *Statis {
 
 // ChannelStatis 统计相关，比如收发包数目，收发次数
 type ChannelStatis struct {
-	SendStatics      *Statis `json:"sendStatics"`
-	RevStatics       *Statis `json:"revStatics"`
-	HandleMsgStatics *Statis `json:"handleMsgStatics"`
-	// RevByteNum    int64
-	// RevPacketNum  int64
-	// RevTime       time.Time
-	// RevLastTime   time.Time
-	// SendByteNum   int64
-	// SendPacketNum int64
-	// SendTime      time.Time
-	// // 上次发送时间
-	// SendLastTime time.Time
-	// // 发送成功与否
-	// SendOk            bool
-	// SendTotalFailTime int64
-	// SendFailTime      int64
+	SendStatics      *Statis `json:"send"`
+	RevStatics       *Statis `json:"rev"`
+	HandleMsgStatics *Statis `json:"handleMsg"`
 }
 
 func NewChStatis() *ChannelStatis {
@@ -111,7 +98,7 @@ func RevStatisFail(channel Channel, initTime time.Time) {
 	statis.Current.IsOk = false
 	now := time.Now()
 	statis.Current.Time = now
-	statis.Current.SpendTime = now.UnixNano() - initTime.UnixNano()
+	statis.Current.SpendTime = time.Since(initTime).Seconds()
 	statis.FailTimes += 1
 	logx.Debug("rev fail, chId:", channel.GetChId())
 }
@@ -131,7 +118,7 @@ func handleStatis(statis *Statis, packet Packet, isOk bool) {
 	statis.Current.IsOk = isOk
 	now := time.Now()
 	statis.Current.Time = now
-	statis.Current.SpendTime = (now.UnixNano() - packet.GetInitTime().UnixNano())
+	statis.Current.SpendTime = time.Since(packet.GetInitTime()).Seconds()
 	if !isOk {
 		statis.TotalFailByteNum += dataLen
 		statis.TotalFailPacketNum += 1

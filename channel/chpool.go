@@ -6,8 +6,8 @@
 package channel
 
 import (
+	"gsfly/common"
 	logx "gsfly/logger"
-	"gsfly/util"
 	"hash/crc32"
 	"runtime"
 	"sync"
@@ -83,6 +83,7 @@ func handelReadQueue(queue *ReadQueue) {
 			if packet != nil {
 				func() {
 					channel := packet.GetChannel()
+					handle := channel.GetChHandle()
 					defer func() {
 						rec := recover()
 						if rec != nil {
@@ -90,11 +91,14 @@ func handelReadQueue(queue *ReadQueue) {
 							err, ok := rec.(error)
 							if ok {
 								// 捕获处理消息异常
-								channel.GetChHandle().OnErrorHandle(channel, util.NewError1(ERR_MSG, err))
+								errorHandle := handle.OnErrorHandle
+								if errorHandle != nil {
+									errorHandle(channel, common.NewError1(ERR_MSG, err))
+								}
 							}
 						}
 					}()
-					channel.GetChHandle().innerMsgHandleFunc(packet)
+					handle.innerMsgHandleFunc(packet)
 				}()
 			}
 			break
