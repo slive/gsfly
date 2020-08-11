@@ -26,46 +26,46 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize:  10 * 1024,
 }
 
-type HttpWsServer struct {
-	BaseServer
+type HttpWsServerStrap struct {
+	BaseServerStrap
 	ServerConf   *HttpxServerConf
 	msgHandlers  map[string]*gch.ChannelHandle
 	httpHandlers map[string]HttpHandleFunc
 }
 
 // Http和Websocket 的服务监听
-func NewHttpxServer(serverConf *HttpxServerConf) Server {
-	t := &HttpWsServer{
+func NewHttpxServer(parent interface{}, serverConf *HttpxServerConf) ServerStrap {
+	t := &HttpWsServerStrap{
 		httpHandlers: make(map[string]HttpHandleFunc),
 		msgHandlers:  make(map[string]*gch.ChannelHandle),
 	}
-	t.BaseCommunication = *NewCommunication(nil)
+	t.BaseBootStrap = *NewBaseBootStrap(parent, nil)
 	t.ServerConf = serverConf
 	t.Channels = make(map[string]gch.Channel, 10)
 	return t
 }
 
 // AddHttpHandleFunc 添加http处理方法
-func (t *HttpWsServer) AddHttpHandleFunc(pattern string, httpHandleFunc HttpHandleFunc) {
+func (t *HttpWsServerStrap) AddHttpHandleFunc(pattern string, httpHandleFunc HttpHandleFunc) {
 	t.httpHandlers[pattern] = httpHandleFunc
 }
 
 // AddWsHandleFunc 添加Websocket处理方法
-func (t *HttpWsServer) AddWsHandleFunc(pattern string, wsHandleFunc *gch.ChannelHandle) {
+func (t *HttpWsServerStrap) AddWsHandleFunc(pattern string, wsHandleFunc *gch.ChannelHandle) {
 	t.msgHandlers[pattern] = wsHandleFunc
 }
 
 // GetChannelHandle 暂时不支持，用GetMsgHandlers()代替
-func (t *HttpWsServer) GetChannelHandle() *gch.ChannelHandle {
+func (t *HttpWsServerStrap) GetChannelHandle() *gch.ChannelHandle {
 	logx.Panic("unsupport")
 	return nil
 }
 
-func (t *HttpWsServer) GetMsgHandlers() map[string]*gch.ChannelHandle {
+func (t *HttpWsServerStrap) GetMsgHandlers() map[string]*gch.ChannelHandle {
 	return t.msgHandlers
 }
 
-func (t *HttpWsServer) Start() error {
+func (t *HttpWsServerStrap) Start() error {
 	if !t.Closed {
 		return errors.New("server had opened, id:" + t.GetId())
 	}
@@ -89,7 +89,7 @@ func (t *HttpWsServer) Start() error {
 		for key, f := range wsHandlers {
 			http.HandleFunc(key, func(writer http.ResponseWriter, r *http.Request) {
 				logx.Info("requestWs:", r.URL)
-				err := startWs(writer, r, upgrader, t.ServerConf, f, acceptChannels)
+				err := t.startWs(writer, r, upgrader, t.ServerConf, f, acceptChannels)
 				if err != nil {
 					logx.Error("start ws error:", err)
 				}
@@ -115,7 +115,7 @@ func (t *HttpWsServer) Start() error {
 type HttpHandleFunc func(http.ResponseWriter, *http.Request)
 
 // startWs 启动ws处理
-func startWs(w http.ResponseWriter, r *http.Request, upgrader websocket.Upgrader, serverConf *HttpxServerConf, handle *gch.ChannelHandle, acceptChannels map[string]gch.Channel) error {
+func (t *HttpWsServerStrap) startWs(w http.ResponseWriter, r *http.Request, upgrader websocket.Upgrader, serverConf *HttpxServerConf, handle *gch.ChannelHandle, acceptChannels map[string]gch.Channel) error {
 	connLen := len(acceptChannels)
 	maxAcceptSize := serverConf.GetMaxChannelSize()
 	if connLen >= maxAcceptSize {
@@ -133,30 +133,30 @@ func startWs(w http.ResponseWriter, r *http.Request, upgrader websocket.Upgrader
 		return err
 	}
 
-	wsCh := httpx.NewWsChannel(conn, serverConf, handle)
+	wsCh := httpx.NewWsChannel(t, conn, serverConf, handle)
 	err = wsCh.Start()
 	if err == nil {
 		// TODO 线程安全？
-		acceptChannels[wsCh.GetChId()] = wsCh
+		acceptChannels[wsCh.GetId()] = wsCh
 	}
 	return err
 }
 
-type KcpServer struct {
-	BaseServer
+type KcpServerStrap struct {
+	BaseServerStrap
 	ServerConf *KcpServerConf
 }
 
-func NewKcpServer(kcpServerConf *KcpServerConf, chHandle *gch.ChannelHandle) Server {
-	k := &KcpServer{
+func NewKcpServer(parent interface{}, kcpServerConf *KcpServerConf, chHandle *gch.ChannelHandle) ServerStrap {
+	k := &KcpServerStrap{
 		ServerConf: kcpServerConf,
 	}
-	k.BaseCommunication = *NewCommunication(chHandle)
+	k.BaseBootStrap = *NewBaseBootStrap(parent, chHandle)
 	k.Channels = make(map[string]gch.Channel, 10)
 	return k
 }
 
-func (k *KcpServer) Start() error {
+func (k *KcpServerStrap) Start() error {
 	if !k.Closed {
 		return errors.New("server had opened, id:" + k.GetId())
 	}
@@ -185,32 +185,32 @@ func (k *KcpServer) Start() error {
 			return err
 		}
 
-		kcpCh := kcpx.NewKcpChannel(kcpConn, kcpServerConf, k.ChannelHandle)
+		kcpCh := kcpx.NewKcpChannel(k, kcpConn, kcpServerConf, k.ChannelHandle)
 		err = kcpCh.Start()
 		if err == nil {
-			kwsChannels[kcpCh.GetChId()] = kcpCh
+			kwsChannels[kcpCh.GetId()] = kcpCh
 		}
 	}
 	return nil
 }
 
-type Kws00Server struct {
-	KcpServer
+type Kws00ServerStrap struct {
+	KcpServerStrap
 	onKwsMsgHandle kcpx.OnKws00MsgHandle
 }
 
-func NewKws00Server(kcpServerConf *KcpServerConf, onKwsMsgHandle kcpx.OnKws00MsgHandle,
-	onRegisterHandle gch.OnRegisterHandle, onUnRegisterHandle gch.OnUnRegisterHandle) Server {
-	k := &Kws00Server{}
+func NewKws00Server(parent interface{}, kcpServerConf *KcpServerConf, onKwsMsgHandle kcpx.OnKws00MsgHandle,
+	onRegisterHandle gch.OnRegisterHandle, onUnRegisterHandle gch.OnUnRegisterHandle) ServerStrap {
+	k := &Kws00ServerStrap{}
 	k.ServerConf = kcpServerConf
 	chHandle := kcpx.NewKws00Handle(onRegisterHandle, onUnRegisterHandle)
-	k.BaseCommunication = *NewCommunication(chHandle)
+	k.BaseBootStrap = *NewBaseBootStrap(parent, chHandle)
 	k.onKwsMsgHandle = onKwsMsgHandle
 	k.Channels = make(map[string]gch.Channel, 10)
 	return k
 }
 
-func (k *Kws00Server) Start() error {
+func (k *Kws00ServerStrap) Start() error {
 	if !k.Closed {
 		return errors.New("server had opened, id:" + k.GetId())
 	}
@@ -240,31 +240,31 @@ func (k *Kws00Server) Start() error {
 		}
 
 		chHandle := k.ChannelHandle
-		kcpCh := kcpx.NewKws00Channel(kcpConn, &kcpServerConf.BaseChannelConf, k.onKwsMsgHandle, chHandle)
+		kcpCh := kcpx.NewKws00Channel(k, kcpConn, &kcpServerConf.BaseChannelConf, k.onKwsMsgHandle, chHandle)
 		kcpCh.ChannelHandle = chHandle
 		err = kcpCh.Start()
 		if err == nil {
-			kwsChannels[kcpCh.GetChId()] = kcpCh
+			kwsChannels[kcpCh.GetId()] = kcpCh
 		}
 	}
 	return nil
 }
 
-type UdpServer struct {
-	BaseServer
+type UdpServerStrap struct {
+	BaseServerStrap
 	ServerConf *UdpServerConf
 }
 
-func NewUdpServer(serverConf *UdpServerConf, channelHandle *gch.ChannelHandle) Server {
-	k := &UdpServer{
+func NewUdpServer(parent interface{}, serverConf *UdpServerConf, channelHandle *gch.ChannelHandle) ServerStrap {
+	k := &UdpServerStrap{
 		ServerConf: serverConf,
 	}
-	k.BaseCommunication = *NewCommunication(channelHandle)
+	k.BaseBootStrap = *NewBaseBootStrap(parent, channelHandle)
 	k.Channels = make(map[string]gch.Channel, 10)
 	return k
 }
 
-func (u *UdpServer) Start() error {
+func (u *UdpServerStrap) Start() error {
 	serverConf := u.ServerConf
 	addr := serverConf.GetAddrStr()
 	logx.Info("dial udp addr:", addr)
@@ -281,7 +281,7 @@ func (u *UdpServer) Start() error {
 	}
 
 	// TODO udp有源和目标地址之分，待实现
-	ch := udpx.NewUdpChannel(conn, serverConf, u.ChannelHandle)
+	ch := udpx.NewUdpChannel(u, conn, serverConf, u.ChannelHandle)
 	err = ch.Start()
 	return err
 }

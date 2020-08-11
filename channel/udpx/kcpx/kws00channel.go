@@ -19,14 +19,14 @@ type Kws00Channel struct {
 // NewKws00Channel 新建KWS00 channel
 // 需要实现onKwsMsgHandle 和注册（握手）成功后的onRegisterhandle
 // 根据需要实现onUnRegisterhandle方法和其他ChannelHandle里的其他方法
-func NewKws00Channel(kcpConn *kcp.UDPSession, chConf gch.ChannelConf, onKwsMsgHandle OnKws00MsgHandle, chHandle *gch.ChannelHandle) *Kws00Channel {
+func NewKws00Channel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.ChannelConf, onKwsMsgHandle OnKws00MsgHandle, chHandle *gch.ChannelHandle) *Kws00Channel {
 	if onKwsMsgHandle == nil {
 		logx.Panic("onKwsMsgHandle is nil.")
 		return nil
 	}
 
 	channel := &Kws00Channel{}
-	channel.KcpChannel = *NewKcpChannel(kcpConn, chConf, chHandle)
+	channel.KcpChannel = *NewKcpChannel(parent, kcpConn, chConf, chHandle)
 	channel.protocol = gch.PROTOCOL_KWS00
 	channel.onKwsMsgHandle = onKwsMsgHandle
 	return channel

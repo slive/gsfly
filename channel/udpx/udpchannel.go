@@ -17,9 +17,9 @@ type UdpChannel struct {
 	Conn *net.UDPConn
 }
 
-func newUdpChannel(conn *net.UDPConn, conf gch.ChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
+func newUdpChannel(parent interface{}, conn *net.UDPConn, conf gch.ChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
 	ch := &UdpChannel{Conn: conn}
-	ch.BaseChannel = *gch.NewDefaultBaseChannel(conf, chHandle)
+	ch.BaseChannel = *gch.NewDefaultBaseChannel(parent, conf, chHandle)
 	readBufSize := conf.GetReadBufSize()
 	conn.SetReadBuffer(readBufSize)
 
@@ -29,15 +29,15 @@ func newUdpChannel(conn *net.UDPConn, conf gch.ChannelConf, chHandle *gch.Channe
 }
 
 // NewSimpleUdpChannel 创建udpchannel，需实现handleMsgFunc方法
-func NewSimpleUdpChannel(udpConn *net.UDPConn, chConf gch.ChannelConf, msgFunc gch.OnMsgHandle) *UdpChannel {
+func NewSimpleUdpChannel(parent interface{}, udpConn *net.UDPConn, chConf gch.ChannelConf, msgFunc gch.OnMsgHandle) *UdpChannel {
 	chHandle := gch.NewDefaultChHandle(msgFunc)
-	return NewUdpChannel(udpConn, chConf, chHandle)
+	return NewUdpChannel(parent, udpConn, chConf, chHandle)
 }
 
 // NewUdpChannel 创建udpchannel，需实现ChannelHandle
-func NewUdpChannel(udpConn *net.UDPConn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
-	ch := newUdpChannel(udpConn, chConf, chHandle)
-	ch.SetChId("udp-" + udpConn.LocalAddr().String() + "-" + udpConn.RemoteAddr().String())
+func NewUdpChannel(parent interface{}, udpConn *net.UDPConn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
+	ch := newUdpChannel(parent, udpConn, chConf, chHandle)
+	ch.SetId("udp-" + udpConn.LocalAddr().String() + "-" + udpConn.RemoteAddr().String())
 	return ch
 }
 
@@ -77,14 +77,14 @@ func (b *UdpChannel) Read() (gch.Packet, error) {
 func (b *UdpChannel) Write(datapack gch.Packet) error {
 	return b.BaseChannel.Write(datapack)
 	// 	if b.IsClosed() {
-	// 		return errors.New("udpchannel had closed, chId:" + b.GetChId())
+	// 		return errors.New("udpchannel had closed, chId:" + b.GetId())
 	// 	}
 	//
 	// 	chHandle := b.GetChHandle()
 	// 	defer func() {
 	// 		rec := recover()
 	// 		if rec != nil {
-	// 			logx.Error("write udp error, chId:%v, error:%v", b.GetChId(), rec)
+	// 			logx.Error("write udp error, chId:%v, error:%v", b.GetId(), rec)
 	// 			err, ok := rec.(error)
 	// 			if !ok {
 	// 				err = errors.New(fmt.Sprintf("%v", rec))

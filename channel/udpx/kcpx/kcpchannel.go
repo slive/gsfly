@@ -19,15 +19,15 @@ type KcpChannel struct {
 	protocol gch.Protocol
 }
 
-func NewKcpChannel(kcpConn *kcp.UDPSession, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *KcpChannel {
+func NewKcpChannel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *KcpChannel {
 	ch := &KcpChannel{Conn: kcpConn}
-	ch.BaseChannel = *gch.NewDefaultBaseChannel(chConf, chHandle)
+	ch.BaseChannel = *gch.NewDefaultBaseChannel(parent, chConf, chHandle)
 	ch.protocol = chConf.GetProtocol()
 	readBufSize := chConf.GetReadBufSize()
 	kcpConn.SetReadBuffer(readBufSize)
 	writeBufSize := chConf.GetWriteBufSize()
 	kcpConn.SetWriteBuffer(writeBufSize)
-	ch.SetChId("kcp-" + kcpConn.LocalAddr().String() + "-" + kcpConn.RemoteAddr().String() + "-" + fmt.Sprintf("%v", kcpConn.GetConv()))
+	ch.SetId("kcp-" + kcpConn.LocalAddr().String() + "-" + kcpConn.RemoteAddr().String() + "-" + fmt.Sprintf("%v", kcpConn.GetConv()))
 	return ch
 }
 
@@ -74,14 +74,14 @@ func (b *KcpChannel) GetConn() net.Conn {
 func (b *KcpChannel) Write(datapack gch.Packet) error {
 	return b.BaseChannel.Write(datapack)
 	// if b.IsClosed() {
-	// 	return errors.New("kcpchannel had closed, chId:" + b.GetChId())
+	// 	return errors.New("kcpchannel had closed, chId:" + b.GetId())
 	// }
 	//
 	// chHandle := b.GetChHandle()
 	// defer func() {
 	// 	rec := recover()
 	// 	if rec != nil {
-	// 		logx.Error("write kcp error, chId:%v, error:%v", b.GetChId(), rec)
+	// 		logx.Error("write kcp error, chId:%v, error:%v", b.GetId(), rec)
 	// 		err, ok := rec.(error)
 	// 		if !ok {
 	// 			err = errors.New(fmt.Sprintf("%v", rec))

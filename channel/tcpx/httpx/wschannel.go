@@ -17,21 +17,21 @@ type WsChannel struct {
 	Conn *gws.Conn
 }
 
-func newWsChannel(wsconn *gws.Conn, conf gch.ChannelConf, chHandle *gch.ChannelHandle) *WsChannel {
+func newWsChannel(parent interface{}, wsconn *gws.Conn, conf gch.ChannelConf, chHandle *gch.ChannelHandle) *WsChannel {
 	ch := &WsChannel{Conn: wsconn}
-	ch.BaseChannel = *gch.NewDefaultBaseChannel(conf, chHandle)
+	ch.BaseChannel = *gch.NewDefaultBaseChannel(parent, conf, chHandle)
 	return ch
 }
 
-func NewWsSimpleChannel(wsConn *gws.Conn, chConf gch.ChannelConf, msgFunc gch.OnMsgHandle) *WsChannel {
+func NewWsSimpleChannel(parent interface{}, wsConn *gws.Conn, chConf gch.ChannelConf, msgFunc gch.OnMsgHandle) *WsChannel {
 	chHandle := gch.NewDefaultChHandle(msgFunc)
-	return NewWsChannel(wsConn, chConf, chHandle)
+	return NewWsChannel(parent, wsConn, chConf, chHandle)
 }
 
-func NewWsChannel(wsConn *gws.Conn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *WsChannel {
-	ch := newWsChannel(wsConn, chConf, chHandle)
+func NewWsChannel(parent interface{}, wsConn *gws.Conn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *WsChannel {
+	ch := newWsChannel(parent, wsConn, chConf, chHandle)
 	wsConn.SetReadLimit(int64(chConf.GetReadBufSize()))
-	ch.SetChId("ws-" + wsConn.LocalAddr().String() + "-" + wsConn.RemoteAddr().String())
+	ch.SetId("ws-" + wsConn.LocalAddr().String() + "-" + wsConn.RemoteAddr().String())
 	return ch
 }
 
@@ -66,14 +66,14 @@ func (b *WsChannel) Read() (gch.Packet, error) {
 func (b *WsChannel) Write(datapacket gch.Packet) error {
 	return b.BaseChannel.Write(datapacket)
 	// if b.IsClosed() {
-	// 	return errors.New("wschannel had closed, chId:" + b.GetChId())
+	// 	return errors.New("wschannel had closed, chId:" + b.GetId())
 	// }
 	//
 	// chHandle := b.GetChHandle()
 	// defer func() {
 	// 	rec := recover()
 	// 	if rec != nil {
-	// 		logx.Error("write ws error, chId:%v, error:%v", b.GetChId(), rec)
+	// 		logx.Error("write ws error, chId:%v, error:%v", b.GetId(), rec)
 	// 		err, ok := rec.(error)
 	// 		if !ok {
 	// 			err = errors.New(fmt.Sprintf("%v", rec))

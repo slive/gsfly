@@ -48,7 +48,7 @@ type OnErrorHandle func(channel Channel, gerr common.GError)
 
 // 空实现
 func innerErrorHandle(channel Channel, gerr common.GError) {
-	logx.Errorf("channel error, chId:%v, error:%v", channel.GetChId(), gerr)
+	logx.Errorf("channel error, chId:%v, error:%v", channel.GetId(), gerr)
 }
 
 type ChannelHandleMgr interface {

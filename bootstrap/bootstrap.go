@@ -6,11 +6,15 @@ package bootstrap
 
 import (
 	gch "gsfly/channel"
+	"gsfly/common"
 	logx "gsfly/logger"
 )
 
-type Communication interface {
-	GetId() string
+type BootStrap interface {
+	common.IParent
+
+	// GetId 通道Id
+	common.IId
 
 	Start() error
 
@@ -21,43 +25,49 @@ type Communication interface {
 	GetChannelHandle() *gch.ChannelHandle
 }
 
-type BaseCommunication struct {
+type BaseBootStrap struct {
 	Closed        bool
 	Exit          chan bool
 	ChannelHandle *gch.ChannelHandle
+
+	// 父接口
+	*common.Parent
+
+	*common.Id
 }
 
-func NewCommunication(handle *gch.ChannelHandle) *BaseCommunication {
-	b := &BaseCommunication{
+func NewBaseBootStrap(parent interface{}, handle *gch.ChannelHandle) *BaseBootStrap {
+	b := &BaseBootStrap{
 		Closed:        true,
 		Exit:          make(chan bool, 1),
 		ChannelHandle: handle}
+	b.Parent = common.NewParent(parent)
 	return b
 }
 
-func (bc *BaseCommunication) IsClosed() bool {
+func (bc *BaseBootStrap) IsClosed() bool {
 	return bc.Closed
 }
 
-func (bc *BaseCommunication) GetChannelHandle() *gch.ChannelHandle {
+func (bc *BaseBootStrap) GetChannelHandle() *gch.ChannelHandle {
 	return bc.ChannelHandle
 }
 
-type Server interface {
-	Communication
+type ServerStrap interface {
+	BootStrap
 }
 
-type BaseServer struct {
-	BaseCommunication
+type BaseServerStrap struct {
+	BaseBootStrap
 	ServerConf ServerConf
 	Channels   map[string]gch.Channel
 }
 
-func (tcpls *BaseServer) GetId() string {
+func (tcpls *BaseServerStrap) GetId() string {
 	return tcpls.ServerConf.GetAddrStr()
 }
 
-func (tcpls *BaseServer) Stop() {
+func (tcpls *BaseServerStrap) Stop() {
 	if !tcpls.Closed {
 		id := tcpls.GetId()
 		defer func() {
@@ -75,31 +85,31 @@ func (tcpls *BaseServer) Stop() {
 	}
 }
 
-type BaseClient struct {
-	BaseCommunication
+type BaseClientStrap struct {
+	BaseBootStrap
 	ClientConf ClientConf
 	Channel    gch.Channel
 }
 
-type Client interface {
-	Communication
+type ClientStrap interface {
+	BootStrap
 	GetChannel() gch.Channel
 	GetClientConf() ClientConf
 }
 
-func (bc *BaseClient) GetId() string {
+func (bc *BaseClientStrap) GetId() string {
 	return bc.ClientConf.GetAddrStr()
 }
 
-func (bc *BaseClient) GetChannel() gch.Channel {
+func (bc *BaseClientStrap) GetChannel() gch.Channel {
 	return bc.Channel
 }
 
-func (bc *BaseClient) GetClientConf() ClientConf {
+func (bc *BaseClientStrap) GetClientConf() ClientConf {
 	return bc.ClientConf
 }
 
-func (bc *BaseClient) Stop() {
+func (bc *BaseClientStrap) Stop() {
 	if !bc.Closed {
 		id := bc.GetId()
 		defer func() {

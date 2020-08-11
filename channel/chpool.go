@@ -52,7 +52,7 @@ func NewDefaultReadPool() *ReadPool {
 
 // Cache 放入缓冲区进行处理
 func (p *ReadPool) Cache(pack Packet) {
-	id := pack.GetChannel().GetChId()
+	id := pack.GetChannel().GetId()
 	// hash方式进行分配
 	key := hashCode(id) % p.maxReadPoolSize
 	queue := p.fetchReadQueue(key)

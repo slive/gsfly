@@ -17,20 +17,20 @@ import (
 	"net"
 )
 
-type WsClient struct {
-	BaseClient
+type WsClientStrap struct {
+	BaseClientStrap
 	ClientConf *WsClientConf
 }
 
-func NewWsClient(wsClientConf *WsClientConf, handle *gch.ChannelHandle) Client {
-	b := &WsClient{
+func NewWsClient(parent interface{}, wsClientConf *WsClientConf, handle *gch.ChannelHandle) ClientStrap {
+	b := &WsClientStrap{
 		ClientConf: wsClientConf,
 	}
-	b.BaseCommunication = *NewCommunication(handle)
+	b.BaseBootStrap = *NewBaseBootStrap(parent, handle)
 	return b
 }
 
-func (wc *WsClient) Start() error {
+func (wc *WsClientStrap) Start() error {
 	wsClientConf := wc.ClientConf
 	handle := wc.ChannelHandle
 	url := wsClientConf.GetUrl()
@@ -57,7 +57,7 @@ func (wc *WsClient) Start() error {
 
 	// TODO 处理resonse？
 	logx.Info("ws response:", response)
-	wsCh := httpx.NewWsChannel(conn, &wsClientConf.BaseChannelConf, handle)
+	wsCh := httpx.NewWsChannel(wc, conn, &wsClientConf.BaseChannelConf, handle)
 	err = wsCh.Start()
 	if err == nil {
 		wc.Channel = wsCh
@@ -65,20 +65,20 @@ func (wc *WsClient) Start() error {
 	return err
 }
 
-type KcpClient struct {
-	BaseClient
+type KcpClientStrap struct {
+	BaseClientStrap
 	ClientConf *KcpClientConf
 }
 
-func NewKcpClient(kcpClientConf *KcpClientConf, handle *gch.ChannelHandle) Client {
-	b := &KcpClient{
+func NewKcpClient(parent interface{}, kcpClientConf *KcpClientConf, handle *gch.ChannelHandle) ClientStrap {
+	b := &KcpClientStrap{
 		ClientConf: kcpClientConf,
 	}
-	b.BaseCommunication = *NewCommunication(handle)
+	b.BaseBootStrap = *NewBaseBootStrap(parent, handle)
 	return b
 }
 
-func (kc *KcpClient) Start() error {
+func (kc *KcpClientStrap) Start() error {
 	kcpClientConf := kc.ClientConf
 	chHandle := kc.ChannelHandle
 	addr := kcpClientConf.GetAddrStr()
@@ -88,7 +88,7 @@ func (kc *KcpClient) Start() error {
 		logx.Error("dial kcp conn error:", nil)
 		return err
 	}
-	kcpCh := kcpx.NewKcpChannel(conn, &kcpClientConf.BaseChannelConf, chHandle)
+	kcpCh := kcpx.NewKcpChannel(kc, conn, &kcpClientConf.BaseChannelConf, chHandle)
 	err = kcpCh.Start()
 	if err == nil {
 		kc.Channel = kcpCh
@@ -96,26 +96,26 @@ func (kc *KcpClient) Start() error {
 	return err
 }
 
-// Kws00Client
-type Kws00Client struct {
-	KcpClient
+// Kws00ClientStrap
+type Kws00ClientStrap struct {
+	KcpClientStrap
 	ClientConf     *Kws00ClientConf
 	onKwsMsgHandle kcpx.OnKws00MsgHandle
 }
 
 // NewKws00Client 实现kws
 // onKwsMsgHandle和onRegisterhandle 必须实现，其他方法可选
-func NewKws00Client(kws00ClientConf *Kws00ClientConf, onKwsMsgHandle kcpx.OnKws00MsgHandle,
-	onRegisterhandle gch.OnRegisterHandle, onUnRegisterhandle gch.OnUnRegisterHandle) Client {
-	b := &Kws00Client{}
+func NewKws00Client(parent interface{}, kws00ClientConf *Kws00ClientConf, onKwsMsgHandle kcpx.OnKws00MsgHandle,
+	onRegisterhandle gch.OnRegisterHandle, onUnRegisterhandle gch.OnUnRegisterHandle) ClientStrap {
+	b := &Kws00ClientStrap{}
 	b.ClientConf = kws00ClientConf
 	handle := kcpx.NewKws00Handle(onRegisterhandle, onUnRegisterhandle)
-	b.BaseCommunication = *NewCommunication(handle)
+	b.BaseBootStrap = *NewBaseBootStrap(parent, handle)
 	b.onKwsMsgHandle = onKwsMsgHandle
 	return b
 }
 
-func (kc *Kws00Client) Start() error {
+func (kc *Kws00ClientStrap) Start() error {
 	kcpClientConf := kc.ClientConf
 	chHandle := kc.ChannelHandle
 	addr := kcpClientConf.GetAddrStr()
@@ -126,7 +126,7 @@ func (kc *Kws00Client) Start() error {
 		return err
 	}
 
-	kwsCh := kcpx.NewKws00Channel(conn, &kcpClientConf.BaseChannelConf, kc.onKwsMsgHandle, chHandle)
+	kwsCh := kcpx.NewKws00Channel(kc, conn, &kcpClientConf.BaseChannelConf, kc.onKwsMsgHandle, chHandle)
 	err = kwsCh.Start()
 	if err != nil {
 		return err
@@ -172,20 +172,20 @@ func handshake(kcpClientConf *Kws00ClientConf, kwsCh *kcpx.Kws00Channel) error {
 	return err
 }
 
-type UdpClient struct {
-	BaseClient
+type UdpClientStrap struct {
+	BaseClientStrap
 	ClientConf *UdpClientConf
 }
 
-func NewUdpClient(clientConf *UdpClientConf, handle *gch.ChannelHandle) Client {
-	b := &UdpClient{
+func NewUdpClient(parent interface{}, clientConf *UdpClientConf, handle *gch.ChannelHandle) ClientStrap {
+	b := &UdpClientStrap{
 		ClientConf: clientConf,
 	}
-	b.BaseCommunication = *NewCommunication(handle)
+	b.BaseBootStrap = *NewBaseBootStrap(parent, handle)
 	return b
 }
 
-func (uc *UdpClient) Start() error {
+func (uc *UdpClientStrap) Start() error {
 	clientConf := uc.ClientConf
 	chHandle := uc.ChannelHandle
 	addr := clientConf.GetAddrStr()
@@ -201,7 +201,7 @@ func (uc *UdpClient) Start() error {
 		return err
 	}
 
-	udpCh := udpx.NewUdpChannel(conn, &clientConf.BaseChannelConf, chHandle)
+	udpCh := udpx.NewUdpChannel(uc, conn, &clientConf.BaseChannelConf, chHandle)
 	err = udpCh.Start()
 	if err == nil {
 		uc.Channel = udpCh

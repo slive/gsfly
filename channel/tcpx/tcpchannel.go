@@ -16,9 +16,9 @@ type TcpChannel struct {
 	Conn *net.TCPConn
 }
 
-func newTcpChannel(tcpConn *net.TCPConn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
+func newTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
 	ch := &TcpChannel{Conn: tcpConn}
-	ch.BaseChannel = *gch.NewDefaultBaseChannel(chConf, chHandle)
+	ch.BaseChannel = *gch.NewDefaultBaseChannel(parent, chConf, chHandle)
 	readBufSize := chConf.GetReadBufSize()
 	tcpConn.SetReadBuffer(readBufSize)
 
@@ -27,14 +27,14 @@ func newTcpChannel(tcpConn *net.TCPConn, chConf gch.ChannelConf, chHandle *gch.C
 	return ch
 }
 
-func NewSimpleTcpChannel(tcpConn *net.TCPConn, chConf gch.ChannelConf, msgFunc gch.OnMsgHandle) *TcpChannel {
+func NewSimpleTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.ChannelConf, msgFunc gch.OnMsgHandle) *TcpChannel {
 	chHandle := gch.NewDefaultChHandle(msgFunc)
-	return NewTcpChannel(tcpConn, chConf, chHandle)
+	return NewTcpChannel(parent, tcpConn, chConf, chHandle)
 }
 
-func NewTcpChannel(tcpConn *net.TCPConn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
-	ch := newTcpChannel(tcpConn, chConf, chHandle)
-	ch.SetChId("tcp-" + tcpConn.LocalAddr().String() + "-" + tcpConn.RemoteAddr().String())
+func NewTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
+	ch := newTcpChannel(parent, tcpConn, chConf, chHandle)
+	ch.SetId("tcp-" + tcpConn.LocalAddr().String() + "-" + tcpConn.RemoteAddr().String())
 	return ch
 }
 
@@ -70,14 +70,14 @@ func (b *TcpChannel) Read() (gch.Packet, error) {
 func (b *TcpChannel) Write(datapack gch.Packet) error {
 	return b.BaseChannel.Write(datapack)
 	// if b.IsClosed() {
-	// 	return errors.New("tcpchannel had closed, chId:" + b.GetChId())
+	// 	return errors.New("tcpchannel had closed, chId:" + b.GetId())
 	// }
 	//
 	// chHandle := b.GetChHandle()
 	// defer func() {
 	// 	rec := recover()
 	// 	if rec != nil {
-	// 		logx.Error("write tcp error, chId:%v, error:%v", b.GetChId(), rec)
+	// 		logx.Error("write tcp error, chId:%v, error:%v", b.GetId(), rec)
 	// 		err, ok := rec.(error)
 	// 		if !ok {
 	// 			err = errors.New(fmt.Sprintf("%v", rec))
