@@ -22,8 +22,8 @@ const (
 	ERR_REG   = "ERR_REG"
 )
 
-// Channel 通信通道接口
-type Channel interface {
+// IChannel 通信通道接口
+type IChannel interface {
 
 	// 启动通信通道
 	Start() error
@@ -32,25 +32,25 @@ type Channel interface {
 	Stop()
 
 	// 通过conn写
-	WriteByConn(packet Packet) error
+	WriteByConn(packet IPacket) error
 
 	// 读出错是是否继续
 	IsReadLoopContinued(err error) bool
 
 	// NewPacket 创建收发包
-	NewPacket() Packet
+	NewPacket() IPacket
 
 	// IsClosed 是否是关闭的
 	IsClosed() bool
 
 	// Read 读取方法
-	Read() (Packet, error)
+	Read() (IPacket, error)
 
 	// Write 写入方法
-	Write(packet Packet) error
+	Write(packet IPacket) error
 
 	// GetChConf 获取通道配置
-	GetChConf() ChannelConf
+	GetChConf() IChannelConf
 
 	// GetChStatis 获取通道统计相关
 	GetChStatis() *ChannelStatis
@@ -65,7 +65,7 @@ type Channel interface {
 
 	IsRegistered() bool
 
-	SetRegisterd(register bool)
+	SetRegistered(register bool)
 
 	common.IAttact
 
@@ -75,12 +75,12 @@ type Channel interface {
 	common.IId
 }
 
-// BaseChannel channel基类
-type BaseChannel struct {
+// Channel channel基类
+type Channel struct {
 	ChannelHandle *ChannelHandle
 	ChannelStatis *ChannelStatis
 	Conn          net.Conn
-	chConf        ChannelConf
+	chConf        IChannelConf
 	readPool      *ReadPool
 	closed        bool
 	closeExit     chan bool
@@ -104,18 +104,18 @@ func init() {
 	Default_ReadPool = NewReadPool(Default_Read_Pool_Conf.MaxReadPoolSize, Default_Read_Pool_Conf.MaxReadQueueSize)
 }
 
-// NewDefaultBaseChannel 创建默认基础通信通道
-func NewDefaultBaseChannel(parent interface{}, chConf ChannelConf, chHandle *ChannelHandle) *BaseChannel {
-	return NewBaseChannel(parent, chConf, Default_ReadPool, chHandle)
+// NewDefChannel 创建默认基础通信通道
+func NewDefChannel(parent interface{}, chConf IChannelConf, chHandle *ChannelHandle) *Channel {
+	return NewChannel(parent, chConf, Default_ReadPool, chHandle)
 }
 
-func NewBaseChannel(parent interface{}, chConf ChannelConf, readPool *ReadPool, chHandle *ChannelHandle) *BaseChannel {
+func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chHandle *ChannelHandle) *Channel {
 	if chHandle == nil {
 		errMsg := "ChannelHandle is nil"
 		logx.Error(errMsg)
 		panic(errMsg)
 	}
-	channel := &BaseChannel{
+	channel := &Channel{
 		ChannelHandle: chHandle,
 		ChannelStatis: NewChStatis(),
 		chConf:        chConf,
@@ -123,7 +123,7 @@ func NewBaseChannel(parent interface{}, chConf ChannelConf, readPool *ReadPool, 
 		closeExit:     make(chan bool, 1),
 	}
 	channel.SetClosed(true)
-	channel.SetRegisterd(false)
+	channel.SetRegistered(false)
 	channel.Attact = common.NewAttact()
 	channel.Id = common.NewId()
 	channel.Parent = common.NewParent(parent)
@@ -131,15 +131,15 @@ func NewBaseChannel(parent interface{}, chConf ChannelConf, readPool *ReadPool, 
 	return channel
 }
 
-func (b *BaseChannel) Start() error {
+func (b *Channel) Start() error {
 	return b.StartChannel(b)
 }
 
-func (b *BaseChannel) Stop() {
+func (b *Channel) Stop() {
 	b.StopChannel(b)
 }
 
-func (b *BaseChannel) StartChannel(channel Channel) error {
+func (b *Channel) StartChannel(channel IChannel) error {
 	id := b.GetId()
 	if !channel.IsClosed() {
 		return errors.New("channel is open, chId:" + id)
@@ -173,23 +173,23 @@ func (b *BaseChannel) StartChannel(channel Channel) error {
 	return nil
 }
 
-func (b *BaseChannel) NewPacket() Packet {
+func (b *Channel) NewPacket() IPacket {
 	panic("implement me")
 }
 
-func (b *BaseChannel) IsClosed() bool {
+func (b *Channel) IsClosed() bool {
 	return b.closed
 }
 
-func (b *BaseChannel) SetClosed(closed bool) {
+func (b *Channel) SetClosed(closed bool) {
 	b.closed = closed
 }
 
-func (b *BaseChannel) Read() (packet Packet, err error) {
+func (b *Channel) Read() (packet IPacket, err error) {
 	panic("implement me")
 }
 
-func (b *BaseChannel) Write(datapacket Packet) error {
+func (b *Channel) Write(datapacket IPacket) error {
 	if b.IsClosed() {
 		return errors.New("wschannel had closed, chId:" + b.GetId())
 	}
@@ -243,39 +243,39 @@ func (b *BaseChannel) Write(datapacket Packet) error {
 }
 
 // WriteByConn 实现通过conn发送
-func (b *BaseChannel) WriteByConn(datapacket Packet) error {
+func (b *Channel) WriteByConn(datapacket IPacket) error {
 	panic("implement me")
 }
 
-func (b *BaseChannel) GetChConf() ChannelConf {
+func (b *Channel) GetChConf() IChannelConf {
 	return b.chConf
 }
 
-func (b *BaseChannel) GetChStatis() *ChannelStatis {
+func (b *Channel) GetChStatis() *ChannelStatis {
 	return b.ChannelStatis
 }
 
-func (b *BaseChannel) GetConn() net.Conn {
+func (b *Channel) GetConn() net.Conn {
 	return b.Conn
 }
 
-func (b *BaseChannel) IsReadLoopContinued(err error) bool {
+func (b *Channel) IsReadLoopContinued(err error) bool {
 	return true
 }
 
-func (b *BaseChannel) GetChHandle() *ChannelHandle {
+func (b *Channel) GetChHandle() *ChannelHandle {
 	return b.ChannelHandle
 }
 
-func (b *BaseChannel) IsRegistered() bool {
+func (b *Channel) IsRegistered() bool {
 	return b.registered
 }
 
-func (b *BaseChannel) SetRegisterd(register bool) {
+func (b *Channel) SetRegistered(register bool) {
 	b.registered = register
 }
 
-func (b *BaseChannel) StopChannel(channel Channel) {
+func (b *Channel) StopChannel(channel IChannel) {
 	// 关闭状态不再执行后面的内容
 	id := b.GetId()
 	if channel.IsClosed() {
@@ -315,7 +315,7 @@ func (b *BaseChannel) StopChannel(channel Channel) {
 }
 
 // StartReadLoop 启动循环读取，读取到数据包后，放入#ReadQueue中，等待处理
-func (b *BaseChannel) startReadLoop(channel Channel) {
+func (b *Channel) startReadLoop(channel IChannel) {
 	defer func() {
 		rec := recover()
 		if rec != nil {
@@ -358,10 +358,10 @@ func (b *BaseChannel) startReadLoop(channel Channel) {
 	}
 }
 
-func (b *BaseChannel) LocalAddr() net.Addr {
+func (b *Channel) LocalAddr() net.Addr {
 	return nil
 }
 
-func (b *BaseChannel) RemoteAddr() net.Addr {
+func (b *Channel) RemoteAddr() net.Addr {
 	return nil
 }

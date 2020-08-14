@@ -10,7 +10,7 @@ import (
 	logx "gsfly/logger"
 )
 
-type BootStrap interface {
+type IBootStrap interface {
 	common.IParent
 
 	// GetId 通道Id
@@ -22,10 +22,10 @@ type BootStrap interface {
 
 	IsClosed() bool
 
-	GetChannelHandle() *gch.ChannelHandle
+	GetChHandle() *gch.ChannelHandle
 }
 
-type BaseBootStrap struct {
+type BootStrap struct {
 	Closed        bool
 	Exit          chan bool
 	ChannelHandle *gch.ChannelHandle
@@ -36,8 +36,8 @@ type BaseBootStrap struct {
 	*common.Id
 }
 
-func NewBaseBootStrap(parent interface{}, handle *gch.ChannelHandle) *BaseBootStrap {
-	b := &BaseBootStrap{
+func NewBootStrap(parent interface{}, handle *gch.ChannelHandle) *BootStrap {
+	b := &BootStrap{
 		Closed:        true,
 		Exit:          make(chan bool, 1),
 		ChannelHandle: handle}
@@ -45,29 +45,44 @@ func NewBaseBootStrap(parent interface{}, handle *gch.ChannelHandle) *BaseBootSt
 	return b
 }
 
-func (bc *BaseBootStrap) IsClosed() bool {
+func (bc *BootStrap) IsClosed() bool {
 	return bc.Closed
 }
 
-func (bc *BaseBootStrap) GetChannelHandle() *gch.ChannelHandle {
+func (bc *BootStrap) GetChHandle() *gch.ChannelHandle {
 	return bc.ChannelHandle
 }
 
-type ServerStrap interface {
+type IServerStrap interface {
+	IBootStrap
+	GetConf() IServerConf
+	GetChannels() map[string]gch.IChannel
+}
+
+type ServerStrap struct {
 	BootStrap
+	Conf     IServerConf
+	Channels map[string]gch.IChannel
 }
 
-type BaseServerStrap struct {
-	BaseBootStrap
-	ServerConf ServerConf
-	Channels   map[string]gch.Channel
+func NewServerStrap(parent interface{}, serverConf IServerConf, handle *gch.ChannelHandle) *ServerStrap {
+	b := &ServerStrap{
+		Conf:     serverConf,
+		Channels: make(map[string]gch.IChannel),
+	}
+	b.BootStrap = *NewBootStrap(parent, handle)
+	// OnStopHandle重新b包装
+	if handle != nil {
+		handle.OnStopHandle = ConverOnStopHandle(b.Channels, handle.OnStopHandle)
+	}
+	return b
 }
 
-func (tcpls *BaseServerStrap) GetId() string {
-	return tcpls.ServerConf.GetAddrStr()
+func (tcpls *ServerStrap) GetId() string {
+	return tcpls.Conf.GetAddrStr()
 }
 
-func (tcpls *BaseServerStrap) Stop() {
+func (tcpls *ServerStrap) Stop() {
 	if !tcpls.Closed {
 		id := tcpls.GetId()
 		defer func() {
@@ -78,38 +93,58 @@ func (tcpls *BaseServerStrap) Stop() {
 		tcpls.Closed = true
 		tcpls.Exit <- true
 		acceptChannels := tcpls.Channels
-		for key, ch := range acceptChannels {
+		for _, ch := range acceptChannels {
 			ch.Stop()
-			delete(acceptChannels, key)
+			// delete(acceptChannels, key)
 		}
 	}
 }
 
-type BaseClientStrap struct {
-	BaseBootStrap
-	ClientConf ClientConf
-	Channel    gch.Channel
+func (tcpls *ServerStrap) GetChannels() map[string]gch.IChannel {
+	return tcpls.Channels
 }
 
-type ClientStrap interface {
+func (tcpls *ServerStrap) GetConf() IServerConf {
+	return tcpls.Conf
+}
+
+// ConverOnStopHandle 转化OnStopHandle方法
+func ConverOnStopHandle(channels map[string]gch.IChannel, onStopHandle gch.OnStopHandle) func(channel gch.IChannel) error {
+	return func(channel gch.IChannel) error {
+		// 释放现有资源
+		delete(channels, channel.GetId())
+		if onStopHandle != nil {
+			return onStopHandle(channel)
+		}
+		return nil
+	}
+}
+
+type ClientStrap struct {
 	BootStrap
-	GetChannel() gch.Channel
-	GetClientConf() ClientConf
+	Conf    IClientConf
+	Channel gch.IChannel
 }
 
-func (bc *BaseClientStrap) GetId() string {
-	return bc.ClientConf.GetAddrStr()
+type IClientStrap interface {
+	IBootStrap
+	GetChannel() gch.IChannel
+	GetConf() IClientConf
 }
 
-func (bc *BaseClientStrap) GetChannel() gch.Channel {
+func (bc *ClientStrap) GetId() string {
+	return bc.Conf.GetAddrStr()
+}
+
+func (bc *ClientStrap) GetChannel() gch.IChannel {
 	return bc.Channel
 }
 
-func (bc *BaseClientStrap) GetClientConf() ClientConf {
-	return bc.ClientConf
+func (bc *ClientStrap) GetConf() IClientConf {
+	return bc.Conf
 }
 
-func (bc *BaseClientStrap) Stop() {
+func (bc *ClientStrap) Stop() {
 	if !bc.Closed {
 		id := bc.GetId()
 		defer func() {

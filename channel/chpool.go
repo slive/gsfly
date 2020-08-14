@@ -15,7 +15,7 @@ import (
 
 // ReadQueue 每个协程可缓冲的读队列
 type ReadQueue struct {
-	readChan chan Packet
+	readChan chan IPacket
 }
 
 // ReadPool 读协程池主要作用，用于控制读取的数据包处理个数，避免读取协程过大。
@@ -51,7 +51,7 @@ func NewDefaultReadPool() *ReadPool {
 }
 
 // Cache 放入缓冲区进行处理
-func (p *ReadPool) Cache(pack Packet) {
+func (p *ReadPool) Cache(pack IPacket) {
 	id := pack.GetChannel().GetId()
 	// hash方式进行分配
 	key := hashCode(id) % p.maxReadPoolSize
@@ -66,7 +66,7 @@ func (p *ReadPool) fetchReadQueue(key int) *ReadQueue {
 	defer p.mut.Unlock()
 	readQueue := p.get(key)
 	if readQueue == nil {
-		readQueue = &ReadQueue{readChan: make(chan Packet, p.maxReadQueueSize)}
+		readQueue = &ReadQueue{readChan: make(chan IPacket, p.maxReadQueueSize)}
 		p.readQueue[key] = readQueue
 		logx.Info("start read queue, key:", key)
 		// 协程运行

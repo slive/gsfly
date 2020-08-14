@@ -14,14 +14,14 @@ import (
 )
 
 type KcpChannel struct {
-	gch.BaseChannel
+	gch.Channel
 	Conn     *kcp.UDPSession
 	protocol gch.Protocol
 }
 
-func NewKcpChannel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *KcpChannel {
+func NewKcpChannel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChannelConf, chHandle *gch.ChannelHandle) *KcpChannel {
 	ch := &KcpChannel{Conn: kcpConn}
-	ch.BaseChannel = *gch.NewDefaultBaseChannel(parent, chConf, chHandle)
+	ch.Channel = *gch.NewDefChannel(parent, chConf, chHandle)
 	ch.protocol = chConf.GetProtocol()
 	readBufSize := chConf.GetReadBufSize()
 	kcpConn.SetReadBuffer(readBufSize)
@@ -31,11 +31,11 @@ func NewKcpChannel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.Chann
 	return ch
 }
 
-func (b *KcpChannel) Read() (gch.Packet, error) {
+func (b *KcpChannel) Read() (gch.IPacket, error) {
 	return Read(b)
 }
 
-func Read(ch gch.Channel) (gch.Packet, error) {
+func Read(ch gch.IChannel) (gch.IPacket, error) {
 	// TODO 超时配置
 	conn := ch.GetConn()
 	conf := ch.GetChConf()
@@ -71,8 +71,8 @@ func (b *KcpChannel) GetConn() net.Conn {
 	return b.Conn
 }
 
-func (b *KcpChannel) Write(datapack gch.Packet) error {
-	return b.BaseChannel.Write(datapack)
+func (b *KcpChannel) Write(datapack gch.IPacket) error {
+	return b.Channel.Write(datapack)
 	// if b.IsClosed() {
 	// 	return errors.New("kcpchannel had closed, chId:" + b.GetId())
 	// }
@@ -130,7 +130,7 @@ func (b *KcpChannel) Write(datapack gch.Packet) error {
 	// return nil
 }
 
-func (b *KcpChannel) WriteByConn(datapacket gch.Packet) error {
+func (b *KcpChannel) WriteByConn(datapacket gch.IPacket) error {
 	bytes := datapacket.GetData()
 	conn := b.Conn
 	conf := b.GetChConf()
@@ -146,12 +146,12 @@ func (b *KcpChannel) WriteByConn(datapacket gch.Packet) error {
 }
 
 type KcpPacket struct {
-	gch.Basepacket
+	gch.Packet
 }
 
-func (b *KcpChannel) NewPacket() gch.Packet {
+func (b *KcpChannel) NewPacket() gch.IPacket {
 	k := &KcpPacket{}
-	k.Basepacket = *gch.NewBasePacket(b, gch.PROTOCOL_KCP)
+	k.Packet = *gch.NewPacket(b, gch.PROTOCOL_KCP)
 	return k
 }
 

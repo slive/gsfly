@@ -8,6 +8,8 @@ import "sync"
 
 type IParent interface {
 	GetParent() interface{}
+
+	SetParent(parent interface{})
 }
 type Parent struct {
 	parent interface{}
@@ -21,6 +23,10 @@ func (p *Parent) GetParent() interface{} {
 	return p.parent
 }
 
+func (p *Parent) SetParent(parent interface{}) {
+	p.parent = parent
+}
+
 type IId interface {
 	GetId() string
 
@@ -28,7 +34,7 @@ type IId interface {
 }
 
 type Id struct {
-	id string
+	id string `json:"id"`
 }
 
 func NewId() *Id {

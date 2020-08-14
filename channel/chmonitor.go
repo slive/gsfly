@@ -92,7 +92,7 @@ func copyStaticunit(current *StatisUnit, last *StatisUnit) {
 	last.ByteNum = current.ByteNum
 }
 
-func RevStatisFail(channel Channel, initTime time.Time) {
+func RevStatisFail(channel IChannel, initTime time.Time) {
 	statis := channel.GetChStatis().RevStatics
 	copyStaticunit(statis.Current, statis.Last)
 	statis.Current.IsOk = false
@@ -104,13 +104,13 @@ func RevStatisFail(channel Channel, initTime time.Time) {
 }
 
 // 读取统计
-func RevStatis(packet Packet, isOk bool) {
+func RevStatis(packet IPacket, isOk bool) {
 	statis := packet.GetChannel().GetChStatis().RevStatics
 	handleStatis(statis, packet, isOk)
 	logx.Debug("rev:", string(packet.GetData()))
 }
 
-func handleStatis(statis *Statis, packet Packet, isOk bool) {
+func handleStatis(statis *Statis, packet IPacket, isOk bool) {
 	copyStaticunit(statis.Current, statis.Last)
 	dataLen := int64(len(packet.GetData()))
 	statis.TotalByteNum += dataLen
@@ -129,14 +129,14 @@ func handleStatis(statis *Statis, packet Packet, isOk bool) {
 }
 
 // 写统计
-func SendStatis(packet Packet, isOk bool) {
+func SendStatis(packet IPacket, isOk bool) {
 	statis := packet.GetChannel().GetChStatis().SendStatics
 	handleStatis(statis, packet, isOk)
 	logx.Debug("write:", string(packet.GetData()))
 }
 
 // 写统计
-func HandleMsgStatis(packet Packet, isOk bool) {
+func HandleMsgStatis(packet IPacket, isOk bool) {
 	statis := packet.GetChannel().GetChStatis().HandleMsgStatics
 	handleStatis(statis, packet, isOk)
 	logx.Debug("handle:", string(packet.GetData()))

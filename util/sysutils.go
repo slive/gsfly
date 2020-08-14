@@ -4,7 +4,10 @@
  */
 package util
 
-import "os"
+import (
+	"hash/crc32"
+	"os"
+)
 
 // GetPwd 获取当前目录路径
 func GetPwd() string {
@@ -13,4 +16,16 @@ func GetPwd() string {
 		return "/"
 	}
 	return pwd
+}
+
+func Hashcode(s string) int {
+	v := int(crc32.ChecksumIEEE([]byte(s)))
+	if v >= 0 {
+		return v
+	}
+	if -v >= 0 {
+		return -v
+	}
+	// v == MinInt
+	return 0
 }

@@ -12,13 +12,13 @@ import (
 )
 
 type TcpChannel struct {
-	gch.BaseChannel
+	gch.Channel
 	Conn *net.TCPConn
 }
 
-func newTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
+func newTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
 	ch := &TcpChannel{Conn: tcpConn}
-	ch.BaseChannel = *gch.NewDefaultBaseChannel(parent, chConf, chHandle)
+	ch.Channel = *gch.NewDefChannel(parent, chConf, chHandle)
 	readBufSize := chConf.GetReadBufSize()
 	tcpConn.SetReadBuffer(readBufSize)
 
@@ -27,12 +27,12 @@ func newTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.ChannelC
 	return ch
 }
 
-func NewSimpleTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.ChannelConf, msgFunc gch.OnMsgHandle) *TcpChannel {
-	chHandle := gch.NewDefaultChHandle(msgFunc)
+func NewSimpleTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, msgFunc gch.OnMsgHandle) *TcpChannel {
+	chHandle := gch.NewDefChHandle(msgFunc)
 	return NewTcpChannel(parent, tcpConn, chConf, chHandle)
 }
 
-func NewTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
+func NewTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
 	ch := newTcpChannel(parent, tcpConn, chConf, chHandle)
 	ch.SetId("tcp-" + tcpConn.LocalAddr().String() + "-" + tcpConn.RemoteAddr().String())
 	return ch
@@ -46,7 +46,7 @@ func (b *TcpChannel) Stop() {
 	b.StopChannel(b)
 }
 
-func (b *TcpChannel) Read() (gch.Packet, error) {
+func (b *TcpChannel) Read() (gch.IPacket, error) {
 	// TODO 超时配置
 	conf := b.GetChConf()
 	now := time.Now()
@@ -67,8 +67,8 @@ func (b *TcpChannel) Read() (gch.Packet, error) {
 	return datapack, err
 }
 
-func (b *TcpChannel) Write(datapack gch.Packet) error {
-	return b.BaseChannel.Write(datapack)
+func (b *TcpChannel) Write(datapack gch.IPacket) error {
+	return b.Channel.Write(datapack)
 	// if b.IsClosed() {
 	// 	return errors.New("tcpchannel had closed, chId:" + b.GetId())
 	// }
@@ -125,7 +125,7 @@ func (b *TcpChannel) Write(datapack gch.Packet) error {
 	// return nil
 }
 
-func (b *TcpChannel) WriteByConn(datapacket gch.Packet) error {
+func (b *TcpChannel) WriteByConn(datapacket gch.IPacket) error {
 	bytes := datapacket.GetData()
 	conf := b.GetChConf()
 	b.Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
@@ -151,13 +151,13 @@ func (b *TcpChannel) RemoteAddr() net.Addr {
 	return b.Conn.RemoteAddr()
 }
 
-func (b *TcpChannel) NewPacket() gch.Packet {
+func (b *TcpChannel) NewPacket() gch.IPacket {
 	w := &TcpPacket{}
-	w.Basepacket = *gch.NewBasePacket(b, gch.PROTOCOL_TCP)
+	w.Packet = *gch.NewPacket(b, gch.PROTOCOL_TCP)
 	return w
 }
 
 // TcpPacket Tcp包
 type TcpPacket struct {
-	gch.Basepacket
+	gch.Packet
 }

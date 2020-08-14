@@ -22,10 +22,10 @@ const (
 	PROTOCOL_HTTPX Protocol = PROTOCOL_HTTP | PROTOCOL_WS
 )
 
-// Packet 协议包接口
-type Packet interface {
+// IPacket 协议包接口
+type IPacket interface {
 	// GetChannel 获取包所属的通道
-	GetChannel() Channel
+	GetChannel() IChannel
 
 	// IsPrepare 是否准备好可以进行收发后续处理
 	IsPrepare() bool
@@ -45,43 +45,43 @@ type Packet interface {
 	GetInitTime() time.Time
 }
 
-type Basepacket struct {
-	channel  Channel
+type Packet struct {
+	channel  IChannel
 	ptype    Protocol
 	data     []byte
 	initTime time.Time
 }
 
-func (b *Basepacket) GetChannel() Channel {
+func (b *Packet) GetChannel() IChannel {
 	return b.channel
 }
 
-func (b *Basepacket) GetPType() Protocol {
+func (b *Packet) GetPType() Protocol {
 	return b.ptype
 }
 
-func (b *Basepacket) SetPType(ptype Protocol) {
+func (b *Packet) SetPType(ptype Protocol) {
 	b.ptype = ptype
 }
 
-func (b *Basepacket) GetData() []byte {
+func (b *Packet) GetData() []byte {
 	return b.data
 }
 
-func (b *Basepacket) SetData(data []byte) {
+func (b *Packet) SetData(data []byte) {
 	b.data = data
 }
 
-func (b *Basepacket) IsPrepare() bool {
+func (b *Packet) IsPrepare() bool {
 	return len(b.data) > 0
 }
 
-func (b *Basepacket) GetInitTime() time.Time {
+func (b *Packet) GetInitTime() time.Time {
 	return b.initTime
 }
 
-func NewBasePacket(channel Channel, ptype Protocol) *Basepacket {
-	b := &Basepacket{
+func NewPacket(channel IChannel, ptype Protocol) *Packet {
+	b := &Packet{
 		channel:  channel,
 		ptype:    ptype,
 		initTime: time.Now(),

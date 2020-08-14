@@ -27,21 +27,20 @@ var upgrader = websocket.Upgrader{
 }
 
 type HttpWsServerStrap struct {
-	BaseServerStrap
+	ServerStrap
 	ServerConf   *HttpxServerConf
 	msgHandlers  map[string]*gch.ChannelHandle
 	httpHandlers map[string]HttpHandleFunc
 }
 
 // Http和Websocket 的服务监听
-func NewHttpxServer(parent interface{}, serverConf *HttpxServerConf) ServerStrap {
+func NewHttpxServer(parent interface{}, serverConf *HttpxServerConf) IServerStrap {
 	t := &HttpWsServerStrap{
 		httpHandlers: make(map[string]HttpHandleFunc),
 		msgHandlers:  make(map[string]*gch.ChannelHandle),
 	}
-	t.BaseBootStrap = *NewBaseBootStrap(parent, nil)
+	t.ServerStrap = *NewServerStrap(parent, serverConf, nil)
 	t.ServerConf = serverConf
-	t.Channels = make(map[string]gch.Channel, 10)
 	return t
 }
 
@@ -55,7 +54,7 @@ func (t *HttpWsServerStrap) AddWsHandleFunc(pattern string, wsHandleFunc *gch.Ch
 	t.msgHandlers[pattern] = wsHandleFunc
 }
 
-// GetChannelHandle 暂时不支持，用GetMsgHandlers()代替
+// GetChHandle 暂时不支持，用GetMsgHandlers()代替
 func (t *HttpWsServerStrap) GetChannelHandle() *gch.ChannelHandle {
 	logx.Panic("unsupport")
 	return nil
@@ -115,7 +114,7 @@ func (t *HttpWsServerStrap) Start() error {
 type HttpHandleFunc func(http.ResponseWriter, *http.Request)
 
 // startWs 启动ws处理
-func (t *HttpWsServerStrap) startWs(w http.ResponseWriter, r *http.Request, upgrader websocket.Upgrader, serverConf *HttpxServerConf, handle *gch.ChannelHandle, acceptChannels map[string]gch.Channel) error {
+func (t *HttpWsServerStrap) startWs(w http.ResponseWriter, r *http.Request, upgrader websocket.Upgrader, serverConf *HttpxServerConf, handle *gch.ChannelHandle, acceptChannels map[string]gch.IChannel) error {
 	connLen := len(acceptChannels)
 	maxAcceptSize := serverConf.GetMaxChannelSize()
 	if connLen >= maxAcceptSize {
@@ -133,6 +132,7 @@ func (t *HttpWsServerStrap) startWs(w http.ResponseWriter, r *http.Request, upgr
 		return err
 	}
 
+	// OnStopHandle重新b包装
 	wsCh := httpx.NewWsChannel(t, conn, serverConf, handle)
 	err = wsCh.Start()
 	if err == nil {
@@ -143,16 +143,16 @@ func (t *HttpWsServerStrap) startWs(w http.ResponseWriter, r *http.Request, upgr
 }
 
 type KcpServerStrap struct {
-	BaseServerStrap
+	ServerStrap
 	ServerConf *KcpServerConf
 }
 
-func NewKcpServer(parent interface{}, kcpServerConf *KcpServerConf, chHandle *gch.ChannelHandle) ServerStrap {
+func NewKcpServer(parent interface{}, kcpServerConf *KcpServerConf, chHandle *gch.ChannelHandle) IServerStrap {
 	k := &KcpServerStrap{
 		ServerConf: kcpServerConf,
 	}
-	k.BaseBootStrap = *NewBaseBootStrap(parent, chHandle)
-	k.Channels = make(map[string]gch.Channel, 10)
+	k.ServerStrap = *NewServerStrap(parent, kcpServerConf, chHandle)
+	k.ServerConf = kcpServerConf
 	return k
 }
 
@@ -172,10 +172,7 @@ func (k *KcpServerStrap) Start() error {
 
 	kwsChannels := k.Channels
 	defer func() {
-		for key, kch := range kwsChannels {
-			kch.Stop()
-			delete(kwsChannels, key)
-		}
+		k.Stop()
 	}()
 
 	for {
@@ -184,8 +181,10 @@ func (k *KcpServerStrap) Start() error {
 			logx.Error("accept kcpconn error:", nil)
 			return err
 		}
-
-		kcpCh := kcpx.NewKcpChannel(k, kcpConn, kcpServerConf, k.ChannelHandle)
+		// OnStopHandle重新包装，以便释放资源
+		handle := k.ChannelHandle
+		handle.OnStopHandle = ConverOnStopHandle(k.Channels, handle.OnStopHandle)
+		kcpCh := kcpx.NewKcpChannel(k, kcpConn, kcpServerConf, handle)
 		err = kcpCh.Start()
 		if err == nil {
 			kwsChannels[kcpCh.GetId()] = kcpCh
@@ -200,13 +199,12 @@ type Kws00ServerStrap struct {
 }
 
 func NewKws00Server(parent interface{}, kcpServerConf *KcpServerConf, onKwsMsgHandle kcpx.OnKws00MsgHandle,
-	onRegisterHandle gch.OnRegisterHandle, onUnRegisterHandle gch.OnUnRegisterHandle) ServerStrap {
+	onRegisterHandle gch.OnRegisterHandle, onUnRegisterHandle gch.OnUnRegisterHandle) IServerStrap {
 	k := &Kws00ServerStrap{}
 	k.ServerConf = kcpServerConf
 	chHandle := kcpx.NewKws00Handle(onRegisterHandle, onUnRegisterHandle)
-	k.BaseBootStrap = *NewBaseBootStrap(parent, chHandle)
+	k.ServerStrap = *NewServerStrap(parent, kcpServerConf, chHandle)
 	k.onKwsMsgHandle = onKwsMsgHandle
-	k.Channels = make(map[string]gch.Channel, 10)
 	return k
 }
 
@@ -224,14 +222,11 @@ func (k *Kws00ServerStrap) Start() error {
 		return err
 	}
 
-	kwsChannels := k.Channels
 	defer func() {
-		for key, kch := range kwsChannels {
-			kch.Stop()
-			delete(kwsChannels, key)
-		}
+		k.Stop()
 	}()
 
+	kwsChannels := k.Channels
 	for {
 		kcpConn, err := list.AcceptKCP()
 		if err != nil {
@@ -240,7 +235,7 @@ func (k *Kws00ServerStrap) Start() error {
 		}
 
 		chHandle := k.ChannelHandle
-		kcpCh := kcpx.NewKws00Channel(k, kcpConn, &kcpServerConf.BaseChannelConf, k.onKwsMsgHandle, chHandle)
+		kcpCh := kcpx.NewKws00Channel(k, kcpConn, &kcpServerConf.ChannelConf, k.onKwsMsgHandle, chHandle)
 		kcpCh.ChannelHandle = chHandle
 		err = kcpCh.Start()
 		if err == nil {
@@ -251,16 +246,15 @@ func (k *Kws00ServerStrap) Start() error {
 }
 
 type UdpServerStrap struct {
-	BaseServerStrap
+	ServerStrap
 	ServerConf *UdpServerConf
 }
 
-func NewUdpServer(parent interface{}, serverConf *UdpServerConf, channelHandle *gch.ChannelHandle) ServerStrap {
+func NewUdpServer(parent interface{}, serverConf *UdpServerConf, channelHandle *gch.ChannelHandle) IServerStrap {
 	k := &UdpServerStrap{
 		ServerConf: serverConf,
 	}
-	k.BaseBootStrap = *NewBaseBootStrap(parent, channelHandle)
-	k.Channels = make(map[string]gch.Channel, 10)
+	k.ServerStrap = *NewServerStrap(parent, serverConf, channelHandle)
 	return k
 }
 
@@ -280,8 +274,12 @@ func (u *UdpServerStrap) Start() error {
 		return err
 	}
 
+	defer func() {
+		u.Stop()
+	}()
 	// TODO udp有源和目标地址之分，待实现
 	ch := udpx.NewUdpChannel(u, conn, serverConf, u.ChannelHandle)
 	err = ch.Start()
+	select {}
 	return err
 }

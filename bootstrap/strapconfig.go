@@ -9,30 +9,30 @@ import (
 	"net/url"
 )
 
-type ServerConf interface {
-	channel.AddrConf
-	channel.ChannelConf
+type IServerConf interface {
+	channel.IAddrConf
+	channel.IChannelConf
 	GetMaxChannelSize() int
 }
 
-type BaseServerConf struct {
-	channel.BaseAddrConf
-	channel.BaseChannelConf
+type ServerConf struct {
+	channel.AddrConf
+	channel.ChannelConf
 	MaxChannelSize int
 }
 
-func (bs *BaseServerConf) GetMaxChannelSize() int {
+func (bs *ServerConf) GetMaxChannelSize() int {
 	return bs.MaxChannelSize
 }
 
-type ClientConf interface {
-	channel.AddrConf
-	channel.ChannelConf
+type IClientConf interface {
+	channel.IAddrConf
+	channel.IChannelConf
 }
 
-type BaseClientConf struct {
-	channel.BaseAddrConf
-	channel.BaseChannelConf
+type ClientConf struct {
+	channel.AddrConf
+	channel.ChannelConf
 }
 
 type KcpConf struct {
@@ -40,7 +40,7 @@ type KcpConf struct {
 }
 
 type KcpClientConf struct {
-	BaseClientConf
+	ClientConf
 	KcpConf
 }
 
@@ -53,28 +53,28 @@ type Kws00ClientConf struct {
 }
 
 type KcpServerConf struct {
-	BaseServerConf
+	ServerConf
 	KcpConf
 }
 
 type UdpServerConf struct {
-	BaseServerConf
+	ServerConf
 }
 
 type UdpClientConf struct {
-	BaseClientConf
+	ClientConf
 }
 
 type HttpxServerConf struct {
-	BaseServerConf
+	ServerConf
 }
 
 type HttpxClientConf struct {
-	BaseClientConf
+	ClientConf
 }
 
 type WsClientConf struct {
-	BaseClientConf
+	ClientConf
 	Scheme      string
 	SubProtocol []string
 	Path        string

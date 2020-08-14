@@ -13,22 +13,22 @@ import (
 )
 
 type WsChannel struct {
-	gch.BaseChannel
+	gch.Channel
 	Conn *gws.Conn
 }
 
-func newWsChannel(parent interface{}, wsconn *gws.Conn, conf gch.ChannelConf, chHandle *gch.ChannelHandle) *WsChannel {
+func newWsChannel(parent interface{}, wsconn *gws.Conn, conf gch.IChannelConf, chHandle *gch.ChannelHandle) *WsChannel {
 	ch := &WsChannel{Conn: wsconn}
-	ch.BaseChannel = *gch.NewDefaultBaseChannel(parent, conf, chHandle)
+	ch.Channel = *gch.NewDefChannel(parent, conf, chHandle)
 	return ch
 }
 
-func NewWsSimpleChannel(parent interface{}, wsConn *gws.Conn, chConf gch.ChannelConf, msgFunc gch.OnMsgHandle) *WsChannel {
-	chHandle := gch.NewDefaultChHandle(msgFunc)
+func NewWsSimpleChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChannelConf, msgFunc gch.OnMsgHandle) *WsChannel {
+	chHandle := gch.NewDefChHandle(msgFunc)
 	return NewWsChannel(parent, wsConn, chConf, chHandle)
 }
 
-func NewWsChannel(parent interface{}, wsConn *gws.Conn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *WsChannel {
+func NewWsChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChannelConf, chHandle *gch.ChannelHandle) *WsChannel {
 	ch := newWsChannel(parent, wsConn, chConf, chHandle)
 	wsConn.SetReadLimit(int64(chConf.GetReadBufSize()))
 	ch.SetId("ws-" + wsConn.LocalAddr().String() + "-" + wsConn.RemoteAddr().String())
@@ -43,7 +43,7 @@ func (b *WsChannel) Stop() {
 	b.StopChannel(b)
 }
 
-func (b *WsChannel) Read() (gch.Packet, error) {
+func (b *WsChannel) Read() (gch.IPacket, error) {
 	// TODO 超时配置
 	// conf := b.GetChConf()
 	now := time.Now()
@@ -63,8 +63,8 @@ func (b *WsChannel) Read() (gch.Packet, error) {
 	return wspacket, err
 }
 
-func (b *WsChannel) Write(datapacket gch.Packet) error {
-	return b.BaseChannel.Write(datapacket)
+func (b *WsChannel) Write(datapacket gch.IPacket) error {
+	return b.Channel.Write(datapacket)
 	// if b.IsClosed() {
 	// 	return errors.New("wschannel had closed, chId:" + b.GetId())
 	// }
@@ -122,7 +122,7 @@ func (b *WsChannel) Write(datapacket gch.Packet) error {
 	// return nil
 }
 
-func (b *WsChannel) WriteByConn(datapacket gch.Packet) error {
+func (b *WsChannel) WriteByConn(datapacket gch.IPacket) error {
 	wspacket := datapacket.(*WsPacket)
 	data := wspacket.GetData()
 	conf := b.GetChConf()
@@ -155,13 +155,13 @@ func (b *WsChannel) RemoteAddr() net.Addr {
 	return b.Conn.RemoteAddr()
 }
 
-func (b *WsChannel) NewPacket() gch.Packet {
+func (b *WsChannel) NewPacket() gch.IPacket {
 	w := &WsPacket{}
-	w.Basepacket = *gch.NewBasePacket(b, gch.PROTOCOL_WS)
+	w.Packet = *gch.NewPacket(b, gch.PROTOCOL_WS)
 	return w
 }
 
 type WsPacket struct {
-	gch.Basepacket
+	gch.Packet
 	MsgType int
 }

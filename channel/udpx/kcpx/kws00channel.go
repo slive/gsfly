@@ -5,6 +5,7 @@
 package kcpx
 
 import (
+	"fmt"
 	"github.com/xtaci/kcp-go"
 	gch "gsfly/channel"
 	"gsfly/common"
@@ -19,7 +20,7 @@ type Kws00Channel struct {
 // NewKws00Channel 新建KWS00 channel
 // 需要实现onKwsMsgHandle 和注册（握手）成功后的onRegisterhandle
 // 根据需要实现onUnRegisterhandle方法和其他ChannelHandle里的其他方法
-func NewKws00Channel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.ChannelConf, onKwsMsgHandle OnKws00MsgHandle, chHandle *gch.ChannelHandle) *Kws00Channel {
+func NewKws00Channel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChannelConf, onKwsMsgHandle OnKws00MsgHandle, chHandle *gch.ChannelHandle) *Kws00Channel {
 	if onKwsMsgHandle == nil {
 		logx.Panic("onKwsMsgHandle is nil.")
 		return nil
@@ -39,7 +40,7 @@ func NewKws00Handle(onRegisterhandle gch.OnRegisterHandle, onUnRegisterhandle gc
 		return nil
 	}
 
-	chHandle := gch.NewDefaultChHandle(onKws00MsgHandle)
+	chHandle := gch.NewDefChHandle(onKws00MsgHandle)
 	chHandle.OnRegisterHandle = onRegisterhandle
 	chHandle.OnUnRegisterHandle = onUnRegisterhandle
 	return chHandle
@@ -53,17 +54,17 @@ func (b *Kws00Channel) Stop() {
 	b.StopChannel(b)
 }
 
-func (b *Kws00Channel) Read() (gch.Packet, error) {
+func (b *Kws00Channel) Read() (gch.IPacket, error) {
 	return Read(b)
 }
 
-func (b *Kws00Channel) Write(datapack gch.Packet) error {
+func (b *Kws00Channel) Write(datapack gch.IPacket) error {
 	return b.KcpChannel.Write(datapack)
 }
 
-func (b *Kws00Channel) NewPacket() gch.Packet {
+func (b *Kws00Channel) NewPacket() gch.IPacket {
 	k := &KWS00Packet{}
-	k.Basepacket = *gch.NewBasePacket(b, gch.PROTOCOL_KWS00)
+	k.Packet = *gch.NewPacket(b, gch.PROTOCOL_KWS00)
 	return k
 
 }
@@ -74,20 +75,19 @@ type KWS00Packet struct {
 }
 
 func (packet *KWS00Packet) SetData(data []byte) {
-	packet.Basepacket.SetData(data)
+	packet.Packet.SetData(data)
 	packet.Frame = NewInputFrame(data)
 }
 
-type OnKws00MsgHandle func(channel gch.Channel, frame Frame) error
+type OnKws00MsgHandle func(channel gch.IChannel, frame Frame) error
 
-func onKws00MsgHandle(packet gch.Packet) error {
+func onKws00MsgHandle(packet gch.IPacket) error {
 	srcCh := packet.GetChannel()
 	defer func() {
 		ret := recover()
 		if ret != nil {
-			err := ret.(error)
-			logx.Error("handle error:", err)
-			srcCh.GetChHandle().OnErrorHandle(srcCh, common.NewError1(gch.ERR_REG, err))
+			logx.Error("handle error:", ret)
+			srcCh.GetChHandle().OnErrorHandle(srcCh, common.NewError2(gch.ERR_REG, fmt.Sprintf("%v", ret)))
 			srcCh.Stop()
 		}
 	}()
@@ -108,7 +108,7 @@ func onKws00MsgHandle(packet gch.Packet) error {
 							logx.Error("register error:", err)
 							panic("register error")
 						} else {
-							srcCh.SetRegisterd(true)
+							srcCh.SetRegistered(true)
 						}
 					}
 				} else if frame.GetOpCode() == OPCODE_CLOSE {
@@ -116,7 +116,7 @@ func onKws00MsgHandle(packet gch.Packet) error {
 					if unregisterHandle != nil {
 						// 注销事件
 						unregisterHandle(srcCh, packet, frame)
-						srcCh.SetRegisterd(false)
+						srcCh.SetRegistered(false)
 					}
 				}
 

@@ -13,13 +13,13 @@ import (
 )
 
 type UdpChannel struct {
-	gch.BaseChannel
+	gch.Channel
 	Conn *net.UDPConn
 }
 
-func newUdpChannel(parent interface{}, conn *net.UDPConn, conf gch.ChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
+func newUdpChannel(parent interface{}, conn *net.UDPConn, conf gch.IChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
 	ch := &UdpChannel{Conn: conn}
-	ch.BaseChannel = *gch.NewDefaultBaseChannel(parent, conf, chHandle)
+	ch.Channel = *gch.NewDefChannel(parent, conf, chHandle)
 	readBufSize := conf.GetReadBufSize()
 	conn.SetReadBuffer(readBufSize)
 
@@ -29,13 +29,13 @@ func newUdpChannel(parent interface{}, conn *net.UDPConn, conf gch.ChannelConf, 
 }
 
 // NewSimpleUdpChannel 创建udpchannel，需实现handleMsgFunc方法
-func NewSimpleUdpChannel(parent interface{}, udpConn *net.UDPConn, chConf gch.ChannelConf, msgFunc gch.OnMsgHandle) *UdpChannel {
-	chHandle := gch.NewDefaultChHandle(msgFunc)
+func NewSimpleUdpChannel(parent interface{}, udpConn *net.UDPConn, chConf gch.IChannelConf, msgFunc gch.OnMsgHandle) *UdpChannel {
+	chHandle := gch.NewDefChHandle(msgFunc)
 	return NewUdpChannel(parent, udpConn, chConf, chHandle)
 }
 
 // NewUdpChannel 创建udpchannel，需实现ChannelHandle
-func NewUdpChannel(parent interface{}, udpConn *net.UDPConn, chConf gch.ChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
+func NewUdpChannel(parent interface{}, udpConn *net.UDPConn, chConf gch.IChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
 	ch := newUdpChannel(parent, udpConn, chConf, chHandle)
 	ch.SetId("udp-" + udpConn.LocalAddr().String() + "-" + udpConn.RemoteAddr().String())
 	return ch
@@ -49,7 +49,7 @@ func (b *UdpChannel) Stop() {
 	b.StopChannel(b)
 }
 
-func (b *UdpChannel) Read() (gch.Packet, error) {
+func (b *UdpChannel) Read() (gch.IPacket, error) {
 	// TODO 超时配置
 	conf := b.GetChConf()
 	now := time.Now()
@@ -74,8 +74,8 @@ func (b *UdpChannel) Read() (gch.Packet, error) {
 }
 
 // Write datapack需要设置目标addr
-func (b *UdpChannel) Write(datapack gch.Packet) error {
-	return b.BaseChannel.Write(datapack)
+func (b *UdpChannel) Write(datapack gch.IPacket) error {
+	return b.Channel.Write(datapack)
 	// 	if b.IsClosed() {
 	// 		return errors.New("udpchannel had closed, chId:" + b.GetId())
 	// 	}
@@ -122,7 +122,7 @@ func (b *UdpChannel) Write(datapack gch.Packet) error {
 }
 
 // WriteByConn 实现通过conn发送
-func (b *UdpChannel) WriteByConn(datapacket gch.Packet) error {
+func (b *UdpChannel) WriteByConn(datapacket gch.IPacket) error {
 	writePacket := datapacket.(*UdpPacket)
 	bytes := writePacket.GetData()
 	conf := b.GetChConf()
@@ -158,14 +158,14 @@ func (b *UdpChannel) GetConn() net.Conn {
 	return b.Conn
 }
 
-func (b *UdpChannel) NewPacket() gch.Packet {
+func (b *UdpChannel) NewPacket() gch.IPacket {
 	w := &UdpPacket{}
-	w.Basepacket = *gch.NewBasePacket(b, gch.PROTOCOL_UDP)
+	w.Packet = *gch.NewPacket(b, gch.PROTOCOL_UDP)
 	return w
 }
 
 // UdpPacket Udp包
 type UdpPacket struct {
-	gch.Basepacket
+	gch.Packet
 	Addr net.Addr
 }
