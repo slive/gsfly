@@ -78,7 +78,13 @@ func (t *HttpWsServerStrap) Start() error {
 	}
 
 	defer func() {
-		t.Stop()
+		ret := recover()
+		if ret != nil {
+			logx.Warnf("finish httpws serverstrap, id:%v, ret:%v", t.GetId(), ret)
+			t.Stop()
+		} else {
+			logx.Info("finish httpws serverstrap, id:", t.GetId())
+		}
 	}()
 
 	wsHandlers := t.GetMsgHandlers()
@@ -99,14 +105,8 @@ func (t *HttpWsServerStrap) Start() error {
 	addr := t.ServerConf.GetAddrStr()
 	logx.Info("start http listen, addr:", addr)
 	err := http.ListenAndServe(addr, nil)
-	t.Closed = false
-	if err != nil {
-		for {
-			select {
-			case <-t.Exit:
-				break
-			}
-		}
+	if err == nil {
+		t.Closed = false
 	}
 	return err
 }
@@ -170,26 +170,39 @@ func (k *KcpServerStrap) Start() error {
 		return err
 	}
 
-	kwsChannels := k.Channels
 	defer func() {
-		k.Stop()
+		ret := recover()
+		if ret != nil {
+			logx.Warnf("finish kcp serverstrap, id:%v, ret:%v", k.GetId(), ret)
+			k.Stop()
+		} else {
+			logx.Info("finish kcp serverstrap, id:", k.GetId())
+		}
 	}()
 
-	for {
-		kcpConn, err := list.AcceptKCP()
-		if err != nil {
-			logx.Error("accept kcpconn error:", nil)
-			return err
+	kwsChannels := k.Channels
+	go func() {
+		for {
+			kcpConn, err := list.AcceptKCP()
+			if err != nil {
+				logx.Error("accept kcpconn error:", nil)
+				panic(err)
+			}
+			// OnStopHandle重新包装，以便释放资源
+			handle := k.ChannelHandle
+			handle.OnStopHandle = ConverOnStopHandle(k.Channels, handle.OnStopHandle)
+			kcpCh := kcpx.NewKcpChannel(k, kcpConn, kcpServerConf, handle)
+			err = kcpCh.Start()
+			if err == nil {
+				kwsChannels[kcpCh.GetId()] = kcpCh
+			}
 		}
-		// OnStopHandle重新包装，以便释放资源
-		handle := k.ChannelHandle
-		handle.OnStopHandle = ConverOnStopHandle(k.Channels, handle.OnStopHandle)
-		kcpCh := kcpx.NewKcpChannel(k, kcpConn, kcpServerConf, handle)
-		err = kcpCh.Start()
-		if err == nil {
-			kwsChannels[kcpCh.GetId()] = kcpCh
-		}
+	}()
+
+	if err == nil {
+		k.Closed = false
 	}
+
 	return nil
 }
 
@@ -223,24 +236,35 @@ func (k *Kws00ServerStrap) Start() error {
 	}
 
 	defer func() {
-		k.Stop()
+		ret := recover()
+		if ret != nil {
+			logx.Warnf("finish kws00 serverstrap, id:%v, ret:%v", k.GetId(), ret)
+			k.Stop()
+		} else {
+			logx.Info("finish kws00 serverstrap, id:", k.GetId())
+		}
 	}()
 
 	kwsChannels := k.Channels
-	for {
-		kcpConn, err := list.AcceptKCP()
-		if err != nil {
-			logx.Error("accept kcpconn error:", nil)
-			return err
-		}
+	go func() {
+		for {
+			kcpConn, err := list.AcceptKCP()
+			if err != nil {
+				logx.Error("accept kcpconn error:", nil)
+				panic(err)
+			}
 
-		chHandle := k.ChannelHandle
-		kcpCh := kcpx.NewKws00Channel(k, kcpConn, &kcpServerConf.ChannelConf, k.onKwsMsgHandle, chHandle)
-		kcpCh.ChannelHandle = chHandle
-		err = kcpCh.Start()
-		if err == nil {
-			kwsChannels[kcpCh.GetId()] = kcpCh
+			chHandle := k.ChannelHandle
+			kcpCh := kcpx.NewKws00Channel(k, kcpConn, &kcpServerConf.ChannelConf, k.onKwsMsgHandle, chHandle)
+			kcpCh.ChannelHandle = chHandle
+			err = kcpCh.Start()
+			if err == nil {
+				kwsChannels[kcpCh.GetId()] = kcpCh
+			}
 		}
+	}()
+	if err == nil {
+		k.Closed = false
 	}
 	return nil
 }
@@ -274,12 +298,11 @@ func (u *UdpServerStrap) Start() error {
 		return err
 	}
 
-	defer func() {
-		u.Stop()
-	}()
 	// TODO udp有源和目标地址之分，待实现
 	ch := udpx.NewUdpChannel(u, conn, serverConf, u.ChannelHandle)
 	err = ch.Start()
-	select {}
+	if err == nil {
+		u.Closed = false
+	}
 	return err
 }

@@ -61,6 +61,7 @@ func (wc *WsClientStrap) Start() error {
 	err = wsCh.Start()
 	if err == nil {
 		wc.Channel = wsCh
+		wc.Closed = false
 	}
 	return err
 }
@@ -92,6 +93,7 @@ func (kc *KcpClientStrap) Start() error {
 	err = kcpCh.Start()
 	if err == nil {
 		kc.Channel = kcpCh
+		kc.Closed = false
 	}
 	return err
 }
@@ -138,6 +140,7 @@ func (kc *Kws00ClientStrap) Start() error {
 		kc.Stop()
 	} else {
 		kc.Channel = kwsCh
+		kc.Closed = false
 	}
 	return err
 }
@@ -205,6 +208,7 @@ func (uc *UdpClientStrap) Start() error {
 	err = udpCh.Start()
 	if err == nil {
 		uc.Channel = udpCh
+		uc.Closed = false
 	}
 	return err
 }
