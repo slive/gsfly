@@ -208,16 +208,14 @@ func (k *KcpServerStrap) Start() error {
 
 type Kws00ServerStrap struct {
 	KcpServerStrap
-	onKwsMsgHandle kcpx.OnKws00MsgHandle
 }
 
-func NewKws00Server(parent interface{}, kcpServerConf *KcpServerConf, onKwsMsgHandle kcpx.OnKws00MsgHandle,
+func NewKws00Server(parent interface{}, kcpServerConf *KcpServerConf, onKwsMsgHandle gch.OnMsgHandle,
 	onRegisterHandle gch.OnRegisterHandle, onUnRegisterHandle gch.OnUnRegisterHandle) IServerStrap {
 	k := &Kws00ServerStrap{}
 	k.ServerConf = kcpServerConf
-	chHandle := kcpx.NewKws00Handle(onRegisterHandle, onUnRegisterHandle)
+	chHandle := kcpx.NewKws00Handle(onKwsMsgHandle, onRegisterHandle, onUnRegisterHandle)
 	k.ServerStrap = *NewServerStrap(parent, kcpServerConf, chHandle)
-	k.onKwsMsgHandle = onKwsMsgHandle
 	return k
 }
 
@@ -255,7 +253,7 @@ func (k *Kws00ServerStrap) Start() error {
 			}
 
 			chHandle := k.ChannelHandle
-			kcpCh := kcpx.NewKws00Channel(k, kcpConn, &kcpServerConf.ChannelConf, k.onKwsMsgHandle, chHandle)
+			kcpCh := kcpx.NewKws00Channel(k, kcpConn, &kcpServerConf.ChannelConf, chHandle)
 			kcpCh.ChannelHandle = chHandle
 			err = kcpCh.Start()
 			if err == nil {

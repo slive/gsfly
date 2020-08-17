@@ -5,7 +5,10 @@
  */
 package channel
 
-import "time"
+import (
+	"gsfly/common"
+	"time"
+)
 
 // 定义协议类型
 type Protocol int
@@ -43,6 +46,8 @@ type IPacket interface {
 	SetData(data []byte)
 
 	GetInitTime() time.Time
+
+	common.IAttact
 }
 
 type Packet struct {
@@ -50,6 +55,7 @@ type Packet struct {
 	ptype    Protocol
 	data     []byte
 	initTime time.Time
+	common.Attact
 }
 
 func (b *Packet) GetChannel() IChannel {
@@ -86,5 +92,6 @@ func NewPacket(channel IChannel, ptype Protocol) *Packet {
 		ptype:    ptype,
 		initTime: time.Now(),
 	}
+	b.Attact = *common.NewAttact()
 	return b
 }

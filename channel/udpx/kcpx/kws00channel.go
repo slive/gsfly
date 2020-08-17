@@ -14,27 +14,30 @@ import (
 
 type Kws00Channel struct {
 	KcpChannel
-	onKwsMsgHandle OnKws00MsgHandle
+	onKwsMsgHandle gch.OnMsgHandle
 }
 
 // NewKws00Channel 新建KWS00 channel
 // 需要实现onKwsMsgHandle 和注册（握手）成功后的onRegisterhandle
 // 根据需要实现onUnRegisterhandle方法和其他ChannelHandle里的其他方法
-func NewKws00Channel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChannelConf, onKwsMsgHandle OnKws00MsgHandle, chHandle *gch.ChannelHandle) *Kws00Channel {
-	if onKwsMsgHandle == nil {
-		logx.Panic("onKwsMsgHandle is nil.")
-		return nil
-	}
-
+func NewKws00Channel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChannelConf, chHandle *gch.ChannelHandle) *Kws00Channel {
 	channel := &Kws00Channel{}
 	channel.KcpChannel = *NewKcpChannel(parent, kcpConn, chConf, chHandle)
 	channel.protocol = gch.PROTOCOL_KWS00
-	channel.onKwsMsgHandle = onKwsMsgHandle
+	channel.onKwsMsgHandle = chHandle.GetOnMsgHandle()
+	// 更新内部kwsmsg
+	gch.UpdateMsgHandle(onInnerKws00MsgHandle, chHandle)
 	return channel
 }
 
 // NewKws00Handle 根据需要实现onUnRegisterhandle方法和其他ChannelHandle里的其他方法
-func NewKws00Handle(onRegisterhandle gch.OnRegisterHandle, onUnRegisterhandle gch.OnUnRegisterHandle) *gch.ChannelHandle {
+func NewKws00Handle(onKws00MsgHandle gch.OnMsgHandle, onRegisterhandle gch.OnRegisterHandle, onUnRegisterhandle gch.OnUnRegisterHandle) *gch.ChannelHandle {
+
+	if onKws00MsgHandle == nil {
+		logx.Panic("onKws00MsgHandle is nil.")
+		return nil
+	}
+
 	if onRegisterhandle == nil {
 		logx.Panic("onRegisterhandle is nil.")
 		return nil
@@ -79,9 +82,10 @@ func (packet *KWS00Packet) SetData(data []byte) {
 	packet.Frame = NewInputFrame(data)
 }
 
-type OnKws00MsgHandle func(channel gch.IChannel, frame Frame) error
+// type OnKws00MsgHandle func(channel gch.IChannel, frame Frame) error
+const KCP_FRAME_KEY = "kcpframe"
 
-func onKws00MsgHandle(packet gch.IPacket) error {
+func onInnerKws00MsgHandle(packet gch.IPacket) error {
 	srcCh := packet.GetChannel()
 	defer func() {
 		ret := recover()
@@ -97,13 +101,14 @@ func onKws00MsgHandle(packet gch.IPacket) error {
 		kwsPacket, ok := packet.(*KWS00Packet)
 		if ok {
 			frame := kwsPacket.Frame
+			packet.AddAttach(KCP_FRAME_KEY, frame)
 			if frame != nil {
 				// 第一次建立会话时进行处理
 				if frame.GetOpCode() == OPCODE_TEXT_SESSION {
 					registerHandle := srcCh.GetChHandle().OnRegisterHandle
 					if registerHandle != nil {
 						// 注册事件
-						err := registerHandle(srcCh, packet, frame)
+						err := registerHandle(srcCh, packet)
 						if err != nil {
 							logx.Error("register error:", err)
 							panic("register error")
@@ -115,7 +120,7 @@ func onKws00MsgHandle(packet gch.IPacket) error {
 					unregisterHandle := srcCh.GetChHandle().OnUnRegisterHandle
 					if unregisterHandle != nil {
 						// 注销事件
-						unregisterHandle(srcCh, packet, frame)
+						unregisterHandle(srcCh, packet)
 						srcCh.SetRegistered(false)
 					}
 				}
@@ -123,7 +128,7 @@ func onKws00MsgHandle(packet gch.IPacket) error {
 				kcp := srcCh.(*Kws00Channel)
 				onKwsMsgHandle := kcp.onKwsMsgHandle
 				if onKwsMsgHandle != nil {
-					onKwsMsgHandle(kcp, frame)
+					onKwsMsgHandle(packet)
 				}
 			} else {
 				logx.Warn("frame is nil")

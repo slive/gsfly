@@ -101,19 +101,17 @@ func (kc *KcpClientStrap) Start() error {
 // Kws00ClientStrap
 type Kws00ClientStrap struct {
 	KcpClientStrap
-	ClientConf     *Kws00ClientConf
-	onKwsMsgHandle kcpx.OnKws00MsgHandle
+	ClientConf *Kws00ClientConf
 }
 
 // NewKws00Client 实现kws
 // onKwsMsgHandle和onRegisterhandle 必须实现，其他方法可选
-func NewKws00Client(parent interface{}, kws00ClientConf *Kws00ClientConf, onKwsMsgHandle kcpx.OnKws00MsgHandle,
+func NewKws00Client(parent interface{}, kws00ClientConf *Kws00ClientConf, onKwsMsgHandle gch.OnMsgHandle,
 	onRegisterhandle gch.OnRegisterHandle, onUnRegisterhandle gch.OnUnRegisterHandle) IClientStrap {
 	b := &Kws00ClientStrap{}
 	b.ClientConf = kws00ClientConf
-	handle := kcpx.NewKws00Handle(onRegisterhandle, onUnRegisterhandle)
+	handle := kcpx.NewKws00Handle(onKwsMsgHandle, onRegisterhandle, onUnRegisterhandle)
 	b.BootStrap = *NewBootStrap(parent, handle)
-	b.onKwsMsgHandle = onKwsMsgHandle
 	return b
 }
 
@@ -128,7 +126,7 @@ func (kc *Kws00ClientStrap) Start() error {
 		return err
 	}
 
-	kwsCh := kcpx.NewKws00Channel(kc, conn, &kcpClientConf.ChannelConf, kc.onKwsMsgHandle, chHandle)
+	kwsCh := kcpx.NewKws00Channel(kc, conn, &kcpClientConf.ChannelConf, chHandle)
 	err = kwsCh.Start()
 	if err != nil {
 		return err

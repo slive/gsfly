@@ -15,11 +15,11 @@ type OnMsgHandle func(packet IPacket) error
 
 // OnBefWriteHandle 发送消息之前
 // packet 接收到的包，不可以为nil
-type OnBefWriteHandle func(packet IPacket, attach ...interface{}) error
+type OnBefWriteHandle func(packet IPacket) error
 
 // OnAftWriteHandle 发送消息之后
 // packet 接收到的包，不可以为nil
-type OnAftWriteHandle func(packet IPacket, attach ...interface{}) error
+type OnAftWriteHandle func(packet IPacket) error
 
 // OnStopHandle 处理停止时的方法
 // channel 通信通道
@@ -33,13 +33,13 @@ type OnStartHandle func(channel IChannel) error
 // channel 通信通道
 // packet 接收到的包，可能nil
 // attach 附带参数，可能为nil
-type OnRegisterHandle func(channel IChannel, packet IPacket, attach ...interface{}) error
+type OnRegisterHandle func(channel IChannel, packet IPacket) error
 
 // OnUnRegisterHandle 处理取消注册的方法
 // channel 通信通道
 // packet 接收到的包，可能nil
 // attach 附带参数，可能为nil
-type OnUnRegisterHandle func(channel IChannel, packet IPacket, attach ...interface{}) error
+type OnUnRegisterHandle func(channel IChannel, packet IPacket) error
 
 // OnErrorHandle 处理取消注册的方法
 // channel 通信通道
@@ -52,6 +52,8 @@ func innerErrorHandle(channel IChannel, gerr common.GError) {
 }
 
 type IChannelHandle interface {
+	GetOnMsgHandle() OnMsgHandle
+
 	SetOnStartHandle(handle OnStartHandle)
 	SetOnStopHandle(handle OnStopHandle)
 	SetOnRegisterHandle(handle OnRegisterHandle)
@@ -108,6 +110,10 @@ func (c *ChannelHandle) SetOnBefWriteHandle(handle OnBefWriteHandle) {
 	c.OnBefWriteHandle = handle
 }
 
+func (c *ChannelHandle) GetOnMsgHandle() OnMsgHandle {
+	return c.msgHandleFunc
+}
+
 // NewDefChHandle 创建默认的， 必须实现OnMsgHandleFunc 方法
 func NewDefChHandle(msgHandleFunc OnMsgHandle) *ChannelHandle {
 	if msgHandleFunc == nil {
@@ -119,6 +125,15 @@ func NewDefChHandle(msgHandleFunc OnMsgHandle) *ChannelHandle {
 	c.innerMsgHandleFunc = c.onMsgHandle
 	c.OnErrorHandle = innerErrorHandle
 	return c
+}
+
+func UpdateMsgHandle(msgHandleFunc OnMsgHandle, chHandle *ChannelHandle) {
+	if msgHandleFunc == nil {
+		errMsg := "OnMsgHandle is nil."
+		logx.Error(errMsg)
+		panic(errMsg)
+	}
+	chHandle.msgHandleFunc = msgHandleFunc
 }
 
 // 内部代理调用 OnMsgHandle
