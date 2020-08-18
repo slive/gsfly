@@ -4,7 +4,10 @@
  */
 package common
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 type GError interface {
 	error
@@ -34,6 +37,13 @@ func NewError1(errCode string, err error) GError {
 func NewError2(errCode string, errStr string) GError {
 	return &innerErr{
 		error:   errors.New(errStr),
+		errCode: errCode,
+	}
+}
+
+func NewError3(errCode string, msg interface{}) GError {
+	return &innerErr{
+		error:   errors.New(fmt.Sprintf("%v", msg)),
 		errCode: errCode,
 	}
 }

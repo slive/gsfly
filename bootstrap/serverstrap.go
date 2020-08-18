@@ -26,96 +26,102 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize:  10 * 1024,
 }
 
-type HttpWsServerStrap struct {
+type WsServerStrap struct {
 	ServerStrap
-	ServerConf   *HttpxServerConf
-	msgHandlers  map[string]*gch.ChannelHandle
-	httpHandlers map[string]HttpHandleFunc
 }
 
 // Http和Websocket 的服务监听
-func NewHttpxServer(parent interface{}, serverConf *HttpxServerConf) IServerStrap {
-	t := &HttpWsServerStrap{
-		httpHandlers: make(map[string]HttpHandleFunc),
-		msgHandlers:  make(map[string]*gch.ChannelHandle),
-	}
-	t.ServerStrap = *NewServerStrap(parent, serverConf, nil)
-	t.ServerConf = serverConf
+func NewWsServerStrap(parent interface{}, serverConf IWsServerConf, chHandle *gch.ChannelHandle) IServerStrap {
+	t := &WsServerStrap{}
+	t.ServerStrap = *NewServerStrap(parent, serverConf, chHandle)
 	return t
 }
 
 // AddHttpHandleFunc 添加http处理方法
-func (t *HttpWsServerStrap) AddHttpHandleFunc(pattern string, httpHandleFunc HttpHandleFunc) {
-	t.httpHandlers[pattern] = httpHandleFunc
-}
+// func (t *WsServerStrap) AddHttpHandleFunc(pattern string, httpHandleFunc HttpHandleFunc) {
+// 	t.httpHandlers[pattern] = httpHandleFunc
+// }
+//
+// // AddWsHandleFunc 添加Websocket处理方法
+// func (t *WsServerStrap) AddWsHandleFunc(pattern string, wsHandleFunc *gch.ChannelHandle) {
+// 	t.msgHandlers[pattern] = wsHandleFunc
+// }
+//
+// // GetChHandle 暂时不支持，用GetMsgHandlers()代替
+// func (t *WsServerStrap) GetChannelHandle() *gch.ChannelHandle {
+// 	logx.Panic("unsupport")
+// 	return nil
+// }
+//
+// func (t *WsServerStrap) GetMsgHandlers() map[string]*gch.ChannelHandle {
+// 	return t.msgHandlers
+// }
 
-// AddWsHandleFunc 添加Websocket处理方法
-func (t *HttpWsServerStrap) AddWsHandleFunc(pattern string, wsHandleFunc *gch.ChannelHandle) {
-	t.msgHandlers[pattern] = wsHandleFunc
-}
-
-// GetChHandle 暂时不支持，用GetMsgHandlers()代替
-func (t *HttpWsServerStrap) GetChannelHandle() *gch.ChannelHandle {
-	logx.Panic("unsupport")
-	return nil
-}
-
-func (t *HttpWsServerStrap) GetMsgHandlers() map[string]*gch.ChannelHandle {
-	return t.msgHandlers
-}
-
-func (t *HttpWsServerStrap) Start() error {
-	if !t.Closed {
-		return errors.New("server had opened, id:" + t.GetId())
+func (wsServerStrap *WsServerStrap) Start() error {
+	if !wsServerStrap.Closed {
+		return errors.New("server had opened, id:" + wsServerStrap.GetId())
 	}
 
 	// http处理事件
-	httpHandlers := t.httpHandlers
-	if httpHandlers != nil {
-		for key, f := range httpHandlers {
-			http.HandleFunc(key, f)
-		}
-	}
+	// httpHandlers := wsServerStrap.httpHandlers
+	// if httpHandlers != nil {
+	// 	for key, f := range httpHandlers {
+	// 		http.HandleFunc(key, f)
+	// 	}
+	// }
 
 	defer func() {
 		ret := recover()
 		if ret != nil {
-			logx.Warnf("finish httpws serverstrap, id:%v, ret:%v", t.GetId(), ret)
-			t.Stop()
+			logx.Warnf("finish httpws serverstrap, id:%v, ret:%v", wsServerStrap.GetId(), ret)
+			wsServerStrap.Stop()
 		} else {
-			logx.Info("finish httpws serverstrap, id:", t.GetId())
+			logx.Info("finish httpws serverstrap, id:", wsServerStrap.GetId())
 		}
 	}()
 
-	wsHandlers := t.GetMsgHandlers()
-	if wsHandlers != nil {
-		// ws处理事件
-		acceptChannels := t.Channels
-		for key, f := range wsHandlers {
-			http.HandleFunc(key, func(writer http.ResponseWriter, r *http.Request) {
-				logx.Info("requestWs:", r.URL)
-				err := t.startWs(writer, r, upgrader, t.ServerConf, f, acceptChannels)
-				if err != nil {
-					logx.Error("start ws error:", err)
-				}
-			})
-		}
+	wsServerConf := wsServerStrap.GetConf().(IWsServerConf)
+	upgrader = websocket.Upgrader{
+		HandshakeTimeout: time.Second * 15,
+		ReadBufferSize:   wsServerConf.GetReadBufSize(),
+		WriteBufferSize:  wsServerConf.GetWriteBufSize(),
 	}
 
-	addr := t.ServerConf.GetAddrStr()
-	logx.Info("start http listen, addr:", addr)
-	err := http.ListenAndServe(addr, nil)
-	if err == nil {
-		t.Closed = false
-	}
-	return err
+	// ws处理事件
+	http.HandleFunc(wsServerConf.GetPath(), func(writer http.ResponseWriter, req *http.Request) {
+		logx.Info("requestWs:", req.URL)
+		err := wsServerStrap.startWs(writer, req, upgrader)
+		if err != nil {
+			logx.Error("start ws error:", err)
+		}
+	})
+	wsServerStrap.Closed = false
+	return nil
+	//
+	// addr := wsServerStrap.ServerConf.GetAddrStr()
+	// s := &http.Server{
+	// 	Addr:           addr,
+	// 	ReadTimeout:    10 * time.Second,
+	// 	WriteTimeout:   10 * time.Second,
+	// 	MaxHeaderBytes: 1 << 20,
+	//
+	// }
+	// // s.ListenAndServe()
+	//
+	// logx.Info("start http listen, addr:", addr)
+	// err := s.ListenAndServe()
+	// if err == nil {
+	// 	wsServerStrap.Closed = false
+	// }
 }
 
 type HttpHandleFunc func(http.ResponseWriter, *http.Request)
 
 // startWs 启动ws处理
-func (t *HttpWsServerStrap) startWs(w http.ResponseWriter, r *http.Request, upgrader websocket.Upgrader, serverConf *HttpxServerConf, handle *gch.ChannelHandle, acceptChannels map[string]gch.IChannel) error {
-	connLen := len(acceptChannels)
+func (wsServerStrap *WsServerStrap) startWs(w http.ResponseWriter, r *http.Request, upgrader websocket.Upgrader) error {
+	acceptChannels := wsServerStrap.GetChannels()
+	serverConf := wsServerStrap.GetConf().(IWsServerConf)
+	connLen := acceptChannels.Size()
 	maxAcceptSize := serverConf.GetMaxChannelSize()
 	if connLen >= maxAcceptSize {
 		return errors.New("max accept size:" + fmt.Sprintf("%v", maxAcceptSize))
@@ -127,17 +133,18 @@ func (t *HttpWsServerStrap) startWs(w http.ResponseWriter, r *http.Request, upgr
 		logx.Println("upgrade error:", err)
 		return err
 	}
+
 	if err != nil {
 		logx.Error("accept error:", nil)
 		return err
 	}
 
 	// OnStopHandle重新b包装
-	wsCh := httpx.NewWsChannel(t, conn, serverConf, handle)
+	wsCh := httpx.NewWsChannel(wsServerStrap, conn, serverConf, wsServerStrap.GetChHandle())
 	err = wsCh.Start()
 	if err == nil {
 		// TODO 线程安全？
-		acceptChannels[wsCh.GetId()] = wsCh
+		acceptChannels.Put(wsCh.GetId(), wsCh)
 	}
 	return err
 }
@@ -194,7 +201,7 @@ func (k *KcpServerStrap) Start() error {
 			kcpCh := kcpx.NewKcpChannel(k, kcpConn, kcpServerConf, handle)
 			err = kcpCh.Start()
 			if err == nil {
-				kwsChannels[kcpCh.GetId()] = kcpCh
+				kwsChannels.Put(kcpCh.GetId(), kcpCh)
 			}
 		}
 	}()
@@ -254,10 +261,9 @@ func (k *Kws00ServerStrap) Start() error {
 
 			chHandle := k.ChannelHandle
 			kcpCh := kcpx.NewKws00Channel(k, kcpConn, &kcpServerConf.ChannelConf, chHandle)
-			kcpCh.ChannelHandle = chHandle
 			err = kcpCh.Start()
 			if err == nil {
-				kwsChannels[kcpCh.GetId()] = kcpCh
+				kwsChannels.Put(kcpCh.GetId(), kcpCh)
 			}
 		}
 	}()

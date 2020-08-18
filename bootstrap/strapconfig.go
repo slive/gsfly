@@ -65,20 +65,84 @@ type UdpClientConf struct {
 	ClientConf
 }
 
-type HttpxServerConf struct {
-	ServerConf
+type IWsConf interface {
+	GetUrl() string
+	GetPath() string
+	GetSubProtocol() []string
+	GetScheme() string
 }
 
-type HttpxClientConf struct {
-	ClientConf
+type WsConf struct {
+	Scheme      string
+	SubProtocol []string
+	Path        string
+}
+
+func NewWsConf(scheme string, path string, subProtocol []string) *WsConf {
+	w := &WsConf{
+		Scheme:      scheme,
+		SubProtocol: subProtocol,
+		Path:        path,
+	}
+	return w
+}
+
+func (wsConf *WsConf) GetUrl() string {
+	panic("implement")
+}
+
+func (wsConf *WsConf) GetPath() string {
+	return wsConf.Path
+}
+
+func (wsConf *WsConf) GetSubProtocol() []string {
+	return wsConf.SubProtocol
+}
+
+func (wsConf *WsConf) GetScheme() string {
+	return wsConf.Scheme
+}
+
+type IWsServerConf interface {
+	IServerConf
+	IWsConf
+}
+
+type WsServerConf struct {
+	ServerConf
+	WsConf
+}
+
+func NewWsServerConf(ip string, port int, maxChannelSize int, scheme string, path string, subProtocol []string) *WsServerConf {
+	w := &WsServerConf{}
+	w.WsConf = *NewWsConf(scheme, path, subProtocol)
+	w.Ip = ip
+	w.Port = port
+	w.MaxChannelSize = maxChannelSize
+	return w
+}
+
+func (wsServerConf *WsServerConf) GetUrl() string {
+	u := url.URL{Scheme: wsServerConf.Scheme, Host: wsServerConf.GetAddrStr(), Path: wsServerConf.Path}
+	return u.String()
+}
+
+type IWsClientConf interface {
+	IClientConf
+	IWsConf
 }
 
 type WsClientConf struct {
 	ClientConf
-	Scheme      string
-	SubProtocol []string
-	Path        string
-	Params      map[string]interface{}
+	WsConf
+}
+
+func NewWsClientConf(ip string, port int, scheme string, path string, subProtocol []string) *WsClientConf {
+	w := &WsClientConf{}
+	w.WsConf = *NewWsConf(scheme, path, subProtocol)
+	w.Ip = ip
+	w.Port = port
+	return w
 }
 
 func (wsClientConf *WsClientConf) GetUrl() string {

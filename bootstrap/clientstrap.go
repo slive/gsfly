@@ -17,24 +17,30 @@ import (
 	"net"
 )
 
-type WsClientStrap struct {
-	ClientStrap
-	ClientConf *WsClientConf
+type IWsClientStrap interface {
+	IClientStrap
+
+	GetParams() map[string]interface{}
 }
 
-func NewWsClient(parent interface{}, wsClientConf *WsClientConf, handle *gch.ChannelHandle) IClientStrap {
-	b := &WsClientStrap{
-		ClientConf: wsClientConf,
-	}
+type WsClientStrap struct {
+	ClientStrap
+	params map[string]interface{}
+}
+
+func NewWsClient(parent interface{}, wsClientConf IWsClientConf, handle *gch.ChannelHandle, params map[string]interface{}) IClientStrap {
+	b := &WsClientStrap{}
+	b.params = params
+	b.Conf = wsClientConf
 	b.BootStrap = *NewBootStrap(parent, handle)
 	return b
 }
 
 func (wc *WsClientStrap) Start() error {
-	wsClientConf := wc.ClientConf
+	wsClientConf := wc.GetConf().(IWsClientConf)
 	handle := wc.ChannelHandle
 	url := wsClientConf.GetUrl()
-	params := wsClientConf.Params
+	params := wc.params
 	if params != nil && len(params) > 0 {
 		url += "?"
 		index := 1
@@ -57,13 +63,17 @@ func (wc *WsClientStrap) Start() error {
 
 	// TODO 处理resonse？
 	logx.Info("ws response:", response)
-	wsCh := httpx.NewWsChannel(wc, conn, &wsClientConf.ChannelConf, handle)
+	wsCh := httpx.NewWsChannel(wc, conn, wsClientConf, handle)
 	err = wsCh.Start()
 	if err == nil {
 		wc.Channel = wsCh
 		wc.Closed = false
 	}
 	return err
+}
+
+func (wc *WsClientStrap) GetParams() map[string]interface{} {
+	return wc.params
 }
 
 type KcpClientStrap struct {

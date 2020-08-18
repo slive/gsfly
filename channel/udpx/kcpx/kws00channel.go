@@ -32,15 +32,16 @@ func NewKws00Channel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.ICh
 
 // NewKws00Handle 根据需要实现onUnRegisterhandle方法和其他ChannelHandle里的其他方法
 func NewKws00Handle(onKws00MsgHandle gch.OnMsgHandle, onRegisterhandle gch.OnRegisterHandle, onUnRegisterhandle gch.OnUnRegisterHandle) *gch.ChannelHandle {
-
 	if onKws00MsgHandle == nil {
-		logx.Panic("onKws00MsgHandle is nil.")
-		return nil
+		errMsg := "onKws00MsgHandle is nil."
+		logx.Panic(errMsg)
+		panic(errMsg)
 	}
 
 	if onRegisterhandle == nil {
-		logx.Panic("onRegisterhandle is nil.")
-		return nil
+		errMsg := "onRegisterhandle is nil."
+		logx.Panic(errMsg)
+		panic(errMsg)
 	}
 
 	chHandle := gch.NewDefChHandle(onKws00MsgHandle)

@@ -160,6 +160,8 @@ func (b *Channel) StartChannel(channel IChannel) error {
 	}()
 	go b.startReadLoop(channel)
 
+	b.SetClosed(false)
+
 	// 启动后处理方法
 	startFunc := handle.OnStartHandle
 	if startFunc != nil {
@@ -168,7 +170,6 @@ func (b *Channel) StartChannel(channel IChannel) error {
 			return err
 		}
 	}
-	b.SetClosed(false)
 	logx.Info("finish to start channel, chId:", channel.GetId())
 	return nil
 }
@@ -319,13 +320,9 @@ func (b *Channel) startReadLoop(channel IChannel) {
 	defer func() {
 		rec := recover()
 		if rec != nil {
-			err, ok := rec.(error)
-			if ok {
-				logx.Errorf("readloop error, chId:%v, err:%v", b.GetId(), err)
-				// 捕获处理消息异常
-				channel.GetChHandle().OnErrorHandle(channel, common.NewError1(ERR_READ, err))
-				b.Stop()
-			}
+			logx.Errorf("readloop error, chId:%v, err:%v", b.GetId(), rec)
+			channel.GetChHandle().OnErrorHandle(channel, common.NewError3(ERR_READ, rec))
+			b.Stop()
 		}
 	}()
 	logx.Info("start to readloop, chId:", b.GetId())
@@ -339,7 +336,7 @@ func (b *Channel) startReadLoop(channel IChannel) {
 			if err != nil {
 				if !channel.IsReadLoopContinued(err) {
 					logx.Panic("read loop error:", err)
-					return
+					panic(err)
 				} else {
 					continue
 				}

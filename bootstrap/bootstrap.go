@@ -5,6 +5,7 @@
 package bootstrap
 
 import (
+	"github.com/emirpasic/gods/maps/hashmap"
 	gch "gsfly/channel"
 	"gsfly/common"
 	logx "gsfly/logger"
@@ -56,25 +57,35 @@ func (bc *BootStrap) GetChHandle() *gch.ChannelHandle {
 type IServerStrap interface {
 	IBootStrap
 	GetConf() IServerConf
-	GetChannels() map[string]gch.IChannel
+	GetChannels() *hashmap.Map
 }
 
 type ServerStrap struct {
 	BootStrap
 	Conf     IServerConf
-	Channels map[string]gch.IChannel
+	Channels *hashmap.Map
 }
 
-func NewServerStrap(parent interface{}, serverConf IServerConf, handle *gch.ChannelHandle) *ServerStrap {
+func NewServerStrap(parent interface{}, serverConf IServerConf, chHandle *gch.ChannelHandle) *ServerStrap {
+	if chHandle == nil {
+		errMsg := "chHandle is nil."
+		logx.Panic(errMsg)
+		panic(errMsg)
+	}
+
+	if serverConf == nil {
+		errMsg := "serverConf is nil."
+		logx.Panic(errMsg)
+		panic(errMsg)
+	}
+
 	b := &ServerStrap{
 		Conf:     serverConf,
-		Channels: make(map[string]gch.IChannel),
+		Channels: hashmap.New(),
 	}
-	b.BootStrap = *NewBootStrap(parent, handle)
+	b.BootStrap = *NewBootStrap(parent, chHandle)
 	// OnStopHandle重新b包装
-	if handle != nil {
-		handle.OnStopHandle = ConverOnStopHandle(b.Channels, handle.OnStopHandle)
-	}
+	chHandle.OnStopHandle = ConverOnStopHandle(b.Channels, chHandle.OnStopHandle)
 	return b
 }
 
@@ -92,15 +103,14 @@ func (tcpls *ServerStrap) Stop() {
 		logx.Info("start to stop httpx listen, id:", id)
 		tcpls.Closed = true
 		tcpls.Exit <- true
-		acceptChannels := tcpls.Channels
+		acceptChannels := tcpls.Channels.Values()
 		for _, ch := range acceptChannels {
-			ch.Stop()
-			// delete(acceptChannels, key)
+			ch.(gch.IChannel).Stop()
 		}
 	}
 }
 
-func (tcpls *ServerStrap) GetChannels() map[string]gch.IChannel {
+func (tcpls *ServerStrap) GetChannels() *hashmap.Map {
 	return tcpls.Channels
 }
 
@@ -109,10 +119,12 @@ func (tcpls *ServerStrap) GetConf() IServerConf {
 }
 
 // ConverOnStopHandle 转化OnStopHandle方法
-func ConverOnStopHandle(channels map[string]gch.IChannel, onStopHandle gch.OnStopHandle) func(channel gch.IChannel) error {
+func ConverOnStopHandle(channels *hashmap.Map, onStopHandle gch.OnStopHandle) func(channel gch.IChannel) error {
 	return func(channel gch.IChannel) error {
 		// 释放现有资源
-		delete(channels, channel.GetId())
+		chId := channel.GetId()
+		channels.Remove(chId)
+		logx.Infof("remove serverchannel, chId:%v, channelSize:%v", chId, channels.Size())
 		if onStopHandle != nil {
 			return onStopHandle(channel)
 		}
