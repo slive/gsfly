@@ -63,7 +63,7 @@ func (wc *WsClientStrap) Start() error {
 
 	// TODO 处理resonse？
 	logx.Info("ws response:", response)
-	wsCh := httpx.NewWsChannel(wc, conn, wsClientConf, handle)
+	wsCh := httpx.NewWsChannel(wc, conn, wsClientConf, handle, nil)
 	err = wsCh.Start()
 	if err == nil {
 		wc.Channel = wsCh

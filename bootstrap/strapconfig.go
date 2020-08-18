@@ -119,6 +119,7 @@ func NewWsServerConf(ip string, port int, maxChannelSize int, scheme string, pat
 	w.Ip = ip
 	w.Port = port
 	w.MaxChannelSize = maxChannelSize
+	w.Protocol = channel.PROTOCOL_WS
 	return w
 }
 

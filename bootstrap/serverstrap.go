@@ -82,7 +82,7 @@ func (wsServerStrap *WsServerStrap) Start() error {
 
 	wsServerConf := wsServerStrap.GetConf().(IWsServerConf)
 	upgrader = websocket.Upgrader{
-		HandshakeTimeout: time.Second * 15,
+		HandshakeTimeout: wsServerConf.GetReadTimeout() * time.Second,
 		ReadBufferSize:   wsServerConf.GetReadBufSize(),
 		WriteBufferSize:  wsServerConf.GetWriteBufSize(),
 	}
@@ -118,7 +118,7 @@ func (wsServerStrap *WsServerStrap) Start() error {
 type HttpHandleFunc func(http.ResponseWriter, *http.Request)
 
 // startWs 启动ws处理
-func (wsServerStrap *WsServerStrap) startWs(w http.ResponseWriter, r *http.Request, upgrader websocket.Upgrader) error {
+func (wsServerStrap *WsServerStrap) startWs(writer http.ResponseWriter, req *http.Request, upgr websocket.Upgrader) error {
 	acceptChannels := wsServerStrap.GetChannels()
 	serverConf := wsServerStrap.GetConf().(IWsServerConf)
 	connLen := acceptChannels.Size()
@@ -127,8 +127,16 @@ func (wsServerStrap *WsServerStrap) startWs(w http.ResponseWriter, r *http.Reque
 		return errors.New("max accept size:" + fmt.Sprintf("%v", maxAcceptSize))
 	}
 
+	params := make(map[string]interface{})
+	req.ParseForm()
+	form := req.Form
+	for key, val := range form {
+		params[key] = val[0]
+	}
+	urlStr := req.URL.String()
+	logx.Infof("params:%v, url:%v", params, urlStr)
 	// upgrade处理
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := upgr.Upgrade(writer, req, nil)
 	if err != nil {
 		logx.Println("upgrade error:", err)
 		return err
@@ -140,7 +148,8 @@ func (wsServerStrap *WsServerStrap) startWs(w http.ResponseWriter, r *http.Reque
 	}
 
 	// OnStopHandle重新b包装
-	wsCh := httpx.NewWsChannel(wsServerStrap, conn, serverConf, wsServerStrap.GetChHandle())
+	wsCh := httpx.NewWsChannel(wsServerStrap, conn, serverConf, wsServerStrap.GetChHandle(), params)
+
 	err = wsCh.Start()
 	if err == nil {
 		// TODO 线程安全？
