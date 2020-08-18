@@ -38,7 +38,7 @@ func (b *KcpChannel) Read() (gch.IPacket, error) {
 func Read(ch gch.IChannel) (gch.IPacket, error) {
 	// TODO 超时配置
 	conn := ch.GetConn()
-	conf := ch.GetChConf()
+	conf := ch.GetConf()
 	now := time.Now()
 	// Conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
 	readbf := make([]byte, conf.GetReadBufSize())
@@ -106,7 +106,7 @@ func (b *KcpChannel) Write(datapack gch.IPacket) error {
 	//
 	// 	bytes := datapack.GetData()
 	// 	Conn := b.Conn
-	// 	conf := b.GetChConf()
+	// 	conf := b.GetConf()
 	// 	Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
 	// 	_, err := Conn.Write(bytes)
 	// 	if err != nil {
@@ -133,7 +133,7 @@ func (b *KcpChannel) Write(datapack gch.IPacket) error {
 func (b *KcpChannel) WriteByConn(datapacket gch.IPacket) error {
 	bytes := datapacket.GetData()
 	conn := b.Conn
-	conf := b.GetChConf()
+	conf := b.GetConf()
 	conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
 	_, err := conn.Write(bytes)
 	if err != nil {

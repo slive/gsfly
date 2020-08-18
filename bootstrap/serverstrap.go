@@ -20,55 +20,36 @@ import (
 	"time"
 )
 
-var upgrader = websocket.Upgrader{
-	HandshakeTimeout: time.Second * 15,
-	ReadBufferSize:   10 * 1024,
-	WriteBufferSize:  10 * 1024,
+type IWsServerStrap interface {
+	IServerStrap
+
+	GetHttpServer() *http.Server
+
+	GetHttpRequest() *http.Request
 }
 
 type WsServerStrap struct {
 	ServerStrap
+	httpServer  *http.Server
+	httpRequest *http.Request
 }
 
 // Http和Websocket 的服务监听
-func NewWsServerStrap(parent interface{}, serverConf IWsServerConf, chHandle *gch.ChannelHandle) IServerStrap {
+// parent 父类，可选
+// serverConf 服务器配置，必须项
+// chHandle channel处理类，必须项
+// httpServer http监听服务，可选，为空时，根据serverConf的ip/port进行创建监听
+func NewWsServerStrap(parent interface{}, serverConf IWsServerConf, chHandle *gch.ChannelHandle, httpServer *http.Server) *WsServerStrap {
 	t := &WsServerStrap{}
 	t.ServerStrap = *NewServerStrap(parent, serverConf, chHandle)
+	t.httpServer = httpServer
 	return t
 }
 
-// AddHttpHandleFunc 添加http处理方法
-// func (t *WsServerStrap) AddHttpHandleFunc(pattern string, httpHandleFunc HttpHandleFunc) {
-// 	t.httpHandlers[pattern] = httpHandleFunc
-// }
-//
-// // AddWsHandleFunc 添加Websocket处理方法
-// func (t *WsServerStrap) AddWsHandleFunc(pattern string, wsHandleFunc *gch.ChannelHandle) {
-// 	t.msgHandlers[pattern] = wsHandleFunc
-// }
-//
-// // GetChHandle 暂时不支持，用GetMsgHandlers()代替
-// func (t *WsServerStrap) GetChannelHandle() *gch.ChannelHandle {
-// 	logx.Panic("unsupport")
-// 	return nil
-// }
-//
-// func (t *WsServerStrap) GetMsgHandlers() map[string]*gch.ChannelHandle {
-// 	return t.msgHandlers
-// }
-
 func (wsServerStrap *WsServerStrap) Start() error {
 	if !wsServerStrap.Closed {
-		return errors.New("server had opened, id:" + wsServerStrap.GetId())
+		return errors.New("httpServer had opened, id:" + wsServerStrap.GetId())
 	}
-
-	// http处理事件
-	// httpHandlers := wsServerStrap.httpHandlers
-	// if httpHandlers != nil {
-	// 	for key, f := range httpHandlers {
-	// 		http.HandleFunc(key, f)
-	// 	}
-	// }
 
 	defer func() {
 		ret := recover()
@@ -81,7 +62,28 @@ func (wsServerStrap *WsServerStrap) Start() error {
 	}()
 
 	wsServerConf := wsServerStrap.GetConf().(IWsServerConf)
-	upgrader = websocket.Upgrader{
+	httpServer := wsServerStrap.httpServer
+	if httpServer == nil {
+		// 为空时，根据serverConf的ip/port进行创建监听
+		httpServer = &http.Server{
+			Addr:              wsServerConf.GetAddrStr(),
+			TLSConfig:         nil,
+			ReadTimeout:       wsServerConf.GetReadTimeout() * time.Second,
+			ReadHeaderTimeout: wsServerConf.GetReadTimeout() * time.Second,
+			WriteTimeout:      wsServerConf.GetWriteTimeout() * time.Second,
+			IdleTimeout:       wsServerConf.GetReadTimeout() * time.Second * 3,
+			MaxHeaderBytes:    1 << 20,
+		}
+		go func() {
+			err := httpServer.ListenAndServe()
+			if err != nil {
+				logx.Error("listenAnServe error:", err)
+				wsServerStrap.Stop()
+			}
+		}()
+	}
+
+	upgrader := websocket.Upgrader{
 		HandshakeTimeout: wsServerConf.GetReadTimeout() * time.Second,
 		ReadBufferSize:   wsServerConf.GetReadBufSize(),
 		WriteBufferSize:  wsServerConf.GetWriteBufSize(),
@@ -97,25 +99,7 @@ func (wsServerStrap *WsServerStrap) Start() error {
 	})
 	wsServerStrap.Closed = false
 	return nil
-	//
-	// addr := wsServerStrap.ServerConf.GetAddrStr()
-	// s := &http.Server{
-	// 	Addr:           addr,
-	// 	ReadTimeout:    10 * time.Second,
-	// 	WriteTimeout:   10 * time.Second,
-	// 	MaxHeaderBytes: 1 << 20,
-	//
-	// }
-	// // s.ListenAndServe()
-	//
-	// logx.Info("start http listen, addr:", addr)
-	// err := s.ListenAndServe()
-	// if err == nil {
-	// 	wsServerStrap.Closed = false
-	// }
 }
-
-type HttpHandleFunc func(http.ResponseWriter, *http.Request)
 
 // startWs 启动ws处理
 func (wsServerStrap *WsServerStrap) startWs(writer http.ResponseWriter, req *http.Request, upgr websocket.Upgrader) error {
@@ -141,15 +125,9 @@ func (wsServerStrap *WsServerStrap) startWs(writer http.ResponseWriter, req *htt
 		logx.Println("upgrade error:", err)
 		return err
 	}
+	wsServerStrap.httpRequest = req
 
-	if err != nil {
-		logx.Error("accept error:", nil)
-		return err
-	}
-
-	// OnStopHandle重新b包装
 	wsCh := httpx.NewWsChannel(wsServerStrap, conn, serverConf, wsServerStrap.GetChHandle(), params)
-
 	err = wsCh.Start()
 	if err == nil {
 		// TODO 线程安全？
@@ -158,17 +136,18 @@ func (wsServerStrap *WsServerStrap) startWs(writer http.ResponseWriter, req *htt
 	return err
 }
 
-type KcpServerStrap struct {
-	ServerStrap
-	ServerConf *KcpServerConf
+func (wsServerStrap *WsServerStrap) GetHttpServer() *http.Server {
+	return wsServerStrap.httpServer
 }
 
-func NewKcpServer(parent interface{}, kcpServerConf *KcpServerConf, chHandle *gch.ChannelHandle) IServerStrap {
-	k := &KcpServerStrap{
-		ServerConf: kcpServerConf,
-	}
+type KcpServerStrap struct {
+	ServerStrap
+}
+
+func NewKcpServer(parent interface{}, kcpServerConf IKcpServerConf, chHandle *gch.ChannelHandle) IServerStrap {
+	k := &KcpServerStrap{}
 	k.ServerStrap = *NewServerStrap(parent, kcpServerConf, chHandle)
-	k.ServerConf = kcpServerConf
+	k.Conf = kcpServerConf
 	return k
 }
 
@@ -177,7 +156,7 @@ func (k *KcpServerStrap) Start() error {
 		return errors.New("server had opened, id:" + k.GetId())
 	}
 
-	kcpServerConf := k.ServerConf
+	kcpServerConf := k.GetConf()
 	addr := kcpServerConf.GetAddrStr()
 	logx.Info("listen kcp addr:", addr)
 	list, err := kcp.ListenWithOptions(addr, nil, 0, 0)
@@ -226,10 +205,10 @@ type Kws00ServerStrap struct {
 	KcpServerStrap
 }
 
-func NewKws00Server(parent interface{}, kcpServerConf *KcpServerConf, onKwsMsgHandle gch.OnMsgHandle,
+func NewKws00Server(parent interface{}, kcpServerConf IKw00ServerConf, onKwsMsgHandle gch.OnMsgHandle,
 	onRegisterHandle gch.OnRegisterHandle, onUnRegisterHandle gch.OnUnRegisterHandle) IServerStrap {
 	k := &Kws00ServerStrap{}
-	k.ServerConf = kcpServerConf
+	k.Conf = kcpServerConf
 	chHandle := kcpx.NewKws00Handle(onKwsMsgHandle, onRegisterHandle, onUnRegisterHandle)
 	k.ServerStrap = *NewServerStrap(parent, kcpServerConf, chHandle)
 	return k
@@ -240,7 +219,7 @@ func (k *Kws00ServerStrap) Start() error {
 		return errors.New("server had opened, id:" + k.GetId())
 	}
 
-	kcpServerConf := k.ServerConf
+	kcpServerConf := k.GetConf()
 	addr := kcpServerConf.GetAddrStr()
 	logx.Info("listen kws00 addr:", addr)
 	list, err := kcp.ListenWithOptions(addr, nil, 0, 0)
@@ -269,7 +248,7 @@ func (k *Kws00ServerStrap) Start() error {
 			}
 
 			chHandle := k.ChannelHandle
-			kcpCh := kcpx.NewKws00Channel(k, kcpConn, &kcpServerConf.ChannelConf, chHandle)
+			kcpCh := kcpx.NewKws00Channel(k, kcpConn, kcpServerConf, chHandle, nil)
 			err = kcpCh.Start()
 			if err == nil {
 				kwsChannels.Put(kcpCh.GetId(), kcpCh)
@@ -284,19 +263,17 @@ func (k *Kws00ServerStrap) Start() error {
 
 type UdpServerStrap struct {
 	ServerStrap
-	ServerConf *UdpServerConf
 }
 
-func NewUdpServer(parent interface{}, serverConf *UdpServerConf, channelHandle *gch.ChannelHandle) IServerStrap {
-	k := &UdpServerStrap{
-		ServerConf: serverConf,
-	}
+func NewUdpServer(parent interface{}, serverConf IUdpServerConf, channelHandle *gch.ChannelHandle) IServerStrap {
+	k := &UdpServerStrap{}
 	k.ServerStrap = *NewServerStrap(parent, serverConf, channelHandle)
+	k.Conf = serverConf
 	return k
 }
 
 func (u *UdpServerStrap) Start() error {
-	serverConf := u.ServerConf
+	serverConf := u.GetConf()
 	addr := serverConf.GetAddrStr()
 	logx.Info("dial udp addr:", addr)
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)

@@ -49,8 +49,8 @@ type IChannel interface {
 	// Write 写入方法
 	Write(packet IPacket) error
 
-	// GetChConf 获取通道配置
-	GetChConf() IChannelConf
+	// GetConf 获取通道配置
+	GetConf() IChannelConf
 
 	// GetChStatis 获取通道统计相关
 	GetChStatis() *ChannelStatis
@@ -248,7 +248,7 @@ func (b *Channel) WriteByConn(datapacket IPacket) error {
 	panic("implement me")
 }
 
-func (b *Channel) GetChConf() IChannelConf {
+func (b *Channel) GetConf() IChannelConf {
 	return b.chConf
 }
 

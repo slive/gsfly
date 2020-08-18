@@ -59,7 +59,7 @@ func (wsChannel *WsChannel) Stop() {
 
 func (wsChannel *WsChannel) Read() (gch.IPacket, error) {
 	// TODO 超时配置
-	// conf := wsChannel.GetChConf()
+	// conf := wsChannel.GetConf()
 	now := time.Now()
 	// wsChannel.Conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
 	msgType, data, err := wsChannel.Conn.ReadMessage()
@@ -111,7 +111,7 @@ func (wsChannel *WsChannel) Write(datapacket gch.IPacket) error {
 	// 	}
 	// 	wspacket := datapacket.(*WsPacket)
 	// 	data := wspacket.GetData()
-	// 	conf := wsChannel.GetChConf()
+	// 	conf := wsChannel.GetConf()
 	// 	// TODO 设置超时?
 	// 	wsChannel.Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
 	// 	err := wsChannel.Conn.WriteMessage(wspacket.MsgType, data)
@@ -139,7 +139,7 @@ func (wsChannel *WsChannel) Write(datapacket gch.IPacket) error {
 func (wsChannel *WsChannel) WriteByConn(datapacket gch.IPacket) error {
 	wspacket := datapacket.(*WsPacket)
 	data := wspacket.GetData()
-	conf := wsChannel.GetChConf()
+	conf := wsChannel.GetConf()
 	// TODO 设置超时?
 	wsChannel.Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
 	err := wsChannel.Conn.WriteMessage(wspacket.MsgType, data)

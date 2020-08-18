@@ -51,7 +51,7 @@ func (b *UdpChannel) Stop() {
 
 func (b *UdpChannel) Read() (gch.IPacket, error) {
 	// TODO 超时配置
-	conf := b.GetChConf()
+	conf := b.GetConf()
 	now := time.Now()
 	b.Conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
 	// TODO 是否有性能问题？
@@ -125,7 +125,7 @@ func (b *UdpChannel) Write(datapack gch.IPacket) error {
 func (b *UdpChannel) WriteByConn(datapacket gch.IPacket) error {
 	writePacket := datapacket.(*UdpPacket)
 	bytes := writePacket.GetData()
-	conf := b.GetChConf()
+	conf := b.GetConf()
 	// 设置超时时间
 	b.Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
 	addr := writePacket.Addr

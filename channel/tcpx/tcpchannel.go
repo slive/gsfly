@@ -48,7 +48,7 @@ func (b *TcpChannel) Stop() {
 
 func (b *TcpChannel) Read() (gch.IPacket, error) {
 	// TODO 超时配置
-	conf := b.GetChConf()
+	conf := b.GetConf()
 	now := time.Now()
 	b.Conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
 	readbf := make([]byte, conf.GetReadBufSize())
@@ -100,7 +100,7 @@ func (b *TcpChannel) Write(datapack gch.IPacket) error {
 	// 	}
 	//
 	// 	bytes := datapack.GetData()
-	// 	conf := b.GetChConf()
+	// 	conf := b.GetConf()
 	// 	b.Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
 	// 	_, err := b.Conn.Write(bytes)
 	// 	if err != nil {
@@ -127,7 +127,7 @@ func (b *TcpChannel) Write(datapack gch.IPacket) error {
 
 func (b *TcpChannel) WriteByConn(datapacket gch.IPacket) error {
 	bytes := datapacket.GetData()
-	conf := b.GetChConf()
+	conf := b.GetConf()
 	b.Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
 	_, err := b.Conn.Write(bytes)
 	if err != nil {

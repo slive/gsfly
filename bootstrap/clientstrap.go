@@ -78,19 +78,17 @@ func (wc *WsClientStrap) GetParams() map[string]interface{} {
 
 type KcpClientStrap struct {
 	ClientStrap
-	ClientConf *KcpClientConf
 }
 
-func NewKcpClient(parent interface{}, kcpClientConf *KcpClientConf, handle *gch.ChannelHandle) IClientStrap {
-	b := &KcpClientStrap{
-		ClientConf: kcpClientConf,
-	}
+func NewKcpClient(parent interface{}, kcpClientConf IKcpClientConf, handle *gch.ChannelHandle) IClientStrap {
+	b := &KcpClientStrap{}
 	b.BootStrap = *NewBootStrap(parent, handle)
+	b.Conf = kcpClientConf
 	return b
 }
 
 func (kc *KcpClientStrap) Start() error {
-	kcpClientConf := kc.ClientConf
+	kcpClientConf := kc.GetConf()
 	chHandle := kc.ChannelHandle
 	addr := kcpClientConf.GetAddrStr()
 	logx.Info("dial kcp addr:", addr)
@@ -99,7 +97,7 @@ func (kc *KcpClientStrap) Start() error {
 		logx.Error("dial kcp conn error:", nil)
 		return err
 	}
-	kcpCh := kcpx.NewKcpChannel(kc, conn, &kcpClientConf.ChannelConf, chHandle)
+	kcpCh := kcpx.NewKcpChannel(kc, conn, kcpClientConf, chHandle)
 	err = kcpCh.Start()
 	if err == nil {
 		kc.Channel = kcpCh
@@ -111,24 +109,25 @@ func (kc *KcpClientStrap) Start() error {
 // Kws00ClientStrap
 type Kws00ClientStrap struct {
 	KcpClientStrap
-	ClientConf *Kws00ClientConf
+	params map[string]interface{}
 }
 
 // NewKws00Client 实现kws
 // onKwsMsgHandle和onRegisterhandle 必须实现，其他方法可选
-func NewKws00Client(parent interface{}, kws00ClientConf *Kws00ClientConf, onKwsMsgHandle gch.OnMsgHandle,
-	onRegisterhandle gch.OnRegisterHandle, onUnRegisterhandle gch.OnUnRegisterHandle) IClientStrap {
+func NewKws00Client(parent interface{}, kws00ClientConf IKws00ClientConf, onKwsMsgHandle gch.OnMsgHandle,
+	onRegisterhandle gch.OnRegisterHandle, onUnRegisterhandle gch.OnUnRegisterHandle, params map[string]interface{}) IClientStrap {
 	b := &Kws00ClientStrap{}
-	b.ClientConf = kws00ClientConf
+	b.Conf = kws00ClientConf
 	handle := kcpx.NewKws00Handle(onKwsMsgHandle, onRegisterhandle, onUnRegisterhandle)
 	b.BootStrap = *NewBootStrap(parent, handle)
+	b.params = params
 	return b
 }
 
 func (kc *Kws00ClientStrap) Start() error {
-	kcpClientConf := kc.ClientConf
+	clientConf := kc.GetConf()
 	chHandle := kc.ChannelHandle
-	addr := kcpClientConf.GetAddrStr()
+	addr := clientConf.GetAddrStr()
 	logx.Info("dial kws00 addr:", addr)
 	conn, err := kcp.DialWithOptions(addr, nil, 0, 0)
 	if err != nil {
@@ -136,14 +135,14 @@ func (kc *Kws00ClientStrap) Start() error {
 		return err
 	}
 
-	kwsCh := kcpx.NewKws00Channel(kc, conn, &kcpClientConf.ChannelConf, chHandle)
+	kwsCh := kcpx.NewKws00Channel(kc, conn, clientConf, chHandle, kc.params)
 	err = kwsCh.Start()
 	if err != nil {
 		return err
 	}
 
 	// 握手操作
-	err = handshake(kcpClientConf, kwsCh)
+	err = handshake(clientConf.(IKws00ClientConf), kwsCh)
 	if err != nil {
 		kc.Stop()
 	} else {
@@ -153,20 +152,24 @@ func (kc *Kws00ClientStrap) Start() error {
 	return err
 }
 
+const Kws00_Path_Key = "path"
+
 // handshake 建立握手操作
-func handshake(kcpClientConf *Kws00ClientConf, kwsCh *kcpx.Kws00Channel) error {
+func handshake(kcpClientConf IKws00ClientConf, kwsCh *kcpx.Kws00Channel) error {
 	sessionParams := make(map[string]interface{})
-	path := kcpClientConf.Path
+	path := kcpClientConf.GetPath()
 	if len(path) == 0 {
 		path = ""
 	}
-	sessionParams["path"] = path
-	params := kcpClientConf.Params
+	// 封装kws00建立连接时所需的参数
+	sessionParams[Kws00_Path_Key] = path
+	params := kwsCh.GetParams()
 	if params != nil {
 		for key, val := range params {
 			sessionParams[key] = val
 		}
 	}
+
 	payloadData, _ := json.Marshal(sessionParams)
 	sessionFrame := kcpx.NewOutputFrame(kcpx.OPCODE_TEXT_SESSION, payloadData)
 	data := sessionFrame.GetKcpData()
@@ -185,19 +188,17 @@ func handshake(kcpClientConf *Kws00ClientConf, kwsCh *kcpx.Kws00Channel) error {
 
 type UdpClientStrap struct {
 	ClientStrap
-	ClientConf *UdpClientConf
 }
 
-func NewUdpClient(parent interface{}, clientConf *UdpClientConf, handle *gch.ChannelHandle) IClientStrap {
-	b := &UdpClientStrap{
-		ClientConf: clientConf,
-	}
+func NewUdpClient(parent interface{}, clientConf IUdpClientConf, handle *gch.ChannelHandle) IClientStrap {
+	b := &UdpClientStrap{}
 	b.BootStrap = *NewBootStrap(parent, handle)
+	b.Conf = clientConf
 	return b
 }
 
 func (uc *UdpClientStrap) Start() error {
-	clientConf := uc.ClientConf
+	clientConf := uc.GetConf()
 	chHandle := uc.ChannelHandle
 	addr := clientConf.GetAddrStr()
 	logx.Info("dial udp addr:", addr)
@@ -212,7 +213,7 @@ func (uc *UdpClientStrap) Start() error {
 		return err
 	}
 
-	udpCh := udpx.NewUdpChannel(uc, conn, &clientConf.ChannelConf, chHandle)
+	udpCh := udpx.NewUdpChannel(uc, conn, clientConf, chHandle)
 	err = udpCh.Start()
 	if err == nil {
 		uc.Channel = udpCh

@@ -15,15 +15,18 @@ import (
 type Kws00Channel struct {
 	KcpChannel
 	onKwsMsgHandle gch.OnMsgHandle
+	params         map[string]interface{}
 }
 
 // NewKws00Channel 新建KWS00 channel
 // 需要实现onKwsMsgHandle 和注册（握手）成功后的onRegisterhandle
 // 根据需要实现onUnRegisterhandle方法和其他ChannelHandle里的其他方法
-func NewKws00Channel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChannelConf, chHandle *gch.ChannelHandle) *Kws00Channel {
+func NewKws00Channel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChannelConf,
+	chHandle *gch.ChannelHandle, params map[string]interface{}) *Kws00Channel {
 	channel := &Kws00Channel{}
 	channel.KcpChannel = *NewKcpChannel(parent, kcpConn, chConf, chHandle)
 	channel.protocol = gch.PROTOCOL_KWS00
+	channel.params = params
 	channel.onKwsMsgHandle = chHandle.GetOnMsgHandle()
 	// 更新内部kwsmsg
 	gch.UpdateMsgHandle(onInnerKws00MsgHandle, chHandle)
@@ -66,6 +69,10 @@ func (b *Kws00Channel) Write(datapack gch.IPacket) error {
 	return b.KcpChannel.Write(datapack)
 }
 
+func (b *Kws00Channel) GetParams() map[string]interface{} {
+	return b.params
+}
+
 func (b *Kws00Channel) NewPacket() gch.IPacket {
 	k := &KWS00Packet{}
 	k.Packet = *gch.NewPacket(b, gch.PROTOCOL_KWS00)
@@ -96,7 +103,7 @@ func onInnerKws00MsgHandle(packet gch.IPacket) error {
 			srcCh.Stop()
 		}
 	}()
-	protocol := srcCh.GetChConf().GetProtocol()
+	protocol := srcCh.GetConf().GetProtocol()
 	if protocol == gch.PROTOCOL_KWS00 {
 		// 强制转换处理
 		kwsPacket, ok := packet.(*KWS00Packet)

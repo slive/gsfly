@@ -35,8 +35,17 @@ type ClientConf struct {
 	channel.ChannelConf
 }
 
+type IKcpConf interface {
+	// TODO kcp相关的配置
+}
+
 type KcpConf struct {
 	// TODO kcp相关的配置
+}
+
+type IKcpClientConf interface {
+	IClientConf
+	IKcpConf
 }
 
 type KcpClientConf struct {
@@ -44,12 +53,24 @@ type KcpClientConf struct {
 	KcpConf
 }
 
+type IKws00ClientConf interface {
+	IKcpClientConf
+	GetPath() string
+}
+
 type Kws00ClientConf struct {
 	KcpClientConf
 	// Path 可选，代表所在的相对路径，用于可能存在的路由，类似http的request url，如"/admin/user"
 	Path string
-	// Params 可选，代表建立dial所需的参数
-	Params map[string]interface{}
+}
+
+func (kwsClientConf *Kws00ClientConf) GetPath() string {
+	return kwsClientConf.Path
+}
+
+type IKcpServerConf interface {
+	IServerConf
+	IKcpConf
 }
 
 type KcpServerConf struct {
@@ -57,8 +78,24 @@ type KcpServerConf struct {
 	KcpConf
 }
 
+type IKw00ServerConf interface {
+	IKcpServerConf
+}
+
+type Kw00ServerConf struct {
+	KcpServerConf
+}
+
+type IUdpServerConf interface {
+	IServerConf
+}
+
 type UdpServerConf struct {
 	ServerConf
+}
+
+type IUdpClientConf interface {
+	IClientConf
 }
 
 type UdpClientConf struct {
