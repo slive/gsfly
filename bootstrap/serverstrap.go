@@ -107,7 +107,7 @@ func (wsServerStrap *WsServerStrap) startWs(writer http.ResponseWriter, req *htt
 	serverConf := wsServerStrap.GetConf().(IWsServerConf)
 	connLen := acceptChannels.Size()
 	maxAcceptSize := serverConf.GetMaxChannelSize()
-	if connLen >= maxAcceptSize {
+	if maxAcceptSize > 0 && connLen >= maxAcceptSize {
 		return errors.New("max accept size:" + fmt.Sprintf("%v", maxAcceptSize))
 	}
 
@@ -127,7 +127,12 @@ func (wsServerStrap *WsServerStrap) startWs(writer http.ResponseWriter, req *htt
 	}
 	wsServerStrap.httpRequest = req
 
-	wsCh := httpx.NewWsChannel(wsServerStrap, conn, serverConf, wsServerStrap.GetChHandle(), params)
+	chHandle := wsServerStrap.ChannelHandle
+	// OnStopHandle重新包装，以便释放资源
+	chHandle.OnStopHandle = ConverOnStopHandle(wsServerStrap.Channels, chHandle.OnStopHandle)
+	// 复制新的handle
+	chHandle = gch.CopyChannelHandle(chHandle)
+	wsCh := httpx.NewWsChannel(wsServerStrap, conn, serverConf, chHandle, params)
 	err = wsCh.Start()
 	if err == nil {
 		// TODO 线程安全？
@@ -144,19 +149,19 @@ type KcpServerStrap struct {
 	ServerStrap
 }
 
-func NewKcpServer(parent interface{}, kcpServerConf IKcpServerConf, chHandle *gch.ChannelHandle) IServerStrap {
+func NewKcpServerStrap(parent interface{}, kcpServerConf IKcpServerConf, chHandle *gch.ChannelHandle) IServerStrap {
 	k := &KcpServerStrap{}
 	k.ServerStrap = *NewServerStrap(parent, kcpServerConf, chHandle)
 	k.Conf = kcpServerConf
 	return k
 }
 
-func (k *KcpServerStrap) Start() error {
-	if !k.Closed {
-		return errors.New("server had opened, id:" + k.GetId())
+func (kcpServerStrap *KcpServerStrap) Start() error {
+	if !kcpServerStrap.Closed {
+		return errors.New("server had opened, id:" + kcpServerStrap.GetId())
 	}
 
-	kcpServerConf := k.GetConf()
+	kcpServerConf := kcpServerStrap.GetConf()
 	addr := kcpServerConf.GetAddrStr()
 	logx.Info("listen kcp addr:", addr)
 	list, err := kcp.ListenWithOptions(addr, nil, 0, 0)
@@ -168,14 +173,14 @@ func (k *KcpServerStrap) Start() error {
 	defer func() {
 		ret := recover()
 		if ret != nil {
-			logx.Warnf("finish kcp serverstrap, id:%v, ret:%v", k.GetId(), ret)
-			k.Stop()
+			logx.Warnf("finish kcp serverstrap, id:%v, ret:%v", kcpServerStrap.GetId(), ret)
+			kcpServerStrap.Stop()
 		} else {
-			logx.Info("finish kcp serverstrap, id:", k.GetId())
+			logx.Info("finish kcp serverstrap, id:", kcpServerStrap.GetId())
 		}
 	}()
 
-	kwsChannels := k.Channels
+	kwsChannels := kcpServerStrap.Channels
 	go func() {
 		for {
 			kcpConn, err := list.AcceptKCP()
@@ -183,10 +188,12 @@ func (k *KcpServerStrap) Start() error {
 				logx.Error("accept kcpconn error:", nil)
 				panic(err)
 			}
+			chHandle := kcpServerStrap.GetChHandle()
 			// OnStopHandle重新包装，以便释放资源
-			handle := k.ChannelHandle
-			handle.OnStopHandle = ConverOnStopHandle(k.Channels, handle.OnStopHandle)
-			kcpCh := kcpx.NewKcpChannel(k, kcpConn, kcpServerConf, handle)
+			chHandle.OnStopHandle = ConverOnStopHandle(kcpServerStrap.Channels, chHandle.OnStopHandle)
+			// 复制新的handle
+			chHandle = gch.CopyChannelHandle(chHandle)
+			kcpCh := kcpx.NewKcpChannel(kcpServerStrap, kcpConn, kcpServerConf, chHandle)
 			err = kcpCh.Start()
 			if err == nil {
 				kwsChannels.Put(kcpCh.GetId(), kcpCh)
@@ -195,7 +202,7 @@ func (k *KcpServerStrap) Start() error {
 	}()
 
 	if err == nil {
-		k.Closed = false
+		kcpServerStrap.Closed = false
 	}
 
 	return nil
@@ -205,8 +212,8 @@ type Kws00ServerStrap struct {
 	KcpServerStrap
 }
 
-func NewKws00Server(parent interface{}, kcpServerConf IKw00ServerConf, onKwsMsgHandle gch.OnMsgHandle,
-	onRegisterHandle gch.OnRegisterHandle, onUnRegisterHandle gch.OnUnRegisterHandle) IServerStrap {
+func NewKws00ServerStrap(parent interface{}, kcpServerConf IKw00ServerConf, onKwsMsgHandle gch.OnMsgHandle,
+	onRegisterHandle gch.OnRegisteredHandle, onUnRegisterHandle gch.OnUnRegisteredHandle) IServerStrap {
 	k := &Kws00ServerStrap{}
 	k.Conf = kcpServerConf
 	chHandle := kcpx.NewKws00Handle(onKwsMsgHandle, onRegisterHandle, onUnRegisterHandle)
@@ -214,12 +221,12 @@ func NewKws00Server(parent interface{}, kcpServerConf IKw00ServerConf, onKwsMsgH
 	return k
 }
 
-func (k *Kws00ServerStrap) Start() error {
-	if !k.Closed {
-		return errors.New("server had opened, id:" + k.GetId())
+func (kws00ServefStrap *Kws00ServerStrap) Start() error {
+	if !kws00ServefStrap.Closed {
+		return errors.New("server had opened, id:" + kws00ServefStrap.GetId())
 	}
 
-	kcpServerConf := k.GetConf()
+	kcpServerConf := kws00ServefStrap.GetConf()
 	addr := kcpServerConf.GetAddrStr()
 	logx.Info("listen kws00 addr:", addr)
 	list, err := kcp.ListenWithOptions(addr, nil, 0, 0)
@@ -231,14 +238,14 @@ func (k *Kws00ServerStrap) Start() error {
 	defer func() {
 		ret := recover()
 		if ret != nil {
-			logx.Warnf("finish kws00 serverstrap, id:%v, ret:%v", k.GetId(), ret)
-			k.Stop()
+			logx.Warnf("finish kws00 serverstrap, id:%v, ret:%v", kws00ServefStrap.GetId(), ret)
+			kws00ServefStrap.Stop()
 		} else {
-			logx.Info("finish kws00 serverstrap, id:", k.GetId())
+			logx.Info("finish kws00 serverstrap, id:", kws00ServefStrap.GetId())
 		}
 	}()
 
-	kwsChannels := k.Channels
+	kwsChannels := kws00ServefStrap.Channels
 	go func() {
 		for {
 			kcpConn, err := list.AcceptKCP()
@@ -247,8 +254,14 @@ func (k *Kws00ServerStrap) Start() error {
 				panic(err)
 			}
 
-			chHandle := k.ChannelHandle
-			kcpCh := kcpx.NewKws00Channel(k, kcpConn, kcpServerConf, chHandle, nil)
+			logx.Info("accept kcpconn:", kcpConn.GetConv())
+
+			chHandle := kws00ServefStrap.ChannelHandle
+			newChHandle := gch.CopyChannelHandle(chHandle)
+			// 复制新的handle
+			// OnStopHandle重新包装，以便释放资源
+			newChHandle.OnStopHandle = ConverOnStopHandle(kws00ServefStrap.Channels, chHandle.OnStopHandle)
+			kcpCh := kcpx.NewKws00Channel(kws00ServefStrap, kcpConn, kcpServerConf, newChHandle, nil)
 			err = kcpCh.Start()
 			if err == nil {
 				kwsChannels.Put(kcpCh.GetId(), kcpCh)
@@ -256,7 +269,7 @@ func (k *Kws00ServerStrap) Start() error {
 		}
 	}()
 	if err == nil {
-		k.Closed = false
+		kws00ServefStrap.Closed = false
 	}
 	return nil
 }
@@ -265,15 +278,15 @@ type UdpServerStrap struct {
 	ServerStrap
 }
 
-func NewUdpServer(parent interface{}, serverConf IUdpServerConf, channelHandle *gch.ChannelHandle) IServerStrap {
+func NewUdpServerStrap(parent interface{}, serverConf IUdpServerConf, channelHandle *gch.ChannelHandle) IServerStrap {
 	k := &UdpServerStrap{}
 	k.ServerStrap = *NewServerStrap(parent, serverConf, channelHandle)
 	k.Conf = serverConf
 	return k
 }
 
-func (u *UdpServerStrap) Start() error {
-	serverConf := u.GetConf()
+func (udpServerStrap *UdpServerStrap) Start() error {
+	serverConf := udpServerStrap.GetConf()
 	addr := serverConf.GetAddrStr()
 	logx.Info("dial udp addr:", addr)
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
@@ -289,10 +302,15 @@ func (u *UdpServerStrap) Start() error {
 	}
 
 	// TODO udp有源和目标地址之分，待实现
-	ch := udpx.NewUdpChannel(u, conn, serverConf, u.ChannelHandle)
+	chHandle := udpServerStrap.ChannelHandle
+	// OnStopHandle重新包装，以便释放资源
+	chHandle.OnStopHandle = ConverOnStopHandle(udpServerStrap.Channels, chHandle.OnStopHandle)
+	// 复制新的handle
+	chHandle = gch.CopyChannelHandle(chHandle)
+	ch := udpx.NewUdpChannel(udpServerStrap, conn, serverConf, chHandle)
 	err = ch.Start()
 	if err == nil {
-		u.Closed = false
+		udpServerStrap.Closed = false
 	}
 	return err
 }

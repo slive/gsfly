@@ -28,7 +28,7 @@ type WsClientStrap struct {
 	params map[string]interface{}
 }
 
-func NewWsClient(parent interface{}, wsClientConf IWsClientConf, handle *gch.ChannelHandle, params map[string]interface{}) IClientStrap {
+func NewWsClientStrap(parent interface{}, wsClientConf IWsClientConf, handle *gch.ChannelHandle, params map[string]interface{}) IClientStrap {
 	b := &WsClientStrap{}
 	b.params = params
 	b.Conf = wsClientConf
@@ -80,7 +80,7 @@ type KcpClientStrap struct {
 	ClientStrap
 }
 
-func NewKcpClient(parent interface{}, kcpClientConf IKcpClientConf, handle *gch.ChannelHandle) IClientStrap {
+func NewKcpClientStrap(parent interface{}, kcpClientConf IKcpClientConf, handle *gch.ChannelHandle) IClientStrap {
 	b := &KcpClientStrap{}
 	b.BootStrap = *NewBootStrap(parent, handle)
 	b.Conf = kcpClientConf
@@ -112,10 +112,10 @@ type Kws00ClientStrap struct {
 	params map[string]interface{}
 }
 
-// NewKws00Client 实现kws
+// NewKws00ClientStrap 实现kws
 // onKwsMsgHandle和onRegisterhandle 必须实现，其他方法可选
-func NewKws00Client(parent interface{}, kws00ClientConf IKws00ClientConf, onKwsMsgHandle gch.OnMsgHandle,
-	onRegisterhandle gch.OnRegisterHandle, onUnRegisterhandle gch.OnUnRegisterHandle, params map[string]interface{}) IClientStrap {
+func NewKws00ClientStrap(parent interface{}, kws00ClientConf IKws00ClientConf, onKwsMsgHandle gch.OnMsgHandle,
+	onRegisterhandle gch.OnRegisteredHandle, onUnRegisterhandle gch.OnUnRegisteredHandle, params map[string]interface{}) IClientStrap {
 	b := &Kws00ClientStrap{}
 	b.Conf = kws00ClientConf
 	handle := kcpx.NewKws00Handle(onKwsMsgHandle, onRegisterhandle, onUnRegisterhandle)
@@ -142,7 +142,9 @@ func (kc *Kws00ClientStrap) Start() error {
 	}
 
 	// 握手操作
-	err = handshake(clientConf.(IKws00ClientConf), kwsCh)
+	if kc.params != nil{
+		err = kws00Handshake(clientConf.(IKws00ClientConf), kwsCh)
+	}
 	if err != nil {
 		kc.Stop()
 	} else {
@@ -154,8 +156,8 @@ func (kc *Kws00ClientStrap) Start() error {
 
 const Kws00_Path_Key = "path"
 
-// handshake 建立握手操作
-func handshake(kcpClientConf IKws00ClientConf, kwsCh *kcpx.Kws00Channel) error {
+// kws00Handshake 建立握手操作
+func kws00Handshake(kcpClientConf IKws00ClientConf, kwsCh *kcpx.Kws00Channel) error {
 	sessionParams := make(map[string]interface{})
 	path := kcpClientConf.GetPath()
 	if len(path) == 0 {
@@ -173,7 +175,7 @@ func handshake(kcpClientConf IKws00ClientConf, kwsCh *kcpx.Kws00Channel) error {
 	payloadData, _ := json.Marshal(sessionParams)
 	sessionFrame := kcpx.NewOutputFrame(kcpx.OPCODE_TEXT_SESSION, payloadData)
 	data := sessionFrame.GetKcpData()
-	logx.Info("handshake:", data)
+	logx.Info("kws00Handshake:", data)
 
 	packet := kwsCh.NewPacket()
 	packet.SetData(data)
@@ -190,7 +192,7 @@ type UdpClientStrap struct {
 	ClientStrap
 }
 
-func NewUdpClient(parent interface{}, clientConf IUdpClientConf, handle *gch.ChannelHandle) IClientStrap {
+func NewUdpClientStrap(parent interface{}, clientConf IUdpClientConf, handle *gch.ChannelHandle) IClientStrap {
 	b := &UdpClientStrap{}
 	b.BootStrap = *NewBootStrap(parent, handle)
 	b.Conf = clientConf

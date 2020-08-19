@@ -27,14 +27,15 @@ func NewKws00Channel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.ICh
 	channel.KcpChannel = *NewKcpChannel(parent, kcpConn, chConf, chHandle)
 	channel.protocol = gch.PROTOCOL_KWS00
 	channel.params = params
-	channel.onKwsMsgHandle = chHandle.GetOnMsgHandle()
 	// 更新内部kwsmsg
-	gch.UpdateMsgHandle(onInnerKws00MsgHandle, chHandle)
+	chh := channel.GetChHandle()
+	channel.onKwsMsgHandle = chh.GetOnMsgHandle()
+	gch.UpdateMsgHandle(onInnerKws00MsgHandle, chh)
 	return channel
 }
 
 // NewKws00Handle 根据需要实现onUnRegisterhandle方法和其他ChannelHandle里的其他方法
-func NewKws00Handle(onKws00MsgHandle gch.OnMsgHandle, onRegisterhandle gch.OnRegisterHandle, onUnRegisterhandle gch.OnUnRegisterHandle) *gch.ChannelHandle {
+func NewKws00Handle(onKws00MsgHandle gch.OnMsgHandle, onRegisterhandle gch.OnRegisteredHandle, onUnRegisterhandle gch.OnUnRegisteredHandle) *gch.ChannelHandle {
 	if onKws00MsgHandle == nil {
 		errMsg := "onKws00MsgHandle is nil."
 		logx.Panic(errMsg)
@@ -48,8 +49,8 @@ func NewKws00Handle(onKws00MsgHandle gch.OnMsgHandle, onRegisterhandle gch.OnReg
 	}
 
 	chHandle := gch.NewDefChHandle(onKws00MsgHandle)
-	chHandle.OnRegisterHandle = onRegisterhandle
-	chHandle.OnUnRegisterHandle = onUnRegisterhandle
+	chHandle.OnRegisteredHandle = onRegisterhandle
+	chHandle.OnUnRegisteredHandle = onUnRegisterhandle
 	return chHandle
 }
 
@@ -112,8 +113,10 @@ func onInnerKws00MsgHandle(packet gch.IPacket) error {
 			packet.AddAttach(KCP_FRAME_KEY, frame)
 			if frame != nil {
 				// 第一次建立会话时进行处理
-				if frame.GetOpCode() == OPCODE_TEXT_SESSION {
-					registerHandle := srcCh.GetChHandle().OnRegisterHandle
+				opCode := frame.GetOpCode()
+				logx.Infof("opCode:%v, registered:%v", opCode, srcCh.IsRegistered())
+				if opCode == OPCODE_TEXT_SESSION {
+					registerHandle := srcCh.GetChHandle().OnRegisteredHandle
 					if registerHandle != nil {
 						// 注册事件
 						err := registerHandle(srcCh, packet)
@@ -122,10 +125,12 @@ func onInnerKws00MsgHandle(packet gch.IPacket) error {
 							panic("register error")
 						} else {
 							srcCh.SetRegistered(true)
+							frame = NewOutputFrame(OPCODE_TEXT_SESSION, frame.GetPayload())
+							packet.AddAttach(KCP_FRAME_KEY, frame)
 						}
 					}
-				} else if frame.GetOpCode() == OPCODE_CLOSE {
-					unregisterHandle := srcCh.GetChHandle().OnUnRegisterHandle
+				} else if opCode == OPCODE_CLOSE {
+					unregisterHandle := srcCh.GetChHandle().OnUnRegisteredHandle
 					if unregisterHandle != nil {
 						// 注销事件
 						unregisterHandle(srcCh, packet)

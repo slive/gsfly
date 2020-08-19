@@ -45,7 +45,8 @@ const (
 	WRITE_BUFSIZE = 8 * 1024
 )
 
-func NewChannelConf(readTimeout time.Duration, readBufSize int, writeTimeout time.Duration, writeBufSize int, protocol Protocol) IChannelConf {
+func NewChannelConf(readTimeout time.Duration, readBufSize int, writeTimeout time.Duration,
+		writeBufSize int, protocol Protocol) *ChannelConf {
 	b := &ChannelConf{
 		ReadTimeout:  readTimeout,
 		WriteTimeout: writeTimeout,
@@ -56,7 +57,7 @@ func NewChannelConf(readTimeout time.Duration, readBufSize int, writeTimeout tim
 	return b
 }
 
-func NewDefChannelConf(protocol Protocol) IChannelConf {
+func NewDefChannelConf(protocol Protocol) *ChannelConf {
 	return NewChannelConf(READ_TIMEOUT, READ_BUFSIZE, WRITE_TIMEOUT, WRITE_BUFSIZE, protocol)
 }
 
@@ -113,7 +114,7 @@ type IAddrConf interface {
 	GetAddrStr() string
 }
 
-func NewAddrConf(ip string, port int) IAddrConf {
+func NewAddrConf(ip string, port int) *AddrConf {
 	b := &AddrConf{Ip: ip, Port: port}
 	return b
 }

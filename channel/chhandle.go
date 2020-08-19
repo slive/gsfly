@@ -29,17 +29,17 @@ type OnStopHandle func(channel IChannel) error
 // channel 通信通道
 type OnStartHandle func(channel IChannel) error
 
-// OnRegisterHandle 处理启动时的方法
+// OnRegisteredHandle 处理注册后（可能成功也可能失败）的方法
 // channel 通信通道
 // packet 接收到的包，可能nil
 // attach 附带参数，可能为nil
-type OnRegisterHandle func(channel IChannel, packet IPacket) error
+type OnRegisteredHandle func(channel IChannel, packet IPacket) error
 
-// OnUnRegisterHandle 处理取消注册的方法
+// OnUnRegisteredHandle 处理取消注册的方法
 // channel 通信通道
 // packet 接收到的包，可能nil
 // attach 附带参数，可能为nil
-type OnUnRegisterHandle func(channel IChannel, packet IPacket) error
+type OnUnRegisteredHandle func(channel IChannel, packet IPacket) error
 
 // OnErrorHandle 处理取消注册的方法
 // channel 通信通道
@@ -56,8 +56,8 @@ type IChannelHandle interface {
 
 	SetOnStartHandle(handle OnStartHandle)
 	SetOnStopHandle(handle OnStopHandle)
-	SetOnRegisterHandle(handle OnRegisterHandle)
-	SetOnUnRegisterHandle(handle OnUnRegisterHandle)
+	SetOnRegisteredHandle(handle OnRegisteredHandle)
+	SetOnUnRegisteredHandle(handle OnUnRegisteredHandle)
 	SetOnErrorHandle(handle OnErrorHandle)
 	SetOnAftWriteHandle(handle OnAftWriteHandle)
 	SetOnBefWriteHandle(handle OnBefWriteHandle)
@@ -65,15 +65,15 @@ type IChannelHandle interface {
 
 // ChannelHandle 通信通道处理结构，针对如开始，关闭和收到消息的方法
 type ChannelHandle struct {
-	OnStartHandle      OnStartHandle
-	OnRegisterHandle   OnRegisterHandle
-	OnUnRegisterHandle OnUnRegisterHandle
-	OnStopHandle       OnStopHandle
-	OnErrorHandle      OnErrorHandle
-	OnAftWriteHandle   OnAftWriteHandle
-	OnBefWriteHandle   OnBefWriteHandle
+	OnStartHandle        OnStartHandle
+	OnRegisteredHandle   OnRegisteredHandle
+	OnUnRegisteredHandle OnUnRegisteredHandle
+	OnStopHandle         OnStopHandle
+	OnErrorHandle        OnErrorHandle
+	OnAftWriteHandle     OnAftWriteHandle
+	OnBefWriteHandle     OnBefWriteHandle
 
-	// 必须方法
+	// 处理消息方法，必须方法
 	msgHandleFunc      OnMsgHandle
 	innerMsgHandleFunc OnMsgHandle
 }
@@ -86,12 +86,12 @@ func (c *ChannelHandle) SetOnStopHandle(handle OnStopHandle) {
 	c.OnStopHandle = handle
 }
 
-func (c *ChannelHandle) SetOnRegisterHandle(handle OnRegisterHandle) {
-	c.OnRegisterHandle = handle
+func (c *ChannelHandle) SetOnRegisteredHandle(handle OnRegisteredHandle) {
+	c.OnRegisteredHandle = handle
 }
 
-func (c *ChannelHandle) SetOnUnRegisterHandle(handle OnUnRegisterHandle) {
-	c.OnUnRegisterHandle = handle
+func (c *ChannelHandle) SetOnUnRegisteredHandle(handle OnUnRegisteredHandle) {
+	c.OnUnRegisteredHandle = handle
 }
 
 func (c *ChannelHandle) SetOnErrorHandle(handle OnErrorHandle) {
@@ -121,7 +121,8 @@ func NewDefChHandle(msgHandleFunc OnMsgHandle) *ChannelHandle {
 		logx.Error(errMsg)
 		panic(errMsg)
 	}
-	c := &ChannelHandle{msgHandleFunc: msgHandleFunc}
+	c := &ChannelHandle{}
+	c.msgHandleFunc = msgHandleFunc
 	c.innerMsgHandleFunc = c.onMsgHandle
 	c.OnErrorHandle = innerErrorHandle
 	return c
@@ -138,18 +139,31 @@ func UpdateMsgHandle(msgHandleFunc OnMsgHandle, chHandle *ChannelHandle) {
 
 // 内部代理调用 OnMsgHandle
 func (c *ChannelHandle) onMsgHandle(packet IPacket) error {
-	statis := packet.GetChannel().GetChStatis().HandleMsgStatics
 	handleFunc := c.msgHandleFunc
 	if handleFunc != nil {
 		err := handleFunc(packet)
+		// 记录统计相关信息
 		if err != nil {
-			handleStatis(statis, packet, false)
+			HandleMsgStatis(packet, false)
 		} else {
-			handleStatis(statis, packet, true)
+			HandleMsgStatis(packet, true)
 		}
+		logx.Info(packet.GetChannel().GetChStatis().StringHandle())
 		return err
 	} else {
-		handleStatis(statis, packet, false)
+		HandleMsgStatis(packet, false)
 		panic("implement me")
 	}
+}
+
+func CopyChannelHandle(srcChHandle *ChannelHandle) *ChannelHandle {
+	ch := NewDefChHandle(srcChHandle.GetOnMsgHandle())
+	ch.SetOnStopHandle(srcChHandle.OnStopHandle)
+	ch.SetOnStartHandle(srcChHandle.OnStartHandle)
+	ch.SetOnAftWriteHandle(srcChHandle.OnAftWriteHandle)
+	ch.SetOnBefWriteHandle(srcChHandle.OnBefWriteHandle)
+	ch.SetOnErrorHandle(srcChHandle.OnErrorHandle)
+	ch.SetOnRegisteredHandle(srcChHandle.OnRegisteredHandle)
+	ch.SetOnUnRegisteredHandle(srcChHandle.OnUnRegisteredHandle)
+	return ch
 }

@@ -39,7 +39,7 @@ func NewWsChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChannelConf,
 func (wsChannel *WsChannel) Start() error {
 	err := wsChannel.StartChannel(wsChannel)
 	if err == nil {
-		onRegisterHandle := wsChannel.GetChHandle().OnRegisterHandle
+		onRegisterHandle := wsChannel.GetChHandle().OnRegisteredHandle
 		if onRegisterHandle != nil {
 			onRegisterHandle(wsChannel, nil)
 		}
@@ -49,7 +49,7 @@ func (wsChannel *WsChannel) Start() error {
 
 func (wsChannel *WsChannel) Stop() {
 	if !wsChannel.IsClosed() {
-		onUnRegisterHandle := wsChannel.GetChHandle().OnUnRegisterHandle
+		onUnRegisterHandle := wsChannel.GetChHandle().OnUnRegisteredHandle
 		if onUnRegisterHandle != nil {
 			onUnRegisterHandle(wsChannel, nil)
 		}
