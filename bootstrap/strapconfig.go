@@ -5,7 +5,7 @@
 package bootstrap
 
 import (
-	"gsfly/channel"
+	"github.com/Slive/gsfly/channel"
 	"net/url"
 )
 

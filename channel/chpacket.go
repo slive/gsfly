@@ -6,7 +6,7 @@
 package channel
 
 import (
-	"gsfly/common"
+	"github.com/Slive/gsfly/common"
 	"time"
 )
 

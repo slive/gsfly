@@ -5,8 +5,8 @@
 package channel
 
 import (
-	"gsfly/common"
-	logx "gsfly/logger"
+	"github.com/Slive/gsfly/common"
+	logx "github.com/Slive/gsfly/logger"
 )
 
 // OnMsgHandle 处理消息方法

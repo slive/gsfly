@@ -5,10 +5,10 @@
 package bootstrap
 
 import (
+	gch "github.com/Slive/gsfly/channel"
+	"github.com/Slive/gsfly/common"
+	logx "github.com/Slive/gsfly/logger"
 	"github.com/emirpasic/gods/maps/hashmap"
-	gch "gsfly/channel"
-	"gsfly/common"
-	logx "gsfly/logger"
 )
 
 type IBootStrap interface {

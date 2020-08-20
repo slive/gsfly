@@ -6,11 +6,11 @@ package logger
 
 import (
 	"fmt"
+	"github.com/Slive/gsfly/util"
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/rifflock/lfshook"
 	logx "github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/writer"
-	"gsfly/util"
 	"io/ioutil"
 	"log"
 	"os"

@@ -6,10 +6,10 @@ package kcpx
 
 import (
 	"fmt"
+	gch "github.com/Slive/gsfly/channel"
+	"github.com/Slive/gsfly/common"
+	logx "github.com/Slive/gsfly/logger"
 	"github.com/xtaci/kcp-go"
-	gch "gsfly/channel"
-	"gsfly/common"
-	logx "gsfly/logger"
 )
 
 type Kws00Channel struct {

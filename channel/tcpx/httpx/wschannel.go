@@ -5,9 +5,9 @@
 package httpx
 
 import (
+	gch "github.com/Slive/gsfly/channel"
+	logx "github.com/Slive/gsfly/logger"
 	gws "github.com/gorilla/websocket"
-	gch "gsfly/channel"
-	logx "gsfly/logger"
 	"net"
 	"time"
 )

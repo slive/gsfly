@@ -7,13 +7,13 @@ package bootstrap
 import (
 	"encoding/json"
 	"fmt"
+	gch "github.com/Slive/gsfly/channel"
+	httpx "github.com/Slive/gsfly/channel/tcpx/httpx"
+	"github.com/Slive/gsfly/channel/udpx"
+	kcpx "github.com/Slive/gsfly/channel/udpx/kcpx"
+	logx "github.com/Slive/gsfly/logger"
 	"github.com/gorilla/websocket"
 	"github.com/xtaci/kcp-go"
-	gch "gsfly/channel"
-	httpx "gsfly/channel/tcpx/httpx"
-	"gsfly/channel/udpx"
-	kcpx "gsfly/channel/udpx/kcpx"
-	logx "gsfly/logger"
 	"net"
 )
 

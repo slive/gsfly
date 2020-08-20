@@ -7,9 +7,9 @@ package channel
 
 import (
 	"fmt"
+	"github.com/Slive/gsfly/common"
+	logx "github.com/Slive/gsfly/logger"
 	"github.com/pkg/errors"
-	"gsfly/common"
-	logx "gsfly/logger"
 	"net"
 )
 

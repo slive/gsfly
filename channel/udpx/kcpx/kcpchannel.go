@@ -6,9 +6,9 @@ package kcpx
 
 import (
 	"fmt"
+	gch "github.com/Slive/gsfly/channel"
+	logx "github.com/Slive/gsfly/logger"
 	"github.com/xtaci/kcp-go"
-	gch "gsfly/channel"
-	logx "gsfly/logger"
 	"net"
 	"time"
 )

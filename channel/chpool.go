@@ -6,8 +6,8 @@
 package channel
 
 import (
-	"gsfly/common"
-	logx "gsfly/logger"
+	"github.com/Slive/gsfly/common"
+	logx "github.com/Slive/gsfly/logger"
 	"hash/crc32"
 	"runtime"
 	"sync"
