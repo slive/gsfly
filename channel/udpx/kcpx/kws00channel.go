@@ -122,12 +122,14 @@ func onInnerKws00MsgHandle(packet gch.IPacket) error {
 						err := registerHandle(srcCh, packet)
 						if err != nil {
 							logx.Error("register error:", err)
+							// TODO 注册失败的处理, 是否继续执行
 							panic("register error")
 						} else {
 							srcCh.SetRegistered(true)
 							frame = NewOutputFrame(OPCODE_TEXT_SESSION, frame.GetPayload())
 							packet.AddAttach(KCP_FRAME_KEY, frame)
 						}
+						return nil
 					}
 				} else if opCode == OPCODE_CLOSE {
 					unregisterHandle := srcCh.GetChHandle().OnUnRegisteredHandle
