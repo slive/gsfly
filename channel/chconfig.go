@@ -23,6 +23,9 @@ type ChannelConf struct {
 	// ReadBufSize 读缓冲
 	WriteBufSize int
 
+	// CloseRevFailTime 最大接收多少次失败后关闭
+	CloseRevFailTime int
+
 	// 使用的协议
 	Protocol Protocol
 }
@@ -33,20 +36,23 @@ type IChannelConf interface {
 	GetWriteTimeout() time.Duration
 	GetWriteBufSize() int
 
+	GetCloseRevFailTime() int
+
 	// GetProtocol 获取通道协议类型
 	// @see Protocol
 	GetProtocol() Protocol
 }
 
 const (
-	READ_TIMEOUT  = 15
-	READ_BUFSIZE  = 8 * 1024
-	WRITE_TIMEOUT = 15
-	WRITE_BUFSIZE = 8 * 1024
+	READ_TIMEOUT       = 15
+	READ_BUFSIZE       = 1024 * 1024
+	WRITE_TIMEOUT      = 15
+	WRITE_BUFSIZE      = 1024 * 1024
+	CLOSE_REV_FAILTIME = 3
 )
 
 func NewChannelConf(readTimeout time.Duration, readBufSize int, writeTimeout time.Duration,
-		writeBufSize int, protocol Protocol) *ChannelConf {
+	writeBufSize int, protocol Protocol) *ChannelConf {
 	b := &ChannelConf{
 		ReadTimeout:  readTimeout,
 		WriteTimeout: writeTimeout,
@@ -73,6 +79,14 @@ func (bc *ChannelConf) GetReadBufSize() int {
 	ret := bc.ReadBufSize
 	if ret <= 0 {
 		ret = READ_BUFSIZE
+	}
+	return ret
+}
+
+func (bc *ChannelConf) GetCloseRevFailTime() int {
+	ret := bc.CloseRevFailTime
+	if ret <= 0 {
+		ret = CLOSE_REV_FAILTIME
 	}
 	return ret
 }

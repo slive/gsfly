@@ -63,7 +63,6 @@ func (b *TcpChannel) Read() (gch.IPacket, error) {
 	datapack := b.NewPacket()
 	datapack.SetData(bytes)
 	gch.RevStatis(datapack, true)
-	logx.Info(b.GetChStatis().StringRev())
 	return datapack, err
 }
 

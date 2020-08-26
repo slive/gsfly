@@ -27,6 +27,8 @@ func NewKcpChannel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChan
 	kcpConn.SetReadBuffer(readBufSize)
 	writeBufSize := chConf.GetWriteBufSize()
 	kcpConn.SetWriteBuffer(writeBufSize)
+	kcpConn.SetACKNoDelay(true)
+	kcpConn.SetWriteDelay(false)
 	ch.SetId("kcp-" + kcpConn.LocalAddr().String() + "-" + kcpConn.RemoteAddr().String() + "-" + fmt.Sprintf("%v", kcpConn.GetConv()))
 	return ch
 }
@@ -40,7 +42,7 @@ func Read(ch gch.IChannel) (gch.IPacket, error) {
 	conn := ch.GetConn()
 	conf := ch.GetConf()
 	now := time.Now()
-	// Conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
+	conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
 	readbf := make([]byte, conf.GetReadBufSize())
 	readNum, err := conn.Read(readbf)
 	if err != nil {
@@ -58,13 +60,7 @@ func Read(ch gch.IChannel) (gch.IPacket, error) {
 	bytes := readbf[0:readNum]
 	datapack.SetData(bytes)
 	gch.RevStatis(datapack, true)
-	logx.Info(ch.GetChStatis().StringRev())
-
 	return datapack, err
-}
-
-func (b *KcpChannel) IsReadLoopContinued(err error) bool {
-	return false
 }
 
 func (b *KcpChannel) GetConn() net.Conn {
@@ -73,68 +69,15 @@ func (b *KcpChannel) GetConn() net.Conn {
 
 func (b *KcpChannel) Write(datapack gch.IPacket) error {
 	return b.Channel.Write(datapack)
-	// if b.IsClosed() {
-	// 	return errors.New("kcpchannel had closed, chId:" + b.GetId())
-	// }
-	//
-	// chHandle := b.GetChHandle()
-	// defer func() {
-	// 	rec := recover()
-	// 	if rec != nil {
-	// 		logx.Error("write kcp error, chId:%v, error:%v", b.GetId(), rec)
-	// 		err, ok := rec.(error)
-	// 		if !ok {
-	// 			err = errors.New(fmt.Sprintf("%v", rec))
-	// 		}
-	// 		// 捕获处理消息异常
-	// 		chHandle.OnErrorHandle(b, common.NewError1(gch.ERR_WRITE, err))
-	// 		// 有异常，终止执行
-	// 		b.StopChannel(b)
-	// 	}
-	// }()
-	//
-	// if datapack.IsPrepare() {
-	// 	// 发送前的处理
-	// 	befWriteHandle := chHandle.OnBefWriteHandle
-	// 	if befWriteHandle != nil {
-	// 		err := befWriteHandle(datapack)
-	// 		if err != nil {
-	// 			logx.Error("befWriteHandle error:", err)
-	// 			return err
-	// 		}
-	// 	}
-	//
-	// 	bytes := datapack.GetData()
-	// 	Conn := b.Conn
-	// 	conf := b.GetConf()
-	// 	Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
-	// 	_, err := Conn.Write(bytes)
-	// 	if err != nil {
-	// 		logx.Error("write kcp error:", err)
-	// 		gch.SendStatis(datapack, false)
-	// 		panic(err)
-	// 		return err
-	// 	}
-	// 	gch.SendStatis(datapack, true)
-	// 	logx.Info(b.GetChStatis().StringSend())
-	//
-	// 	// 发送成功后的处理
-	// 	aftWriteHandle := chHandle.OnAftWriteHandle
-	// 	if aftWriteHandle != nil {
-	// 		aftWriteHandle(datapack)
-	// 	}
-	// 	return err
-	// } else {
-	// 	logx.Warn("packet is not prepare.")
-	// }
-	// return nil
 }
 
 func (b *KcpChannel) WriteByConn(datapacket gch.IPacket) error {
 	bytes := datapacket.GetData()
 	conn := b.Conn
 	conf := b.GetConf()
-	conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
+	writeDeadLine := time.Now().Add(conf.GetWriteTimeout() * time.Second)
+	logx.Info("writeDeadLine:", writeDeadLine)
+	conn.SetWriteDeadline(writeDeadLine)
 	_, err := conn.Write(bytes)
 	if err != nil {
 		logx.Error("write kcp error:", err)

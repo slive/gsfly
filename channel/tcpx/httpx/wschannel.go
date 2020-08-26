@@ -73,7 +73,6 @@ func (wsChannel *WsChannel) Read() (gch.IPacket, error) {
 	wspacket.MsgType = msgType
 	wspacket.SetData(data)
 	gch.RevStatis(wspacket, true)
-	logx.Info(wsChannel.GetChStatis().StringRev())
 	return wspacket, err
 }
 
@@ -155,10 +154,6 @@ func (wsChannel *WsChannel) WriteByConn(datapacket gch.IPacket) error {
 // GetConn Deprecated
 func (wsChannel *WsChannel) GetConn() net.Conn {
 	return wsChannel.Conn.UnderlyingConn()
-}
-
-func (wsChannel *WsChannel) IsReadLoopContinued(err error) bool {
-	return false
 }
 
 func (wsChannel *WsChannel) LocalAddr() net.Addr {

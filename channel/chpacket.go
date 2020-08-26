@@ -33,6 +33,9 @@ type IPacket interface {
 	// IsPrepare 是否准备好可以进行收发后续处理
 	IsPrepare() bool
 
+	// 释放资源
+	Release()
+
 	// GetPType 协议类型
 	GetPType() Protocol
 
@@ -60,6 +63,10 @@ type Packet struct {
 
 func (b *Packet) GetChannel() IChannel {
 	return b.channel
+}
+
+func (b *Packet) Release() {
+	b.data = nil
 }
 
 func (b *Packet) GetPType() Protocol {

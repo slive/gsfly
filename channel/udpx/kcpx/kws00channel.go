@@ -128,8 +128,8 @@ func onInnerKws00MsgHandle(packet gch.IPacket) error {
 							srcCh.SetRegistered(true)
 							frame = NewOutputFrame(OPCODE_TEXT_SESSION, frame.GetPayload())
 							packet.AddAttach(KCP_FRAME_KEY, frame)
+							packet.Release()
 						}
-						return nil
 					}
 				} else if opCode == OPCODE_CLOSE {
 					unregisterHandle := srcCh.GetChHandle().OnUnRegisteredHandle
@@ -137,13 +137,20 @@ func onInnerKws00MsgHandle(packet gch.IPacket) error {
 						// 注销事件
 						unregisterHandle(srcCh, packet)
 						srcCh.SetRegistered(false)
+						packet.Release()
+						srcCh.Stop()
 					}
 				}
 
-				kcp := srcCh.(*Kws00Channel)
-				onKwsMsgHandle := kcp.onKwsMsgHandle
-				if onKwsMsgHandle != nil {
-					onKwsMsgHandle(packet)
+				if packet.IsPrepare() {
+					kcp := srcCh.(*Kws00Channel)
+					onKwsMsgHandle := kcp.onKwsMsgHandle
+					if onKwsMsgHandle != nil {
+						err := onKwsMsgHandle(packet)
+						if err != nil {
+							return err
+						}
+					}
 				}
 			} else {
 				logx.Warn("frame is nil")

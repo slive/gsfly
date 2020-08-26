@@ -170,6 +170,7 @@ func (b *Channel) StartChannel(channel IChannel) error {
 			return err
 		}
 	}
+
 	logx.Info("finish to start channel, chId:", channel.GetId())
 	return nil
 }
@@ -230,7 +231,6 @@ func (b *Channel) Write(datapacket IPacket) error {
 		}
 
 		SendStatis(datapacket, true)
-		logx.Info(b.GetChStatis().StringSend())
 		// 发送成功后的处理
 		aftWriteHandle := chHandle.OnAftWriteHandle
 		if aftWriteHandle != nil {
@@ -261,7 +261,7 @@ func (b *Channel) GetConn() net.Conn {
 }
 
 func (b *Channel) IsReadLoopContinued(err error) bool {
-	return true
+	return b.GetChStatis().RevStatics.FailTimes < (int64)(b.chConf.GetCloseRevFailTime())
 }
 
 func (b *Channel) GetChHandle() *ChannelHandle {

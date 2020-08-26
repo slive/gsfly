@@ -14,11 +14,11 @@ import (
 type OnMsgHandle func(packet IPacket) error
 
 // OnBefWriteHandle 发送消息之前
-// packet 接收到的包，不可以为nil
+// packet 发送的包，不可以为nil，发送前处理失败，则不继续执行
 type OnBefWriteHandle func(packet IPacket) error
 
 // OnAftWriteHandle 发送消息之后
-// packet 接收到的包，不可以为nil
+// packet 发送的包，不可以为nil
 type OnAftWriteHandle func(packet IPacket) error
 
 // OnStopHandle 处理停止时的方法
@@ -26,7 +26,7 @@ type OnAftWriteHandle func(packet IPacket) error
 type OnStopHandle func(channel IChannel) error
 
 // OnStartHandle 处理启动时的方法
-// channel 通信通道
+// channel 通信通道， 启动有问题则不再继续执行
 type OnStartHandle func(channel IChannel) error
 
 // OnRegisteredHandle 处理注册后（可能成功也可能失败）的方法
@@ -148,7 +148,6 @@ func (c *ChannelHandle) onMsgHandle(packet IPacket) error {
 		} else {
 			HandleMsgStatis(packet, true)
 		}
-		logx.Info(packet.GetChannel().GetChStatis().StringHandle())
 		return err
 	} else {
 		HandleMsgStatis(packet, false)

@@ -68,7 +68,6 @@ func (b *UdpChannel) Read() (gch.IPacket, error) {
 	datapack := nPacket.(*UdpPacket)
 	datapack.SetData(bytes)
 	datapack.Addr = addr
-	logx.Info(b.GetChStatis().StringRev())
 	gch.RevStatis(datapack, true)
 	return datapack, err
 }

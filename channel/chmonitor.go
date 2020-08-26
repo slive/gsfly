@@ -70,24 +70,8 @@ func NewChStatis() *ChannelStatis {
 	}
 }
 
-func (s *ChannelStatis) StringSend() string {
-	marshal, err := json.Marshal(s.SendStatics)
-	if err == nil {
-		return string(marshal)
-	}
-	return ""
-}
-
-func (s *ChannelStatis) StringRev() string {
-	marshal, err := json.Marshal(s.RevStatics)
-	if err == nil {
-		return string(marshal)
-	}
-	return ""
-}
-
-func (s *ChannelStatis) StringHandle() string {
-	marshal, err := json.Marshal(s.HandleMsgStatics)
+func (s *Statis) ToString() string {
+	marshal, err := json.Marshal(s)
 	if err == nil {
 		return string(marshal)
 	}
@@ -110,6 +94,7 @@ func RevStatisFail(channel IChannel, initTime time.Time) {
 	statis.Current.SpendTime = time.Since(initTime).Seconds()
 	statis.FailTimes += 1
 	logx.Debug("rev fail, chId:", channel.GetId())
+	logx.Infof("chId:%v, rev falil static:%v", channel.GetId(), statis.ToString())
 }
 
 // 读取统计
@@ -118,6 +103,7 @@ func RevStatis(packet IPacket, isOk bool) {
 	statis := channel.GetChStatis().RevStatics
 	handleStatis(statis, packet, isOk)
 	logx.Debugf("chId:%v, rev:%v", channel.GetId(), string(packet.GetData()))
+	logx.Infof("chId:%v, rev static:%v", channel.GetId(), statis.ToString())
 }
 
 func handleStatis(statis *Statis, packet IPacket, isOk bool) {
@@ -145,6 +131,7 @@ func SendStatis(packet IPacket, isOk bool) {
 	statis := channel.GetChStatis().SendStatics
 	handleStatis(statis, packet, isOk)
 	logx.Debugf("chId:%v, write:%v", channel.GetId(), string(packet.GetData()))
+	logx.Infof("chId:%v, write static:%v", channel.GetId(), statis.ToString())
 }
 
 // 写统计
@@ -153,4 +140,5 @@ func HandleMsgStatis(packet IPacket, isOk bool) {
 	statis := channel.GetChStatis().HandleMsgStatics
 	handleStatis(statis, packet, isOk)
 	logx.Debugf("chId:%v, handle:%v", channel.GetId(), string(packet.GetData()))
+	logx.Infof("chId:%v, handle static:%v", channel.GetId(), statis.ToString())
 }
