@@ -1,5 +1,5 @@
 /*
- * 通信通道
+ * 通信通道，主要是负责通信通道的收发+事件的处理
  * Author:slive
  * DATE:2020/7/17
  */
@@ -11,6 +11,7 @@ import (
 	logx "github.com/Slive/gsfly/logger"
 	"github.com/pkg/errors"
 	"net"
+	"sync"
 )
 
 const (
@@ -80,7 +81,7 @@ type Channel struct {
 	ChannelHandle *ChannelHandle
 	ChannelStatis *ChannelStatis
 	Conn          net.Conn
-	chConf        IChannelConf
+	conf          IChannelConf
 	readPool      *ReadPool
 	closed        bool
 	closeExit     chan bool
@@ -93,32 +94,85 @@ type Channel struct {
 	*common.Id
 }
 
-var Default_Read_Pool_Conf *ReadPoolConf
-
 // 初始化读协程池，全局配置
-var Default_ReadPool *ReadPool
+var def_readPoolConf *ReadPoolConf
+var def_readPool *ReadPool
 
-func init() {
-	LoadDefaultConf()
-	Default_Read_Pool_Conf = Global_Conf.ReadPoolConf
-	Default_ReadPool = NewReadPool(Default_Read_Pool_Conf.MaxReadPoolSize, Default_Read_Pool_Conf.MaxReadQueueSize)
+var def_channel_Conf IChannelConf
+
+func initDefaultChannelConfs() {
+	if def_readPool == nil {
+		def_readPoolConf = Global_Conf.ReadPoolConf
+		def_readPool = NewReadPool(readPoolConf.MaxReadPoolSize, readPoolConf.MaxReadQueueSize)
+	}
+
+	if def_channel_Conf == nil {
+		def_channel_Conf = Global_Conf.ChannelConf
+	}
+
+	logx.Info("init default readPoolConf:", def_readPoolConf)
+	logx.Info("init default channelConf:", def_channel_Conf)
 }
+
+func InitChannelConfs(rpConf *ReadPoolConf, chConf *ChannelConf) {
+	if rpConf == nil {
+		err := "ReadPoolConf is nil"
+		logx.Panic(err)
+		panic(err)
+	}
+	if chConf == nil {
+		err := "ChannelConf is nil"
+		logx.Panic(err)
+		panic(err)
+	}
+
+	def_readPool = NewReadPool(rpConf.MaxReadPoolSize, rpConf.MaxReadQueueSize)
+	def_channel_Conf = chConf
+}
+
+var once sync.Once
 
 // NewDefChannel 创建默认基础通信通道
 func NewDefChannel(parent interface{}, chConf IChannelConf, chHandle *ChannelHandle) *Channel {
-	return NewChannel(parent, chConf, Default_ReadPool, chHandle)
+	// 全局初始化一次
+	return NewChannel(parent, chConf, def_readPool, chHandle)
 }
 
+// NewSimpleChannel 创建默认基础通信通道
+// msghandle 消息处理
+func NewSimpleChannel(msghandle OnMsgHandle) *Channel {
+	// 全局初始化一次
+	chHandle := NewDefChHandle(msghandle)
+	return NewChannel(nil, nil, nil, chHandle)
+}
+
+// NewChannel 创建channel
+// parent 父节点，可为nil
+// chConf channel配置，可为nil，如果为nil，则选用默认
+// readPool 读取消息池，可为nil，如果为nil，则选用默认
+// chHandle 处理handle，包括读写，注册等处理，不可为空
 func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chHandle *ChannelHandle) *Channel {
 	if chHandle == nil {
 		errMsg := "ChannelHandle is nil"
 		logx.Error(errMsg)
 		panic(errMsg)
 	}
+
+	// 默认初始化
+	once.Do(initDefaultChannelConfs)
+
+	// 选用默认
+	if chConf == nil {
+		chConf = def_channel_Conf
+	}
+	if readPool == nil {
+		readPool = def_readPool
+	}
+
 	channel := &Channel{
 		ChannelHandle: chHandle,
 		ChannelStatis: NewChStatis(),
-		chConf:        chConf,
+		conf:          chConf,
 		readPool:      readPool,
 		closeExit:     make(chan bool, 1),
 	}
@@ -127,7 +181,7 @@ func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chH
 	channel.Attact = common.NewAttact()
 	channel.Id = common.NewId()
 	channel.Parent = common.NewParent(parent)
-	logx.Info("create base channel, chConf:", chConf)
+	logx.Info("create base channel, conf:", chConf)
 	return channel
 }
 
@@ -249,7 +303,7 @@ func (b *Channel) WriteByConn(datapacket IPacket) error {
 }
 
 func (b *Channel) GetConf() IChannelConf {
-	return b.chConf
+	return b.conf
 }
 
 func (b *Channel) GetChStatis() *ChannelStatis {
@@ -261,7 +315,8 @@ func (b *Channel) GetConn() net.Conn {
 }
 
 func (b *Channel) IsReadLoopContinued(err error) bool {
-	return b.GetChStatis().RevStatics.FailTimes < (int64)(b.chConf.GetCloseRevFailTime())
+	// 读取超过一定失败次数后，不再继续执行
+	return b.GetChStatis().RevStatics.FailTimes < (int64)(b.conf.GetCloseRevFailTime())
 }
 
 func (b *Channel) GetChHandle() *ChannelHandle {

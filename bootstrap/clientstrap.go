@@ -142,7 +142,7 @@ func (kc *Kws00ClientStrap) Start() error {
 	}
 
 	// 握手操作
-	if kc.params != nil{
+	if kc.params != nil {
 		err = kws00Handshake(clientConf.(IKws00ClientConf), kwsCh)
 	}
 	if err != nil {

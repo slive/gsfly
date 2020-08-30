@@ -9,13 +9,15 @@ import (
 	"github.com/Slive/gsfly/common"
 	logx "github.com/Slive/gsfly/logger"
 	"hash/crc32"
-	"runtime"
+	"os"
+	"os/signal"
 	"sync"
 )
 
 // ReadQueue 每个协程可缓冲的读队列
 type ReadQueue struct {
 	readChan chan IPacket
+	id       int
 }
 
 // ReadPool 读协程池主要作用，用于控制读取的数据包处理个数，避免读取协程过大。
@@ -37,17 +39,21 @@ func NewReadPool(maxReadPoolSize int, maxReadQueueSize int) *ReadPool {
 		maxReadPoolSize:  maxReadPoolSize,
 		maxReadQueueSize: maxReadQueueSize,
 	}
+	go func() {
+		// 结束时释放所有chan
+		n := make(chan os.Signal)
+		signal.Notify(n)
+		select {
+		case <-n:
+			queue := r.readQueue
+			for _, v := range queue {
+				close(v.readChan)
+			}
+			break
+		}
+		logx.Info("release all readchan.")
+	}()
 	return r
-}
-
-// NewDefaultReadPool 创建默认的协程池
-// 默认maxReadPoolSize = runtime.NumCPU() * 100
-// 默认maxReadQueueSize int = 100
-func NewDefaultReadPool() *ReadPool {
-	// 与可用CPU关联
-	var maxReadPoolSize int = runtime.NumCPU() * 100
-	var maxReadQueueSize int = 100
-	return NewReadPool(maxReadPoolSize, maxReadQueueSize)
 }
 
 // Cache 放入缓冲区进行处理
@@ -66,7 +72,8 @@ func (p *ReadPool) fetchReadQueue(key int) *ReadQueue {
 	defer p.mut.Unlock()
 	readQueue := p.get(key)
 	if readQueue == nil {
-		readQueue = &ReadQueue{readChan: make(chan IPacket, p.maxReadQueueSize)}
+		readQueue = &ReadQueue{readChan: make(chan IPacket, p.maxReadQueueSize),
+			id: key}
 		p.readQueue[key] = readQueue
 		logx.Info("start read queue, key:", key)
 		// 协程运行
@@ -79,11 +86,12 @@ func (p *ReadPool) fetchReadQueue(key int) *ReadQueue {
 func handelReadQueue(queue *ReadQueue) {
 	for {
 		select {
-		case packet := <-queue.readChan:
+		case packet, isOpened := <-queue.readChan:
 			if packet != nil {
 				func() {
 					channel := packet.GetChannel()
 					handle := channel.GetChHandle()
+					// 有错误可以继续执行
 					defer func() {
 						rec := recover()
 						if rec != nil {
@@ -100,8 +108,13 @@ func handelReadQueue(queue *ReadQueue) {
 					}()
 					handle.innerMsgHandleFunc(packet)
 				}()
+
+				// 管道关闭后的操作
+				if !isOpened {
+					logx.Info("queue handle end, queueId:", queue.id)
+					return
+				}
 			}
-			break
 		}
 	}
 }

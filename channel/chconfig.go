@@ -6,6 +6,7 @@ package channel
 
 import (
 	"fmt"
+	logx "github.com/Slive/gsfly/logger"
 	"runtime"
 	"time"
 )
@@ -153,9 +154,24 @@ type ReadPoolConf struct {
 	MaxReadQueueSize int
 }
 
+const MAX_READ_QUEUE_SIZE = 100
+const MAX_READ_POOL_EVERY_CPU = 10
+
+func NewReadPoolConf(maxReadPoolSize, maxReadQueueSize int) *ReadPoolConf {
+	r := &ReadPoolConf{
+		MaxReadQueueSize: maxReadPoolSize,
+		MaxReadPoolSize:  maxReadPoolSize,
+	}
+	return r
+}
+
 type DefaultConf struct {
 	ChannelConf  *ChannelConf
 	ReadPoolConf *ReadPoolConf
+}
+
+func init() {
+	LoadDefaultConf()
 }
 
 var (
@@ -165,12 +181,15 @@ var (
 		WriteTimeout: WRITE_TIMEOUT,
 		WriteBufSize: WRITE_BUFSIZE,
 	}
-
-	readPoolConf = &ReadPoolConf{
-		MaxReadQueueSize: 100,
-		MaxReadPoolSize:  runtime.NumCPU() * 10,
-	}
+	readPoolConf = NewDefReadPoolConf()
 )
+
+func NewDefReadPoolConf() *ReadPoolConf {
+	return &ReadPoolConf{
+		MaxReadQueueSize: MAX_READ_QUEUE_SIZE,
+		MaxReadPoolSize:  runtime.NumCPU() * MAX_READ_POOL_EVERY_CPU,
+	}
+}
 
 var Global_Conf DefaultConf
 
@@ -178,6 +197,8 @@ func LoadDefaultConf() {
 	Global_Conf = DefaultConf{
 		ChannelConf:  channelConf,
 		ReadPoolConf: readPoolConf}
+	logx.Info("init global channelConf:", channelConf)
+	logx.Info("init global readPoolConf:", channelConf)
 }
 
 func LoadConConf(path string) {
