@@ -378,19 +378,20 @@ func (b *Channel) StopChannel(channel IChannel) {
 
 // StartReadLoop 启动循环读取，读取到数据包后，放入#ReadQueue中，等待处理
 func (b *Channel) startReadLoop(channel IChannel) {
+	chId := b.GetId()
 	defer func() {
 		rec := recover()
 		if rec != nil {
-			logx.Errorf("readloop error, chId:%v, err:%v", b.GetId(), rec)
+			logx.Errorf("readloop error, chId:%v, err:%v", chId, rec)
 			channel.GetChHandle().OnErrorHandle(channel, common.NewError3(ERR_READ, rec))
 			b.Stop()
 		}
 	}()
-	logx.Info("start to readloop, chId:", b.GetId())
+	logx.Info("start to readloop, chId:", chId)
 	for {
 		select {
 		case <-b.closeExit:
-			logx.Info("stop read loop.")
+			logx.Info("stop read loop, chId:", chId)
 			return
 		default:
 			rev, err := channel.Read()

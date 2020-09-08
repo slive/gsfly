@@ -61,8 +61,12 @@ func (wsChannel *WsChannel) Read() (gch.IPacket, error) {
 	// TODO 超时配置
 	// conf := wsChannel.GetConf()
 	now := time.Now()
-	// wsChannel.Conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
-	msgType, data, err := wsChannel.Conn.ReadMessage()
+	conf := wsChannel.GetConf()
+	failTime := time.Duration(conf.GetCloseRevFailTime())
+	duration := conf.GetReadTimeout() * time.Second * failTime
+	// 一次失败都会失败
+	wsChannel.Conn.SetReadDeadline(now.Add(duration))
+	msgType, data, err := wsChannel.readMessage()
 	if err != nil {
 		logx.Warn("read ws err:", err)
 		gch.RevStatisFail(wsChannel, now)
@@ -74,6 +78,24 @@ func (wsChannel *WsChannel) Read() (gch.IPacket, error) {
 	wspacket.SetData(data)
 	gch.RevStatis(wspacket, true)
 	return wspacket, err
+}
+
+func (wsChannel *WsChannel) readMessage() (messageType int, p []byte, err error) {
+	defer func() {
+		rec := recover()
+		if rec != nil {
+			reerr, ok := rec.(error)
+			if ok {
+				err = reerr
+			}
+		}
+	}()
+	return wsChannel.Conn.ReadMessage()
+}
+
+func (wsChannel *WsChannel) IsReadLoopContinued(err error) bool {
+	// 失败不继续
+	return false
 }
 
 func (wsChannel *WsChannel) Write(datapacket gch.IPacket) error {

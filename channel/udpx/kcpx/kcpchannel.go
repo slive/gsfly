@@ -9,6 +9,7 @@ import (
 	gch "github.com/Slive/gsfly/channel"
 	logx "github.com/Slive/gsfly/logger"
 	"github.com/xtaci/kcp-go"
+	"io"
 	"net"
 	"time"
 )
@@ -49,6 +50,9 @@ func Read(ch gch.IChannel) (gch.IPacket, error) {
 		// TODO 超时后抛出异常？
 		logx.Warn("read kcp err:", err)
 		gch.RevStatisFail(ch, now)
+		if err == io.EOF {
+			panic(err)
+		}
 		return nil, err
 	}
 	// 接收到8个字节数据，是bug?

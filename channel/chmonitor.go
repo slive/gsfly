@@ -93,7 +93,7 @@ func RevStatisFail(channel IChannel, initTime time.Time) {
 	statis.Current.Time = now
 	statis.Current.SpendTime = time.Since(initTime).Seconds()
 	statis.FailTimes += 1
-	logx.Debug("rev fail, chId:", channel.GetId())
+	logx.Info("rev fail, chId:", channel.GetId())
 	logx.Infof("chId:%v, rev falil static:%v", channel.GetId(), statis.ToString())
 }
 
