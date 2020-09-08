@@ -13,16 +13,40 @@ import (
 // 定义协议类型
 type Protocol int
 
+// String 获取协议对应的字符串
+func (p Protocol) String() string {
+	switch p {
+	case PROTOCOL_TCP:
+		return "tcp"
+	case PROTOCOL_HTTP:
+		return "http"
+	case PROTOCOL_WS:
+		return "ws"
+	case PROTOCOL_UDP:
+		return "udp"
+	case PROTOCOL_KCP:
+		return "kcp"
+	case PROTOCOL_KWS00:
+		return "kws00"
+	case PROTOCOL_KWS01:
+		return "kws001"
+	case PROTOCOL_HTTPX:
+		return "httpx"
+	default:
+		return "unknown"
+	}
+}
+
 const (
-	// 协议类型
-	PROTOCOL_TCP   Protocol = 1
-	PROTOCOL_HTTP  Protocol = 2
-	PROTOCOL_WS    Protocol = 4
-	PROTOCOL_UDP   Protocol = 8
-	PROTOCOL_KCP   Protocol = 16
-	PROTOCOL_KWS00 Protocol = 32
-	PROTOCOL_KWS01 Protocol = 64
-	PROTOCOL_HTTPX Protocol = PROTOCOL_HTTP | PROTOCOL_WS
+	// 协议类型，移位增长
+	PROTOCOL_TCP Protocol = 1 << iota
+	PROTOCOL_HTTP
+	PROTOCOL_WS
+	PROTOCOL_UDP
+	PROTOCOL_KCP
+	PROTOCOL_KWS00
+	PROTOCOL_KWS01
+	PROTOCOL_HTTPX = PROTOCOL_HTTP | PROTOCOL_WS
 )
 
 // IPacket 协议包接口

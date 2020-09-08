@@ -96,11 +96,12 @@ type Channel struct {
 
 // 初始化读协程池，全局配置
 var def_readPoolConf *ReadPoolConf
+
 var def_readPool *ReadPool
 
 var def_channel_Conf IChannelConf
 
-func initDefaultChannelConfs() {
+func initDefChannelConfs() {
 	if def_readPool == nil {
 		def_readPoolConf = Global_Conf.ReadPoolConf
 		def_readPool = NewReadPool(readPoolConf.MaxReadPoolSize, readPoolConf.MaxReadQueueSize)
@@ -130,7 +131,7 @@ func InitChannelConfs(rpConf *ReadPoolConf, chConf *ChannelConf) {
 	def_channel_Conf = chConf
 }
 
-var once sync.Once
+var initOnce sync.Once
 
 // NewDefChannel 创建默认基础通信通道
 func NewDefChannel(parent interface{}, chConf IChannelConf, chHandle *ChannelHandle) *Channel {
@@ -158,8 +159,13 @@ func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chH
 		panic(errMsg)
 	}
 
-	// 默认初始化
-	once.Do(initDefaultChannelConfs)
+	// 如果未初始化一些必要陪着，则默认初始化
+	initOnce.Do(func() {
+		// 默认初始化logger
+		logx.InitDefLogger()
+		// 默认初始化channel
+		initDefChannelConfs()
+	})
 
 	// 选用默认
 	if chConf == nil {

@@ -38,18 +38,18 @@ func NewReadPool(maxReadPoolSize int, maxReadQueueSize int) *ReadPool {
 		readQueue:        make(map[int]*ReadQueue, maxReadQueueSize),
 		maxReadPoolSize:  maxReadPoolSize,
 		maxReadQueueSize: maxReadQueueSize,
+		// 结束时释放所有chan
 	}
 	go func() {
-		// 结束时释放所有chan
-		n := make(chan os.Signal)
+		n := make(chan os.Signal, 1)
 		signal.Notify(n)
 		select {
-		case <-n:
+		case s := <-n:
+			logx.Info("signal:", s)
 			queue := r.readQueue
 			for _, v := range queue {
 				close(v.readChan)
 			}
-			break
 		}
 		logx.Info("release all readchan.")
 	}()

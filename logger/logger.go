@@ -27,7 +27,7 @@ type LogConf struct {
 	// LogDir 日志路径
 	LogDir string
 
-	Level int
+	Level logx.Level
 
 	MaxRemainCount uint
 }
@@ -37,14 +37,22 @@ func NewDefaultLogConf() *LogConf {
 		LogFile:        "log-gsfly.log",
 		LogDir:         util.GetPwd() + "/log",
 		MaxRemainCount: 20,
+		Level:          logx.DebugLevel,
 	}
 	return logConf
 }
 
 var logLevel logx.Level
 
-func init() {
-	logConf := NewDefaultLogConf()
+var defLogConf *LogConf
+
+func InitDefLogger() {
+	if defLogConf == nil {
+		InitLogger(NewDefaultLogConf())
+	}
+}
+
+func InitLogger(logConf *LogConf) {
 	logdir := logConf.LogDir
 	// 创建日志文件夹
 	_ = mkdirLog(logdir)
@@ -59,7 +67,7 @@ func init() {
 		// 文件不存在，创建
 		logfile, _ = os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	}
-	logLevel = logx.DebugLevel
+	logLevel = logConf.Level
 	logx.SetLevel(logLevel)
 	logx.SetOutput(ioutil.Discard) // Send all logs to nowhere by default
 	logx.AddHook(&writer.Hook{ // Send logs with level higher than warning to stderr
@@ -104,6 +112,7 @@ func init() {
 		maxRemainCount = 10
 	}
 	logx.AddHook(newRlfHook(maxRemainCount, filePath, &tf))
+	defLogConf = logConf
 }
 
 func checkFileExist(filename string) bool {

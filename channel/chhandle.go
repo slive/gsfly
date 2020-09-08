@@ -117,7 +117,7 @@ func (c *ChannelHandle) GetOnMsgHandle() OnMsgHandle {
 // NewDefChHandle 创建默认的， 必须实现OnMsgHandleFunc 方法
 func NewDefChHandle(msgHandleFunc OnMsgHandle) *ChannelHandle {
 	if msgHandleFunc == nil {
-		errMsg := "OnMsgHandle is nil."
+		errMsg := "msgHandleFunc is nil."
 		logx.Error(errMsg)
 		panic(errMsg)
 	}
