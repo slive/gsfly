@@ -17,7 +17,7 @@ import (
 type KcpChannel struct {
 	gch.Channel
 	Conn     *kcp.UDPSession
-	protocol gch.Protocol
+	protocol gch.Network
 }
 
 func NewKcpChannel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChannelConf, chHandle *gch.ChannelHandle) *KcpChannel {

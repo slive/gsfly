@@ -12,7 +12,7 @@ type IParent interface {
 	SetParent(parent interface{})
 }
 type Parent struct {
-	parent interface{}
+	parent interface{} `json:"parent"`
 }
 
 func NewParent(parent interface{}) *Parent {
@@ -34,19 +34,19 @@ type IId interface {
 }
 
 type Id struct {
-	id string `json:"id"`
+	Id string `json:"id"`
 }
 
 func NewId() *Id {
-	return &Id{id: ""}
+	return &Id{Id: ""}
 }
 
 func (i *Id) GetId() string {
-	return i.id
+	return i.Id
 }
 
 func (i *Id) SetId(id string) {
-	i.id = id
+	i.Id = id
 }
 
 type IAttact interface {

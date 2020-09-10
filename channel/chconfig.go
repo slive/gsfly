@@ -12,23 +12,23 @@ import (
 )
 
 type ChannelConf struct {
-	// ReadTimeout 读超时时间间隔，单位ms，默认15s
-	ReadTimeout time.Duration
+	// ReadTimeout 读超时时间间隔，单位s
+	ReadTimeout time.Duration `json:"readTimeout"`
 
-	// WriteTimeout 写超时时间间隔，单位ms，默认15s
-	WriteTimeout time.Duration
-
-	// ReadBufSize 读缓冲
-	ReadBufSize int
+	// WriteTimeout 写超时时间间隔，单位s
+	WriteTimeout time.Duration `json:"writeTimeout"`
 
 	// ReadBufSize 读缓冲
-	WriteBufSize int
+	ReadBufSize int `json:"readBufSize"`
+
+	// ReadBufSize 读缓冲
+	WriteBufSize int `json:"writeBufSize"`
 
 	// CloseRevFailTime 最大接收多少次失败后关闭
-	CloseRevFailTime int
+	CloseRevFailTime int `json:"closeRevFailTime"`
 
 	// 使用的协议
-	Protocol Protocol
+	Network Network `json:"network"`
 }
 
 type IChannelConf interface {
@@ -40,32 +40,33 @@ type IChannelConf interface {
 	GetCloseRevFailTime() int
 
 	// GetProtocol 获取通道协议类型
-	// @see Protocol
-	GetProtocol() Protocol
+	// @see Network
+	GetProtocol() Network
 }
 
 const (
-	READ_TIMEOUT       = 15
-	READ_BUFSIZE       = 1024 * 1024
+	READ_TIMEOUT       = 20
+	READ_BUFSIZE       = 128 * 1024
 	WRITE_TIMEOUT      = 15
-	WRITE_BUFSIZE      = 1024 * 1024
+	WRITE_BUFSIZE      = 128 * 1024
 	CLOSE_REV_FAILTIME = 3
 )
 
 func NewChannelConf(readTimeout time.Duration, readBufSize int, writeTimeout time.Duration,
-	writeBufSize int, protocol Protocol) *ChannelConf {
+	writeBufSize int, network Network) *ChannelConf {
 	b := &ChannelConf{
-		ReadTimeout:  readTimeout,
-		WriteTimeout: writeTimeout,
-		ReadBufSize:  readBufSize,
-		WriteBufSize: writeBufSize,
-		Protocol:     protocol,
+		ReadTimeout:      readTimeout,
+		WriteTimeout:     writeTimeout,
+		ReadBufSize:      readBufSize,
+		WriteBufSize:     writeBufSize,
+		Network:          network,
+		CloseRevFailTime: CLOSE_REV_FAILTIME,
 	}
 	return b
 }
 
-func NewDefChannelConf(protocol Protocol) *ChannelConf {
-	return NewChannelConf(READ_TIMEOUT, READ_BUFSIZE, WRITE_TIMEOUT, WRITE_BUFSIZE, protocol)
+func NewDefChannelConf(network Network) *ChannelConf {
+	return NewChannelConf(READ_TIMEOUT, READ_BUFSIZE, WRITE_TIMEOUT, WRITE_BUFSIZE, network)
 }
 
 func (bc *ChannelConf) GetReadTimeout() time.Duration {
@@ -109,13 +110,13 @@ func (bc *ChannelConf) GetWriteBufSize() int {
 }
 
 // GetProtocol 获取通道协议类型
-func (bc *ChannelConf) GetProtocol() Protocol {
-	return bc.Protocol
+func (bc *ChannelConf) GetProtocol() Network {
+	return bc.Network
 }
 
 type AddrConf struct {
-	Ip   string
-	Port int
+	Ip   string `json:"ip"`
+	Port int    `json:"port"`
 }
 
 type IAddrConf interface {
@@ -159,7 +160,7 @@ const MAX_READ_POOL_EVERY_CPU = 10
 
 func NewReadPoolConf(maxReadPoolSize, maxReadQueueSize int) *ReadPoolConf {
 	r := &ReadPoolConf{
-		MaxReadQueueSize: maxReadPoolSize,
+		MaxReadQueueSize: maxReadQueueSize,
 		MaxReadPoolSize:  maxReadPoolSize,
 	}
 	return r
@@ -176,10 +177,11 @@ func init() {
 
 var (
 	channelConf = &ChannelConf{
-		ReadTimeout:  READ_TIMEOUT,
-		ReadBufSize:  READ_BUFSIZE,
-		WriteTimeout: WRITE_TIMEOUT,
-		WriteBufSize: WRITE_BUFSIZE,
+		ReadTimeout:      READ_TIMEOUT,
+		ReadBufSize:      READ_BUFSIZE,
+		WriteTimeout:     WRITE_TIMEOUT,
+		WriteBufSize:     WRITE_BUFSIZE,
+		CloseRevFailTime: CLOSE_REV_FAILTIME,
 	}
 	readPoolConf = NewDefReadPoolConf()
 )

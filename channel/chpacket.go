@@ -11,10 +11,22 @@ import (
 )
 
 // 定义协议类型
-type Protocol int
+type Network string
+
+const (
+	// 协议类型，移位增长
+	PROTOCOL_TCP   Network = "tcp"
+	PROTOCOL_HTTP  Network = "http"
+	PROTOCOL_WS    Network = "ws"
+	PROTOCOL_UDP   Network = "udp"
+	PROTOCOL_KCP   Network = "kcp"
+	PROTOCOL_KWS00 Network = "kws00"
+	PROTOCOL_KWS01 Network = "kws001"
+	PROTOCOL_HTTPX Network = "httpx"
+)
 
 // String 获取协议对应的字符串
-func (p Protocol) String() string {
+func (p Network) String() string {
 	switch p {
 	case PROTOCOL_TCP:
 		return "tcp"
@@ -37,18 +49,6 @@ func (p Protocol) String() string {
 	}
 }
 
-const (
-	// 协议类型，移位增长
-	PROTOCOL_TCP Protocol = 1 << iota
-	PROTOCOL_HTTP
-	PROTOCOL_WS
-	PROTOCOL_UDP
-	PROTOCOL_KCP
-	PROTOCOL_KWS00
-	PROTOCOL_KWS01
-	PROTOCOL_HTTPX = PROTOCOL_HTTP | PROTOCOL_WS
-)
-
 // IPacket 协议包接口
 type IPacket interface {
 	// GetChannel 获取包所属的通道
@@ -60,11 +60,11 @@ type IPacket interface {
 	// 释放资源
 	Release()
 
-	// GetPType 协议类型
-	GetPType() Protocol
+	// GetNetwork 获取网络协议类型
+	GetNetwork() Network
 
-	// SetPType 设置协议类型
-	SetPType(ptype Protocol)
+	// SetNetwork 设置网络协议类型
+	SetNetwork(ptype Network)
 
 	// GetData 获取收发数据
 	GetData() []byte
@@ -79,7 +79,7 @@ type IPacket interface {
 
 type Packet struct {
 	channel  IChannel
-	ptype    Protocol
+	network  Network
 	data     []byte
 	initTime time.Time
 	common.Attact
@@ -93,12 +93,12 @@ func (b *Packet) Release() {
 	b.data = nil
 }
 
-func (b *Packet) GetPType() Protocol {
-	return b.ptype
+func (b *Packet) GetNetwork() Network {
+	return b.network
 }
 
-func (b *Packet) SetPType(ptype Protocol) {
-	b.ptype = ptype
+func (b *Packet) SetNetwork(ptype Network) {
+	b.network = ptype
 }
 
 func (b *Packet) GetData() []byte {
@@ -117,10 +117,10 @@ func (b *Packet) GetInitTime() time.Time {
 	return b.initTime
 }
 
-func NewPacket(channel IChannel, ptype Protocol) *Packet {
+func NewPacket(channel IChannel, network Network) *Packet {
 	b := &Packet{
 		channel:  channel,
-		ptype:    ptype,
+		network:  network,
 		initTime: time.Now(),
 	}
 	b.Attact = *common.NewAttact()

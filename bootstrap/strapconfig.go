@@ -13,20 +13,25 @@ type IServerConf interface {
 	channel.IAddrConf
 	channel.IChannelConf
 	GetMaxChannelSize() int
+	SetMaxChannelSize(maxChannelSize int)
 }
 
 type ServerConf struct {
 	channel.AddrConf
 	channel.ChannelConf
-	MaxChannelSize int
+	MaxChannelSize int `json:"maxChannelSize"`
 }
 
-func NewServerConf(ip string, port int, protocol channel.Protocol) *ServerConf {
+func NewServerConf(ip string, port int, protocol channel.Network) *ServerConf {
 	s := &ServerConf{}
 	s.AddrConf = *channel.NewAddrConf(ip, port)
 	s.ChannelConf = *channel.NewDefChannelConf(protocol)
 	s.MaxChannelSize = 0
 	return s
+}
+
+func (bs *ServerConf) SetMaxChannelSize(maxChannelSize int) {
+	bs.MaxChannelSize = maxChannelSize
 }
 
 func (bs *ServerConf) GetMaxChannelSize() int {
@@ -43,7 +48,7 @@ type ClientConf struct {
 	channel.ChannelConf
 }
 
-func NewClientConf(ip string, port int, protocol channel.Protocol) *ClientConf {
+func NewClientConf(ip string, port int, protocol channel.Network) *ClientConf {
 	s := &ClientConf{}
 	s.AddrConf = *channel.NewAddrConf(ip, port)
 	s.ChannelConf = *channel.NewDefChannelConf(protocol)
@@ -82,7 +87,7 @@ type IKws00ClientConf interface {
 type Kws00ClientConf struct {
 	KcpClientConf
 	// Path 可选，代表所在的相对路径，用于可能存在的路由，类似http的request url，如"/admin/user"
-	Path string
+	Path string `json:"path"`
 }
 
 func NewKws00ClientConf(ip string, port int, path string) *Kws00ClientConf {
@@ -162,12 +167,12 @@ type IWsConf interface {
 }
 
 type WsConf struct {
-	Scheme      string
-	SubProtocol []string
-	Path        string
+	Scheme      string   `json:"scheme"`
+	SubProtocol []string `json:"subProtocol"`
+	Path        string   `json:"path"`
 }
 
-func NewWsConf(scheme string, path string, subProtocol []string) *WsConf {
+func NewWsConf(scheme string, path string, subProtocol ...string) *WsConf {
 	w := &WsConf{
 		Scheme:      scheme,
 		SubProtocol: subProtocol,
@@ -202,10 +207,10 @@ type WsServerConf struct {
 	WsConf
 }
 
-func NewWsServerConf(ip string, port int, scheme string, path string, subProtocol []string) *WsServerConf {
+func NewWsServerConf(ip string, port int, scheme string, path string, subProtocol ...string) *WsServerConf {
 	w := &WsServerConf{}
 	w.ServerConf = *NewServerConf(ip, port, channel.PROTOCOL_WS)
-	w.WsConf = *NewWsConf(scheme, path, subProtocol)
+	w.WsConf = *NewWsConf(scheme, path, subProtocol...)
 	return w
 }
 
@@ -224,9 +229,9 @@ type WsClientConf struct {
 	WsConf
 }
 
-func NewWsClientConf(ip string, port int, scheme string, path string, subProtocol []string) *WsClientConf {
+func NewWsClientConf(ip string, port int, scheme string, path string, subProtocol... string) *WsClientConf {
 	w := &WsClientConf{}
-	w.WsConf = *NewWsConf(scheme, path, subProtocol)
+	w.WsConf = *NewWsConf(scheme, path, subProtocol...)
 	w.ClientConf = *NewClientConf(ip, port, channel.PROTOCOL_WS)
 	return w
 }

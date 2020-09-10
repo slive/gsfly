@@ -20,6 +20,13 @@ import (
 	"time"
 )
 
+const (
+	Level_Debug = "debug"
+	Level_Info  = "info"
+	Level_Warn  = "warn"
+	Level_Error = "error"
+)
+
 type LogConf struct {
 	// LogFile 日志文件
 	LogFile string
@@ -27,19 +34,44 @@ type LogConf struct {
 	// LogDir 日志路径
 	LogDir string
 
-	Level logx.Level
+	Level string
 
 	MaxRemainCount uint
+}
+
+func (logConf *LogConf) GetLevel() logx.Level {
+	level := logConf.Level
+	if len(level) <= 0 {
+		level = Level_Debug
+	} else {
+		level = strings.ToLower(level)
+	}
+	switch level {
+	case Level_Debug:
+		return logx.DebugLevel
+	case Level_Info:
+		return logx.InfoLevel
+	case Level_Warn:
+		return logx.WarnLevel
+	case Level_Error:
+		return logx.ErrorLevel
+	default:
+		return logx.DebugLevel
+	}
 }
 
 func NewDefaultLogConf() *LogConf {
 	logConf := &LogConf{
 		LogFile:        "log-gsfly.log",
-		LogDir:         util.GetPwd() + "/log",
+		LogDir:         defaultLogDir(),
 		MaxRemainCount: 20,
-		Level:          logx.DebugLevel,
+		Level:          Level_Debug,
 	}
 	return logConf
+}
+
+func defaultLogDir() string {
+	return util.GetPwd() + "/log"
 }
 
 var logLevel logx.Level
@@ -55,6 +87,9 @@ func InitDefLogger() {
 func InitLogger(logConf *LogConf) {
 	logdir := logConf.LogDir
 	// 创建日志文件夹
+	if len(logdir) <= 0 {
+		logdir = defaultLogDir()
+	}
 	_ = mkdirLog(logdir)
 
 	filePath := path.Join(logdir, logConf.LogFile)
@@ -67,7 +102,8 @@ func InitLogger(logConf *LogConf) {
 		// 文件不存在，创建
 		logfile, _ = os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	}
-	logLevel = logConf.Level
+	logLevel = logConf.GetLevel()
+	log.Println("level:", logLevel)
 	logx.SetLevel(logLevel)
 	logx.SetOutput(ioutil.Discard) // Send all logs to nowhere by default
 	logx.AddHook(&writer.Hook{ // Send logs with level higher than warning to stderr
@@ -239,9 +275,11 @@ func Fatalf(format string, logs ...interface{}) {
 func Panic(logs ...interface{}) {
 	field := logx.WithField("file", caller())
 	field.Panic(logs...)
+	panic(logs)
 }
 
 func Panicf(format string, logs ...interface{}) {
 	field := logx.WithField("file", caller())
 	field.Panicf(format, logs...)
+	panic(logs)
 }
