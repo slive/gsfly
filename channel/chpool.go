@@ -42,14 +42,11 @@ func NewReadPool(maxReadPoolSize int, maxReadQueueSize int) *ReadPool {
 	}
 	go func() {
 		n := make(chan os.Signal, 1)
-		signal.Notify(n)
+		signal.Notify(n, os.Interrupt, os.Kill)
 		select {
 		case s := <-n:
 			logx.Info("signal:", s)
-			queue := r.readQueue
-			for _, v := range queue {
-				close(v.readChan)
-			}
+			r.Close()
 		}
 		logx.Info("release all readchan.")
 	}()

@@ -159,7 +159,7 @@ func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chH
 		panic(errMsg)
 	}
 
-	// 如果未初始化一些必要陪着，则默认初始化
+	// 如果未初始化一些必要配置，则默认初始化
 	initOnce.Do(func() {
 		// 默认初始化logger
 		logx.InitDefLogger()
