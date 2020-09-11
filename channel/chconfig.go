@@ -156,7 +156,7 @@ type ReadPoolConf struct {
 }
 
 const MAX_READ_QUEUE_SIZE = 100
-const MAX_READ_POOL_EVERY_CPU = 10
+const MAX_READ_POOL_EVERY_CPU = 100
 
 func NewReadPoolConf(maxReadPoolSize, maxReadQueueSize int) *ReadPoolConf {
 	r := &ReadPoolConf{

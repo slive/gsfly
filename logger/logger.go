@@ -95,7 +95,7 @@ func InitLogger(logConf *LogConf) {
 	filePath := path.Join(logdir, logConf.LogFile)
 	log.Println("filePath:", filePath)
 	var logfile *os.File = nil
-	if checkFileExist(filePath) {
+	if util.CheckFileExist(filePath) {
 		// 文件存在，打开
 		logfile, _ = os.OpenFile(filePath, os.O_APPEND|os.O_RDWR, 0644)
 	} else {
@@ -149,14 +149,6 @@ func InitLogger(logConf *LogConf) {
 	}
 	logx.AddHook(newRlfHook(maxRemainCount, filePath, &tf))
 	defLogConf = logConf
-}
-
-func checkFileExist(filename string) bool {
-	exist := true
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		exist = false
-	}
-	return exist
 }
 
 func mkdirLog(dir string) (e error) {
