@@ -8,8 +8,9 @@ import (
 	"encoding/json"
 	"fmt"
 	gch "github.com/Slive/gsfly/channel"
+	"github.com/Slive/gsfly/channel/tcpx"
 	httpx "github.com/Slive/gsfly/channel/tcpx/httpx"
-	"github.com/Slive/gsfly/channel/udpx"
+	udpx "github.com/Slive/gsfly/channel/udpx"
 	kcpx "github.com/Slive/gsfly/channel/udpx/kcpx"
 	logx "github.com/Slive/gsfly/logger"
 	"github.com/gorilla/websocket"
@@ -76,11 +77,15 @@ func (wc *WsClientStrap) GetParams() map[string]interface{} {
 	return wc.params
 }
 
+type IKcpClientStrap interface {
+	IClientStrap
+}
+
 type KcpClientStrap struct {
 	ClientStrap
 }
 
-func NewKcpClientStrap(parent interface{}, kcpClientConf IKcpClientConf, handle *gch.ChannelHandle) IClientStrap {
+func NewKcpClientStrap(parent interface{}, kcpClientConf IKcpClientConf, handle *gch.ChannelHandle) IKcpClientStrap {
 	b := &KcpClientStrap{}
 	b.BootStrap = *NewBootStrap(parent, handle)
 	b.Conf = kcpClientConf
@@ -106,6 +111,11 @@ func (kc *KcpClientStrap) Start() error {
 	return err
 }
 
+// IKws00ClientStrap
+type IKws00ClientStrap interface {
+	IKcpClientStrap
+}
+
 // Kws00ClientStrap
 type Kws00ClientStrap struct {
 	KcpClientStrap
@@ -115,7 +125,7 @@ type Kws00ClientStrap struct {
 // NewKws00ClientStrap 实现kws
 // onKwsMsgHandle和onRegisterhandle 必须实现，其他方法可选
 func NewKws00ClientStrap(parent interface{}, kws00ClientConf IKws00ClientConf, onKwsMsgHandle gch.OnMsgHandle,
-	onRegisterhandle gch.OnRegisteredHandle, onUnRegisterhandle gch.OnUnRegisteredHandle, params map[string]interface{}) IClientStrap {
+	onRegisterhandle gch.OnRegisteredHandle, onUnRegisterhandle gch.OnUnRegisteredHandle, params map[string]interface{}) IKws00ClientStrap {
 	b := &Kws00ClientStrap{}
 	b.Conf = kws00ClientConf
 	handle := kcpx.NewKws00Handle(onKwsMsgHandle, onRegisterhandle, onUnRegisterhandle)
@@ -188,11 +198,15 @@ func kws00Handshake(kcpClientConf IKws00ClientConf, kwsCh *kcpx.Kws00Channel) er
 	return err
 }
 
+type IUdpClientStrap interface {
+	IClientStrap
+}
+
 type UdpClientStrap struct {
 	ClientStrap
 }
 
-func NewUdpClientStrap(parent interface{}, clientConf IUdpClientConf, handle *gch.ChannelHandle) IClientStrap {
+func NewUdpClientStrap(parent interface{}, clientConf IUdpClientConf, handle *gch.ChannelHandle) IUdpClientStrap {
 	b := &UdpClientStrap{}
 	b.BootStrap = *NewBootStrap(parent, handle)
 	b.Conf = clientConf
@@ -216,6 +230,46 @@ func (uc *UdpClientStrap) Start() error {
 	}
 
 	udpCh := udpx.NewUdpChannel(uc, conn, clientConf, chHandle)
+	err = udpCh.Start()
+	if err == nil {
+		uc.Channel = udpCh
+		uc.Closed = false
+	}
+	return err
+}
+
+type ITcpClientStrap interface {
+	IClientStrap
+}
+
+type TcpClientStrap struct {
+	ClientStrap
+}
+
+func NewTcpClientStrap(parent interface{}, clientConf IUdpClientConf, handle *gch.ChannelHandle) IClientStrap {
+	b := &TcpClientStrap{}
+	b.BootStrap = *NewBootStrap(parent, handle)
+	b.Conf = clientConf
+	return b
+}
+
+func (uc *TcpClientStrap) Start() error {
+	clientConf := uc.GetConf()
+	chHandle := uc.ChannelHandle
+	addr := clientConf.GetAddrStr()
+	logx.Info("dial tcp addr:", addr)
+	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		logx.Error("resolve tcp addr error:", err)
+		return err
+	}
+	conn, err := net.DialTCP("tcp", nil, tcpAddr)
+	if err != nil {
+		logx.Error("dial udp conn error:", nil)
+		return err
+	}
+
+	udpCh := tcpx.NewTcpChannel(uc, conn, clientConf, chHandle)
 	err = udpCh.Start()
 	if err == nil {
 		uc.Channel = udpCh

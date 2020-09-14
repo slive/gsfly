@@ -152,7 +152,7 @@ func (b *TcpChannel) RemoteAddr() net.Addr {
 
 func (b *TcpChannel) NewPacket() gch.IPacket {
 	w := &TcpPacket{}
-	w.Packet = *gch.NewPacket(b, gch.PROTOCOL_TCP)
+	w.Packet = *gch.NewPacket(b, gch.NETWORK_TCP)
 	return w
 }
 

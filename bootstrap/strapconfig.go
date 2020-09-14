@@ -19,7 +19,7 @@ type IServerConf interface {
 type ServerConf struct {
 	channel.AddrConf
 	channel.ChannelConf
-	MaxChannelSize int `json:"maxChannelSize"`
+	MaxChannelSize int
 }
 
 func NewServerConf(ip string, port int, protocol channel.Network) *ServerConf {
@@ -75,7 +75,7 @@ type KcpClientConf struct {
 
 func NewKcpClientConf(ip string, port int) *KcpClientConf {
 	s := &KcpClientConf{}
-	s.ClientConf = *NewClientConf(ip, port, channel.PROTOCOL_KCP)
+	s.ClientConf = *NewClientConf(ip, port, channel.NETWORK_KCP)
 	return s
 }
 
@@ -92,7 +92,7 @@ type Kws00ClientConf struct {
 
 func NewKws00ClientConf(ip string, port int, path string) *Kws00ClientConf {
 	s := &Kws00ClientConf{}
-	s.ClientConf = *NewClientConf(ip, port, channel.PROTOCOL_KWS00)
+	s.ClientConf = *NewClientConf(ip, port, channel.NETWORK_KWS00)
 	s.Path = path
 	return s
 }
@@ -113,7 +113,7 @@ type KcpServerConf struct {
 
 func NewKcpServerConf(ip string, port int) *KcpServerConf {
 	s := &KcpServerConf{}
-	s.ServerConf = *NewServerConf(ip, port, channel.PROTOCOL_KCP)
+	s.ServerConf = *NewServerConf(ip, port, channel.NETWORK_KCP)
 	return s
 }
 
@@ -127,7 +127,7 @@ type Kw00ServerConf struct {
 
 func NewKw00ServerConf(ip string, port int) *Kw00ServerConf {
 	s := &Kw00ServerConf{}
-	s.ServerConf = *NewServerConf(ip, port, channel.PROTOCOL_KWS00)
+	s.ServerConf = *NewServerConf(ip, port, channel.NETWORK_KWS00)
 	return s
 }
 
@@ -141,7 +141,7 @@ type UdpServerConf struct {
 
 func NewUdpServerConf(ip string, port int) *UdpServerConf {
 	s := &UdpServerConf{}
-	s.ServerConf = *NewServerConf(ip, port, channel.PROTOCOL_UDP)
+	s.ServerConf = *NewServerConf(ip, port, channel.NETWORK_UDP)
 	return s
 }
 
@@ -155,7 +155,7 @@ type UdpClientConf struct {
 
 func NewUdpClientConf(ip string, port int) *UdpClientConf {
 	s := &UdpClientConf{}
-	s.ClientConf = *NewClientConf(ip, port, channel.PROTOCOL_UDP)
+	s.ClientConf = *NewClientConf(ip, port, channel.NETWORK_UDP)
 	return s
 }
 
@@ -209,7 +209,7 @@ type WsServerConf struct {
 
 func NewWsServerConf(ip string, port int, scheme string, path string, subProtocol ...string) *WsServerConf {
 	w := &WsServerConf{}
-	w.ServerConf = *NewServerConf(ip, port, channel.PROTOCOL_WS)
+	w.ServerConf = *NewServerConf(ip, port, channel.NETWORK_WS)
 	w.WsConf = *NewWsConf(scheme, path, subProtocol...)
 	return w
 }
@@ -229,14 +229,42 @@ type WsClientConf struct {
 	WsConf
 }
 
-func NewWsClientConf(ip string, port int, scheme string, path string, subProtocol... string) *WsClientConf {
+func NewWsClientConf(ip string, port int, scheme string, path string, subProtocol ...string) *WsClientConf {
 	w := &WsClientConf{}
 	w.WsConf = *NewWsConf(scheme, path, subProtocol...)
-	w.ClientConf = *NewClientConf(ip, port, channel.PROTOCOL_WS)
+	w.ClientConf = *NewClientConf(ip, port, channel.NETWORK_WS)
 	return w
 }
 
 func (wsClientConf *WsClientConf) GetUrl() string {
 	u := url.URL{Scheme: wsClientConf.Scheme, Host: wsClientConf.GetAddrStr(), Path: wsClientConf.Path}
 	return u.String()
+}
+
+type ITcpServerConf interface {
+	IServerConf
+}
+
+type TcpServerConf struct {
+	ServerConf
+}
+
+func NewTcpServerConf(ip string, port int) *TcpServerConf {
+	s := &TcpServerConf{}
+	s.ServerConf = *NewServerConf(ip, port, channel.NETWORK_TCP)
+	return s
+}
+
+type ITcpClientConf interface {
+	IClientConf
+}
+
+type TcpClientConf struct {
+	ClientConf
+}
+
+func NewTcpClientConf(ip string, port int) *TcpClientConf {
+	s := &TcpClientConf{}
+	s.ClientConf = *NewClientConf(ip, port, channel.NETWORK_TCP)
+	return s
 }

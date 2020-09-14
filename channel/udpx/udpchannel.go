@@ -159,7 +159,7 @@ func (b *UdpChannel) GetConn() net.Conn {
 
 func (b *UdpChannel) NewPacket() gch.IPacket {
 	w := &UdpPacket{}
-	w.Packet = *gch.NewPacket(b, gch.PROTOCOL_UDP)
+	w.Packet = *gch.NewPacket(b, gch.NETWORK_UDP)
 	return w
 }
 

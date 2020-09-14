@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	gch "github.com/Slive/gsfly/channel"
+	"github.com/Slive/gsfly/channel/tcpx"
 	httpx "github.com/Slive/gsfly/channel/tcpx/httpx"
 	udpx "github.com/Slive/gsfly/channel/udpx"
 	kcpx "github.com/Slive/gsfly/channel/udpx/kcpx"
@@ -75,6 +76,7 @@ func (wsServerStrap *WsServerStrap) Start() error {
 			MaxHeaderBytes:    1 << 20,
 		}
 		go func() {
+			// 异步监听http和ws
 			err := httpServer.ListenAndServe()
 			if err != nil {
 				logx.Error("listenAnServe error:", err)
@@ -83,6 +85,7 @@ func (wsServerStrap *WsServerStrap) Start() error {
 		}()
 	}
 
+	// ws依赖http做升级而来
 	upgrader := websocket.Upgrader{
 		HandshakeTimeout: wsServerConf.GetReadTimeout() * time.Second,
 		ReadBufferSize:   wsServerConf.GetReadBufSize(),
@@ -111,16 +114,27 @@ func (wsServerStrap *WsServerStrap) startWs(writer http.ResponseWriter, req *htt
 		return errors.New("max accept size:" + fmt.Sprintf("%v", maxAcceptSize))
 	}
 
+	// 拼接ws所需的parameter
 	params := make(map[string]interface{})
 	req.ParseForm()
 	form := req.Form
 	for key, val := range form {
 		params[key] = val[0]
 	}
+
 	urlStr := req.URL.String()
 	logx.Infof("params:%v, url:%v", params, urlStr)
 	// upgrade处理
-	conn, err := upgr.Upgrade(writer, req, nil)
+	subPros := serverConf.GetSubProtocol()
+	header := req.Header
+	if subPros != nil && len(subPros) > 0 {
+		// 设置subprotocol
+		for _, pro := range subPros {
+			header.Add("Sec-WebSocket-Protocol", pro)
+			logx.Info("set ws protocol:", pro)
+		}
+	}
+	conn, err := upgr.Upgrade(writer, req, header)
 	if err != nil {
 		logx.Println("upgrade error:", err)
 		return err
@@ -145,11 +159,66 @@ func (wsServerStrap *WsServerStrap) GetHttpServer() *http.Server {
 	return wsServerStrap.httpServer
 }
 
+type ITcpServerStrap interface {
+	IServerStrap
+}
+type TcpServerStrap struct {
+	ServerStrap
+}
+
+func NewTcpServerStrap(parent interface{}, serverConf IUdpServerConf, channelHandle *gch.ChannelHandle) ITcpServerStrap {
+	k := &TcpServerStrap{}
+	k.ServerStrap = *NewServerStrap(parent, serverConf, channelHandle)
+	k.Conf = serverConf
+	return k
+}
+
+func (tcpSs *TcpServerStrap) Start() error {
+	serverConf := tcpSs.GetConf()
+	addr := serverConf.GetAddrStr()
+	logx.Info("dial tcp addr:", addr)
+	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		logx.Error("resolve tcpaddr error:", err)
+		return err
+	}
+
+	listen, err := net.ListenTCP("tcp", tcpAddr)
+	if err != nil {
+		logx.Error("listen tcp error:", err)
+		return err
+	}
+	go func() {
+		conn, err := listen.AcceptTCP()
+		if err != nil {
+			logx.Error("listen tcp conn error:", err)
+			tcpSs.Stop()
+			return
+		}
+
+		chHandle := tcpSs.ChannelHandle
+		// OnStopHandle重新包装，以便释放资源
+		chHandle.OnStopHandle = ConverOnStopHandle(tcpSs.Channels, chHandle.OnStopHandle)
+		// 复制新的handle
+		chHandle = gch.CopyChannelHandle(chHandle)
+		ch := tcpx.NewTcpChannel(tcpSs, conn, serverConf, chHandle)
+		err = ch.Start()
+		if err == nil {
+			tcpSs.GetChannels().Put(ch.GetId(), ch)
+		}
+	}()
+	return err
+}
+
+type IKcpServerStrap interface {
+	IServerStrap
+}
+
 type KcpServerStrap struct {
 	ServerStrap
 }
 
-func NewKcpServerStrap(parent interface{}, kcpServerConf IKcpServerConf, chHandle *gch.ChannelHandle) IServerStrap {
+func NewKcpServerStrap(parent interface{}, kcpServerConf IKcpServerConf, chHandle *gch.ChannelHandle) IKcpServerStrap {
 	k := &KcpServerStrap{}
 	k.ServerStrap = *NewServerStrap(parent, kcpServerConf, chHandle)
 	k.Conf = kcpServerConf
@@ -208,15 +277,31 @@ func (kcpServerStrap *KcpServerStrap) Start() error {
 	return nil
 }
 
+type IKws00ServerStrap interface {
+	IKcpServerStrap
+}
+
 type Kws00ServerStrap struct {
 	KcpServerStrap
 }
 
 func NewKws00ServerStrap(parent interface{}, kcpServerConf IKw00ServerConf, onKwsMsgHandle gch.OnMsgHandle,
-	onRegisterHandle gch.OnRegisteredHandle, onUnRegisterHandle gch.OnUnRegisteredHandle) IServerStrap {
+	onRegisterHandle gch.OnRegisteredHandle, onUnRegisterHandle gch.OnUnRegisteredHandle) IKws00ServerStrap {
 	k := &Kws00ServerStrap{}
 	k.Conf = kcpServerConf
 	chHandle := kcpx.NewKws00Handle(onKwsMsgHandle, onRegisterHandle, onUnRegisterHandle)
+	k.ServerStrap = *NewServerStrap(parent, kcpServerConf, chHandle)
+	return k
+}
+
+func NewKws00ServerStrap1(parent interface{}, kcpServerConf IKw00ServerConf, chHandle *gch.ChannelHandle) IServerStrap {
+	k := &Kws00ServerStrap{}
+	k.Conf = kcpServerConf
+	if chHandle.OnRegisteredHandle == nil {
+		errMsg := "onRegisterhandle is nil."
+		logx.Panic(errMsg)
+		panic(errMsg)
+	}
 	k.ServerStrap = *NewServerStrap(parent, kcpServerConf, chHandle)
 	return k
 }
@@ -274,11 +359,14 @@ func (kws00ServefStrap *Kws00ServerStrap) Start() error {
 	return nil
 }
 
+type IUdpServerStrap interface {
+	IServerStrap
+}
 type UdpServerStrap struct {
 	ServerStrap
 }
 
-func NewUdpServerStrap(parent interface{}, serverConf IUdpServerConf, channelHandle *gch.ChannelHandle) IServerStrap {
+func NewUdpServerStrap(parent interface{}, serverConf IUdpServerConf, channelHandle *gch.ChannelHandle) IUdpServerStrap {
 	k := &UdpServerStrap{}
 	k.ServerStrap = *NewServerStrap(parent, serverConf, channelHandle)
 	k.Conf = serverConf

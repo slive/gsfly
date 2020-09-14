@@ -12,7 +12,7 @@ type IParent interface {
 	SetParent(parent interface{})
 }
 type Parent struct {
-	parent interface{} `json:"parent"`
+	parent interface{}
 }
 
 func NewParent(parent interface{}) *Parent {

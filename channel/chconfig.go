@@ -13,22 +13,22 @@ import (
 
 type ChannelConf struct {
 	// ReadTimeout 读超时时间间隔，单位s
-	ReadTimeout time.Duration `json:"readTimeout"`
+	ReadTimeout time.Duration
 
 	// WriteTimeout 写超时时间间隔，单位s
-	WriteTimeout time.Duration `json:"writeTimeout"`
+	WriteTimeout time.Duration
 
 	// ReadBufSize 读缓冲
-	ReadBufSize int `json:"readBufSize"`
+	ReadBufSize int
 
 	// ReadBufSize 读缓冲
-	WriteBufSize int `json:"writeBufSize"`
+	WriteBufSize int
 
 	// CloseRevFailTime 最大接收多少次失败后关闭
-	CloseRevFailTime int `json:"closeRevFailTime"`
+	CloseRevFailTime int
 
 	// 使用的协议
-	Network Network `json:"network"`
+	Network Network
 }
 
 type IChannelConf interface {
@@ -36,12 +36,11 @@ type IChannelConf interface {
 	GetReadBufSize() int
 	GetWriteTimeout() time.Duration
 	GetWriteBufSize() int
-
 	GetCloseRevFailTime() int
 
-	// GetProtocol 获取通道协议类型
+	// GetNetwork 获取通道协议类型
 	// @see Network
-	GetProtocol() Network
+	GetNetwork() Network
 }
 
 const (
@@ -109,14 +108,14 @@ func (bc *ChannelConf) GetWriteBufSize() int {
 	return ret
 }
 
-// GetProtocol 获取通道协议类型
-func (bc *ChannelConf) GetProtocol() Network {
+// GetNetwork 获取通道协议类型
+func (bc *ChannelConf) GetNetwork() Network {
 	return bc.Network
 }
 
 type AddrConf struct {
-	Ip   string `json:"ip"`
-	Port int    `json:"port"`
+	Ip   string
+	Port int
 }
 
 type IAddrConf interface {
@@ -201,8 +200,4 @@ func LoadDefaultConf() {
 		ReadPoolConf: readPoolConf}
 	logx.Info("init global channelConf:", channelConf)
 	logx.Info("init global readPoolConf:", channelConf)
-}
-
-func LoadConConf(path string) {
-	// TODO
 }

@@ -87,11 +87,10 @@ type Channel struct {
 	closeExit     chan bool
 	registered    bool
 
-	*common.Attact
 	// 父接口
-	*common.Parent
-
-	*common.Id
+	common.Parent
+	common.Id
+	common.Attact
 }
 
 // 初始化读协程池，全局配置
@@ -184,9 +183,9 @@ func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chH
 	}
 	channel.SetClosed(true)
 	channel.SetRegistered(false)
-	channel.Attact = common.NewAttact()
-	channel.Id = common.NewId()
-	channel.Parent = common.NewParent(parent)
+	channel.Attact = *common.NewAttact()
+	channel.Id = *common.NewId()
+	channel.Parent = *common.NewParent(parent)
 	logx.Info("create base channel, conf:", chConf)
 	return channel
 }

@@ -15,34 +15,34 @@ type Network string
 
 const (
 	// 协议类型，移位增长
-	PROTOCOL_TCP   Network = "tcp"
-	PROTOCOL_HTTP  Network = "http"
-	PROTOCOL_WS    Network = "ws"
-	PROTOCOL_UDP   Network = "udp"
-	PROTOCOL_KCP   Network = "kcp"
-	PROTOCOL_KWS00 Network = "kws00"
-	PROTOCOL_KWS01 Network = "kws001"
-	PROTOCOL_HTTPX Network = "httpx"
+	NETWORK_TCP   Network = "tcp"
+	NETWORK_HTTP  Network = "http"
+	NETWORK_WS    Network = "ws"
+	NETWORK_UDP   Network = "udp"
+	NETWORK_KCP   Network = "kcp"
+	NETWORK_KWS00 Network = "kws00"
+	NETWORK_KWS01 Network = "kws001"
+	NETWORK_HTTPX Network = "httpx"
 )
 
 // String 获取协议对应的字符串
 func (p Network) String() string {
 	switch p {
-	case PROTOCOL_TCP:
+	case NETWORK_TCP:
 		return "tcp"
-	case PROTOCOL_HTTP:
+	case NETWORK_HTTP:
 		return "http"
-	case PROTOCOL_WS:
+	case NETWORK_WS:
 		return "ws"
-	case PROTOCOL_UDP:
+	case NETWORK_UDP:
 		return "udp"
-	case PROTOCOL_KCP:
+	case NETWORK_KCP:
 		return "kcp"
-	case PROTOCOL_KWS00:
+	case NETWORK_KWS00:
 		return "kws00"
-	case PROTOCOL_KWS01:
+	case NETWORK_KWS01:
 		return "kws001"
-	case PROTOCOL_HTTPX:
+	case NETWORK_HTTPX:
 		return "httpx"
 	default:
 		return "unknown"

@@ -25,7 +25,7 @@ func NewKws00Channel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.ICh
 	chHandle *gch.ChannelHandle, params map[string]interface{}) *Kws00Channel {
 	channel := &Kws00Channel{}
 	channel.KcpChannel = *NewKcpChannel(parent, kcpConn, chConf, chHandle)
-	channel.protocol = gch.PROTOCOL_KWS00
+	channel.protocol = gch.NETWORK_KWS00
 	channel.params = params
 	// 更新内部kwsmsg
 	chh := channel.GetChHandle()
@@ -76,7 +76,7 @@ func (b *Kws00Channel) GetParams() map[string]interface{} {
 
 func (b *Kws00Channel) NewPacket() gch.IPacket {
 	k := &KWS00Packet{}
-	k.Packet = *gch.NewPacket(b, gch.PROTOCOL_KWS00)
+	k.Packet = *gch.NewPacket(b, gch.NETWORK_KWS00)
 	return k
 
 }
@@ -104,8 +104,8 @@ func onInnerKws00MsgHandle(packet gch.IPacket) error {
 			srcCh.Stop()
 		}
 	}()
-	protocol := srcCh.GetConf().GetProtocol()
-	if protocol == gch.PROTOCOL_KWS00 {
+	protocol := srcCh.GetConf().GetNetwork()
+	if protocol == gch.NETWORK_KWS00 {
 		// 强制转换处理
 		kwsPacket, ok := packet.(*KWS00Packet)
 		if ok {

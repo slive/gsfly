@@ -23,7 +23,7 @@ type KcpChannel struct {
 func NewKcpChannel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChannelConf, chHandle *gch.ChannelHandle) *KcpChannel {
 	ch := &KcpChannel{Conn: kcpConn}
 	ch.Channel = *gch.NewDefChannel(parent, chConf, chHandle)
-	ch.protocol = chConf.GetProtocol()
+	ch.protocol = chConf.GetNetwork()
 	readBufSize := chConf.GetReadBufSize()
 	kcpConn.SetReadBuffer(readBufSize)
 	writeBufSize := chConf.GetWriteBufSize()
@@ -98,7 +98,7 @@ type KcpPacket struct {
 
 func (b *KcpChannel) NewPacket() gch.IPacket {
 	k := &KcpPacket{}
-	k.Packet = *gch.NewPacket(b, gch.PROTOCOL_KCP)
+	k.Packet = *gch.NewPacket(b, gch.NETWORK_KCP)
 	return k
 }
 

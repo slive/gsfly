@@ -192,7 +192,7 @@ func (wsChannel *WsChannel) GetParams() map[string]interface{} {
 
 func (wsChannel *WsChannel) NewPacket() gch.IPacket {
 	w := &WsPacket{}
-	w.Packet = *gch.NewPacket(wsChannel, gch.PROTOCOL_WS)
+	w.Packet = *gch.NewPacket(wsChannel, gch.NETWORK_WS)
 	return w
 }
 

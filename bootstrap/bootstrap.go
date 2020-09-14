@@ -6,16 +6,16 @@ package bootstrap
 
 import (
 	gch "github.com/Slive/gsfly/channel"
-	"github.com/Slive/gsfly/common"
+	cmm "github.com/Slive/gsfly/common"
 	logx "github.com/Slive/gsfly/logger"
 	"github.com/emirpasic/gods/maps/hashmap"
 )
 
 type IBootStrap interface {
-	common.IParent
+	cmm.IParent
 
 	// GetId 通道Id
-	common.IId
+	cmm.IId
 
 	Start() error
 
@@ -27,14 +27,12 @@ type IBootStrap interface {
 }
 
 type BootStrap struct {
+	// 父接口
+	cmm.Parent
+	cmm.Id
 	Closed        bool
 	Exit          chan bool
 	ChannelHandle *gch.ChannelHandle
-
-	// 父接口
-	*common.Parent
-
-	*common.Id
 }
 
 func NewBootStrap(parent interface{}, handle *gch.ChannelHandle) *BootStrap {
@@ -42,16 +40,16 @@ func NewBootStrap(parent interface{}, handle *gch.ChannelHandle) *BootStrap {
 		Closed:        true,
 		Exit:          make(chan bool, 1),
 		ChannelHandle: handle}
-	b.Parent = common.NewParent(parent)
+	b.Parent = *cmm.NewParent(parent)
 	return b
 }
 
-func (bc *BootStrap) IsClosed() bool {
-	return bc.Closed
+func (bs *BootStrap) IsClosed() bool {
+	return bs.Closed
 }
 
-func (bc *BootStrap) GetChHandle() *gch.ChannelHandle {
-	return bc.ChannelHandle
+func (bs *BootStrap) GetChHandle() *gch.ChannelHandle {
+	return bs.ChannelHandle
 }
 
 type IServerStrap interface {
@@ -89,33 +87,33 @@ func NewServerStrap(parent interface{}, serverConf IServerConf, chHandle *gch.Ch
 	return b
 }
 
-func (tcpls *ServerStrap) GetId() string {
-	return tcpls.Conf.GetAddrStr()
+func (ss *ServerStrap) GetId() string {
+	return ss.Conf.GetAddrStr()
 }
 
-func (tcpls *ServerStrap) Stop() {
-	if !tcpls.Closed {
-		id := tcpls.GetId()
+func (ss *ServerStrap) Stop() {
+	if !ss.Closed {
+		id := ss.GetId()
 		defer func() {
 			ret := recover()
-			logx.Infof("finish to stop httpx listen, id:%v, ret:%v", id, ret)
+			logx.Infof("finish to stop listen, id:%v, ret:%v", id, ret)
 		}()
-		logx.Info("start to stop httpx listen, id:", id)
-		tcpls.Closed = true
-		tcpls.Exit <- true
-		acceptChannels := tcpls.Channels.Values()
+		logx.Info("start to stop listen, id:", id)
+		ss.Closed = true
+		ss.Exit <- true
+		acceptChannels := ss.Channels.Values()
 		for _, ch := range acceptChannels {
 			ch.(gch.IChannel).Stop()
 		}
 	}
 }
 
-func (tcpls *ServerStrap) GetChannels() *hashmap.Map {
-	return tcpls.Channels
+func (ss *ServerStrap) GetChannels() *hashmap.Map {
+	return ss.Channels
 }
 
-func (tcpls *ServerStrap) GetConf() IServerConf {
-	return tcpls.Conf
+func (ss *ServerStrap) GetConf() IServerConf {
+	return ss.Conf
 }
 
 // ConverOnStopHandle 转化OnStopHandle方法
@@ -135,13 +133,14 @@ func ConverOnStopHandle(channels *hashmap.Map, onStopHandle gch.OnStopHandle) fu
 type ClientStrap struct {
 	BootStrap
 	Conf    IClientConf
+	// 每一个客户端只有一个channel
 	Channel gch.IChannel
 }
 
 type IClientStrap interface {
 	IBootStrap
-	GetChannel() gch.IChannel
 	GetConf() IClientConf
+	GetChannel() gch.IChannel
 }
 
 func (bc *ClientStrap) GetId() string {
