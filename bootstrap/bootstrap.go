@@ -55,13 +55,13 @@ func (bs *BootStrap) GetChHandle() *gch.ChannelHandle {
 type IServerStrap interface {
 	IBootStrap
 	GetConf() IServerConf
-	GetChannels() *hashmap.Map
+	GetChannelPool() *hashmap.Map
 }
 
 type ServerStrap struct {
 	BootStrap
-	Conf     IServerConf
-	Channels *hashmap.Map
+	Conf        IServerConf
+	ChannelPool *hashmap.Map
 }
 
 func NewServerStrap(parent interface{}, serverConf IServerConf, chHandle *gch.ChannelHandle) *ServerStrap {
@@ -78,12 +78,12 @@ func NewServerStrap(parent interface{}, serverConf IServerConf, chHandle *gch.Ch
 	}
 
 	b := &ServerStrap{
-		Conf:     serverConf,
-		Channels: hashmap.New(),
+		Conf:        serverConf,
+		ChannelPool: hashmap.New(),
 	}
 	b.BootStrap = *NewBootStrap(parent, chHandle)
 	// OnStopHandle重新b包装
-	chHandle.OnStopHandle = ConverOnStopHandle(b.Channels, chHandle.OnStopHandle)
+	chHandle.OnStopHandle = ConverOnStopHandle(b.ChannelPool, chHandle.OnStopHandle)
 	return b
 }
 
@@ -101,15 +101,15 @@ func (ss *ServerStrap) Stop() {
 		logx.Info("start to stop listen, id:", id)
 		ss.Closed = true
 		ss.Exit <- true
-		acceptChannels := ss.Channels.Values()
+		acceptChannels := ss.GetChannelPool().Values()
 		for _, ch := range acceptChannels {
 			ch.(gch.IChannel).Stop()
 		}
 	}
 }
 
-func (ss *ServerStrap) GetChannels() *hashmap.Map {
-	return ss.Channels
+func (ss *ServerStrap) GetChannelPool() *hashmap.Map {
+	return ss.ChannelPool
 }
 
 func (ss *ServerStrap) GetConf() IServerConf {
@@ -132,7 +132,7 @@ func ConverOnStopHandle(channels *hashmap.Map, onStopHandle gch.OnStopHandle) fu
 
 type ClientStrap struct {
 	BootStrap
-	Conf    IClientConf
+	Conf IClientConf
 	// 每一个客户端只有一个channel
 	Channel gch.IChannel
 }

@@ -68,6 +68,9 @@ type IChannel interface {
 
 	SetRegistered(register bool)
 
+	// 是否是服务端产生的channel
+	IsServer() bool
+
 	common.IAttact
 
 	common.IParent
@@ -86,6 +89,8 @@ type Channel struct {
 	closed        bool
 	closeExit     chan bool
 	registered    bool
+
+	server bool
 
 	// 父接口
 	common.Parent
@@ -133,9 +138,9 @@ func InitChannelConfs(rpConf *ReadPoolConf, chConf *ChannelConf) {
 var initOnce sync.Once
 
 // NewDefChannel 创建默认基础通信通道
-func NewDefChannel(parent interface{}, chConf IChannelConf, chHandle *ChannelHandle) *Channel {
+func NewDefChannel(parent interface{}, chConf IChannelConf, chHandle *ChannelHandle, server bool) *Channel {
 	// 全局初始化一次
-	return NewChannel(parent, chConf, def_readPool, chHandle)
+	return NewChannel(parent, chConf, def_readPool, chHandle, server)
 }
 
 // NewSimpleChannel 创建默认基础通信通道
@@ -143,7 +148,7 @@ func NewDefChannel(parent interface{}, chConf IChannelConf, chHandle *ChannelHan
 func NewSimpleChannel(msghandle OnMsgHandle) *Channel {
 	// 全局初始化一次
 	chHandle := NewDefChHandle(msghandle)
-	return NewChannel(nil, nil, nil, chHandle)
+	return NewChannel(nil, nil, nil, chHandle, false)
 }
 
 // NewChannel 创建channel
@@ -151,7 +156,7 @@ func NewSimpleChannel(msghandle OnMsgHandle) *Channel {
 // chConf channel配置，可为nil，如果为nil，则选用默认
 // readPool 读取消息池，可为nil，如果为nil，则选用默认
 // chHandle 处理handle，包括读写，注册等处理，不可为空
-func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chHandle *ChannelHandle) *Channel {
+func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chHandle *ChannelHandle, server bool) *Channel {
 	if chHandle == nil {
 		errMsg := "ChannelHandle is nil"
 		logx.Error(errMsg)
@@ -180,6 +185,7 @@ func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chH
 		conf:          chConf,
 		readPool:      readPool,
 		closeExit:     make(chan bool, 1),
+		server:        server,
 	}
 	channel.SetClosed(true)
 	channel.SetRegistered(false)
@@ -334,6 +340,11 @@ func (b *Channel) IsRegistered() bool {
 
 func (b *Channel) SetRegistered(register bool) {
 	b.registered = register
+}
+
+// 是否是服务端产生的channel
+func (b *Channel) IsServer() bool {
+	return b.server
 }
 
 func (b *Channel) StopChannel(channel IChannel) {

@@ -16,9 +16,9 @@ type TcpChannel struct {
 	Conn *net.TCPConn
 }
 
-func newTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
+func newTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, chHandle *gch.ChannelHandle, server bool) *TcpChannel {
 	ch := &TcpChannel{Conn: tcpConn}
-	ch.Channel = *gch.NewDefChannel(parent, chConf, chHandle)
+	ch.Channel = *gch.NewDefChannel(parent, chConf, chHandle, server)
 	readBufSize := chConf.GetReadBufSize()
 	tcpConn.SetReadBuffer(readBufSize)
 
@@ -27,13 +27,13 @@ func newTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannel
 	return ch
 }
 
-func NewSimpleTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, msgFunc gch.OnMsgHandle) *TcpChannel {
+func NewSimpleTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, msgFunc gch.OnMsgHandle, server bool) *TcpChannel {
 	chHandle := gch.NewDefChHandle(msgFunc)
-	return NewTcpChannel(parent, tcpConn, chConf, chHandle)
+	return NewTcpChannel(parent, tcpConn, chConf, chHandle, server)
 }
 
-func NewTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, chHandle *gch.ChannelHandle) *TcpChannel {
-	ch := newTcpChannel(parent, tcpConn, chConf, chHandle)
+func NewTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, chHandle *gch.ChannelHandle, server bool) *TcpChannel {
+	ch := newTcpChannel(parent, tcpConn, chConf, chHandle, server)
 	ch.SetId("tcp-" + tcpConn.LocalAddr().String() + "-" + tcpConn.RemoteAddr().String())
 	return ch
 }

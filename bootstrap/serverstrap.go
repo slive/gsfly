@@ -106,7 +106,7 @@ func (wsServerStrap *WsServerStrap) Start() error {
 
 // startWs 启动ws处理
 func (wsServerStrap *WsServerStrap) startWs(writer http.ResponseWriter, req *http.Request, upgr websocket.Upgrader) error {
-	acceptChannels := wsServerStrap.GetChannels()
+	acceptChannels := wsServerStrap.GetChannelPool()
 	serverConf := wsServerStrap.GetConf().(IWsServerConf)
 	connLen := acceptChannels.Size()
 	maxAcceptSize := serverConf.GetMaxChannelSize()
@@ -143,10 +143,10 @@ func (wsServerStrap *WsServerStrap) startWs(writer http.ResponseWriter, req *htt
 
 	chHandle := wsServerStrap.ChannelHandle
 	// OnStopHandle重新包装，以便释放资源
-	chHandle.OnStopHandle = ConverOnStopHandle(wsServerStrap.Channels, chHandle.OnStopHandle)
+	chHandle.OnStopHandle = ConverOnStopHandle(wsServerStrap.ChannelPool, chHandle.OnStopHandle)
 	// 复制新的handle
 	chHandle = gch.CopyChannelHandle(chHandle)
-	wsCh := httpx.NewWsChannel(wsServerStrap, conn, serverConf, chHandle, params)
+	wsCh := httpx.NewWsChannel(wsServerStrap, conn, serverConf, chHandle, params, true)
 	err = wsCh.Start()
 	if err == nil {
 		// TODO 线程安全？
@@ -198,13 +198,13 @@ func (tcpSs *TcpServerStrap) Start() error {
 
 		chHandle := tcpSs.ChannelHandle
 		// OnStopHandle重新包装，以便释放资源
-		chHandle.OnStopHandle = ConverOnStopHandle(tcpSs.Channels, chHandle.OnStopHandle)
+		chHandle.OnStopHandle = ConverOnStopHandle(tcpSs.ChannelPool, chHandle.OnStopHandle)
 		// 复制新的handle
 		chHandle = gch.CopyChannelHandle(chHandle)
-		ch := tcpx.NewTcpChannel(tcpSs, conn, serverConf, chHandle)
+		ch := tcpx.NewTcpChannel(tcpSs, conn, serverConf, chHandle, true)
 		err = ch.Start()
 		if err == nil {
-			tcpSs.GetChannels().Put(ch.GetId(), ch)
+			tcpSs.GetChannelPool().Put(ch.GetId(), ch)
 		}
 	}()
 	return err
@@ -249,7 +249,7 @@ func (kcpServerStrap *KcpServerStrap) Start() error {
 		}
 	}()
 
-	kwsChannels := kcpServerStrap.Channels
+	kwsChannels := kcpServerStrap.ChannelPool
 	go func() {
 		for {
 			kcpConn, err := list.AcceptKCP()
@@ -259,10 +259,10 @@ func (kcpServerStrap *KcpServerStrap) Start() error {
 			}
 			chHandle := kcpServerStrap.GetChHandle()
 			// OnStopHandle重新包装，以便释放资源
-			chHandle.OnStopHandle = ConverOnStopHandle(kcpServerStrap.Channels, chHandle.OnStopHandle)
+			chHandle.OnStopHandle = ConverOnStopHandle(kcpServerStrap.ChannelPool, chHandle.OnStopHandle)
 			// 复制新的handle
 			chHandle = gch.CopyChannelHandle(chHandle)
-			kcpCh := kcpx.NewKcpChannel(kcpServerStrap, kcpConn, kcpServerConf, chHandle)
+			kcpCh := kcpx.NewKcpChannel(kcpServerStrap, kcpConn, kcpServerConf, chHandle, true)
 			err = kcpCh.Start()
 			if err == nil {
 				kwsChannels.Put(kcpCh.GetId(), kcpCh)
@@ -330,7 +330,7 @@ func (kws00ServefStrap *Kws00ServerStrap) Start() error {
 		}
 	}()
 
-	kwsChannels := kws00ServefStrap.Channels
+	kwsChannels := kws00ServefStrap.ChannelPool
 	go func() {
 		for {
 			kcpConn, err := list.AcceptKCP()
@@ -345,8 +345,8 @@ func (kws00ServefStrap *Kws00ServerStrap) Start() error {
 			newChHandle := gch.CopyChannelHandle(chHandle)
 			// 复制新的handle
 			// OnStopHandle重新包装，以便释放资源
-			newChHandle.OnStopHandle = ConverOnStopHandle(kws00ServefStrap.Channels, chHandle.OnStopHandle)
-			kcpCh := kcpx.NewKws00Channel(kws00ServefStrap, kcpConn, kcpServerConf, newChHandle, nil)
+			newChHandle.OnStopHandle = ConverOnStopHandle(kws00ServefStrap.ChannelPool, chHandle.OnStopHandle)
+			kcpCh := kcpx.NewKws00Channel(kws00ServefStrap, kcpConn, kcpServerConf, newChHandle, nil, true)
 			err = kcpCh.Start()
 			if err == nil {
 				kwsChannels.Put(kcpCh.GetId(), kcpCh)
@@ -392,10 +392,10 @@ func (udpServerStrap *UdpServerStrap) Start() error {
 	// TODO udp有源和目标地址之分，待实现
 	chHandle := udpServerStrap.ChannelHandle
 	// OnStopHandle重新包装，以便释放资源
-	chHandle.OnStopHandle = ConverOnStopHandle(udpServerStrap.Channels, chHandle.OnStopHandle)
+	chHandle.OnStopHandle = ConverOnStopHandle(udpServerStrap.ChannelPool, chHandle.OnStopHandle)
 	// 复制新的handle
 	chHandle = gch.CopyChannelHandle(chHandle)
-	ch := udpx.NewUdpChannel(udpServerStrap, conn, serverConf, chHandle)
+	ch := udpx.NewUdpChannel(udpServerStrap, conn, serverConf, chHandle, true)
 	err = ch.Start()
 	if err == nil {
 		udpServerStrap.Closed = false

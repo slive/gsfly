@@ -18,19 +18,19 @@ type WsChannel struct {
 	params map[string]interface{}
 }
 
-func newWsChannel(parent interface{}, wsconn *gws.Conn, conf gch.IChannelConf, chHandle *gch.ChannelHandle, params map[string]interface{}) *WsChannel {
+func newWsChannel(parent interface{}, wsconn *gws.Conn, conf gch.IChannelConf, chHandle *gch.ChannelHandle, params map[string]interface{}, server bool) *WsChannel {
 	ch := &WsChannel{Conn: wsconn, params: params}
-	ch.Channel = *gch.NewDefChannel(parent, conf, chHandle)
+	ch.Channel = *gch.NewDefChannel(parent, conf, chHandle, server)
 	return ch
 }
 
-func NewWsSimpleChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChannelConf, msgFunc gch.OnMsgHandle) *WsChannel {
+func NewWsSimpleChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChannelConf, msgFunc gch.OnMsgHandle, server bool) *WsChannel {
 	chHandle := gch.NewDefChHandle(msgFunc)
-	return NewWsChannel(parent, wsConn, chConf, chHandle, nil)
+	return NewWsChannel(parent, wsConn, chConf, chHandle, nil, server)
 }
 
-func NewWsChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChannelConf, chHandle *gch.ChannelHandle, params map[string]interface{}) *WsChannel {
-	ch := newWsChannel(parent, wsConn, chConf, chHandle, params)
+func NewWsChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChannelConf, chHandle *gch.ChannelHandle, params map[string]interface{}, server bool) *WsChannel {
+	ch := newWsChannel(parent, wsConn, chConf, chHandle, params, server)
 	wsConn.SetReadLimit(int64(chConf.GetReadBufSize()))
 	ch.SetId("ws-" + wsConn.LocalAddr().String() + "-" + wsConn.RemoteAddr().String())
 	return ch

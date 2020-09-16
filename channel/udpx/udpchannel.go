@@ -17,9 +17,9 @@ type UdpChannel struct {
 	Conn *net.UDPConn
 }
 
-func newUdpChannel(parent interface{}, conn *net.UDPConn, conf gch.IChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
+func newUdpChannel(parent interface{}, conn *net.UDPConn, conf gch.IChannelConf, chHandle *gch.ChannelHandle, server bool) *UdpChannel {
 	ch := &UdpChannel{Conn: conn}
-	ch.Channel = *gch.NewDefChannel(parent, conf, chHandle)
+	ch.Channel = *gch.NewDefChannel(parent, conf, chHandle, server)
 	readBufSize := conf.GetReadBufSize()
 	conn.SetReadBuffer(readBufSize)
 
@@ -29,14 +29,14 @@ func newUdpChannel(parent interface{}, conn *net.UDPConn, conf gch.IChannelConf,
 }
 
 // NewSimpleUdpChannel 创建udpchannel，需实现handleMsgFunc方法
-func NewSimpleUdpChannel(parent interface{}, udpConn *net.UDPConn, chConf gch.IChannelConf, msgFunc gch.OnMsgHandle) *UdpChannel {
+func NewSimpleUdpChannel(parent interface{}, udpConn *net.UDPConn, chConf gch.IChannelConf, msgFunc gch.OnMsgHandle, server bool) *UdpChannel {
 	chHandle := gch.NewDefChHandle(msgFunc)
-	return NewUdpChannel(parent, udpConn, chConf, chHandle)
+	return NewUdpChannel(parent, udpConn, chConf, chHandle, server)
 }
 
 // NewUdpChannel 创建udpchannel，需实现ChannelHandle
-func NewUdpChannel(parent interface{}, udpConn *net.UDPConn, chConf gch.IChannelConf, chHandle *gch.ChannelHandle) *UdpChannel {
-	ch := newUdpChannel(parent, udpConn, chConf, chHandle)
+func NewUdpChannel(parent interface{}, udpConn *net.UDPConn, chConf gch.IChannelConf, chHandle *gch.ChannelHandle, server bool) *UdpChannel {
+	ch := newUdpChannel(parent, udpConn, chConf, chHandle, server)
 	ch.SetId("udp-" + udpConn.LocalAddr().String() + "-" + udpConn.RemoteAddr().String())
 	return ch
 }

@@ -22,9 +22,9 @@ type Kws00Channel struct {
 // 需要实现onKwsMsgHandle 和注册（握手）成功后的onRegisterhandle
 // 根据需要实现onUnRegisterhandle方法和其他ChannelHandle里的其他方法
 func NewKws00Channel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChannelConf,
-	chHandle *gch.ChannelHandle, params map[string]interface{}) *Kws00Channel {
+	chHandle *gch.ChannelHandle, params map[string]interface{}, server bool) *Kws00Channel {
 	channel := &Kws00Channel{}
-	channel.KcpChannel = *NewKcpChannel(parent, kcpConn, chConf, chHandle)
+	channel.KcpChannel = *NewKcpChannel(parent, kcpConn, chConf, chHandle, server)
 	channel.protocol = gch.NETWORK_KWS00
 	channel.params = params
 	// 更新内部kwsmsg

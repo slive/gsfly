@@ -64,7 +64,7 @@ func (wc *WsClientStrap) Start() error {
 
 	// TODO 处理resonse？
 	logx.Info("ws response:", response)
-	wsCh := httpx.NewWsChannel(wc, conn, wsClientConf, handle, nil)
+	wsCh := httpx.NewWsChannel(wc, conn, wsClientConf, handle, nil, false)
 	err = wsCh.Start()
 	if err == nil {
 		wc.Channel = wsCh
@@ -102,7 +102,7 @@ func (kc *KcpClientStrap) Start() error {
 		logx.Error("dial kcp conn error:", nil)
 		return err
 	}
-	kcpCh := kcpx.NewKcpChannel(kc, conn, kcpClientConf, chHandle)
+	kcpCh := kcpx.NewKcpChannel(kc, conn, kcpClientConf, chHandle, false)
 	err = kcpCh.Start()
 	if err == nil {
 		kc.Channel = kcpCh
@@ -145,7 +145,7 @@ func (kc *Kws00ClientStrap) Start() error {
 		return err
 	}
 
-	kwsCh := kcpx.NewKws00Channel(kc, conn, clientConf, chHandle, kc.params)
+	kwsCh := kcpx.NewKws00Channel(kc, conn, clientConf, chHandle, kc.params, false)
 	err = kwsCh.Start()
 	if err != nil {
 		return err
@@ -229,7 +229,7 @@ func (uc *UdpClientStrap) Start() error {
 		return err
 	}
 
-	udpCh := udpx.NewUdpChannel(uc, conn, clientConf, chHandle)
+	udpCh := udpx.NewUdpChannel(uc, conn, clientConf, chHandle, false)
 	err = udpCh.Start()
 	if err == nil {
 		uc.Channel = udpCh
@@ -269,7 +269,7 @@ func (uc *TcpClientStrap) Start() error {
 		return err
 	}
 
-	udpCh := tcpx.NewTcpChannel(uc, conn, clientConf, chHandle)
+	udpCh := tcpx.NewTcpChannel(uc, conn, clientConf, chHandle, false)
 	err = udpCh.Start()
 	if err == nil {
 		uc.Channel = udpCh

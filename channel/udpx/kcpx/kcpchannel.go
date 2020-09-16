@@ -20,9 +20,9 @@ type KcpChannel struct {
 	protocol gch.Network
 }
 
-func NewKcpChannel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChannelConf, chHandle *gch.ChannelHandle) *KcpChannel {
+func NewKcpChannel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChannelConf, chHandle *gch.ChannelHandle, server bool) *KcpChannel {
 	ch := &KcpChannel{Conn: kcpConn}
-	ch.Channel = *gch.NewDefChannel(parent, chConf, chHandle)
+	ch.Channel = *gch.NewDefChannel(parent, chConf, chHandle, server)
 	ch.protocol = chConf.GetNetwork()
 	readBufSize := chConf.GetReadBufSize()
 	kcpConn.SetReadBuffer(readBufSize)
