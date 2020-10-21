@@ -16,8 +16,9 @@ import (
 
 type KcpChannel struct {
 	gch.Channel
-	Conn     *kcp.UDPSession
-	protocol gch.Network
+	Conn             *kcp.UDPSession
+	protocol         gch.Network
+	onKcpReadHandler gch.ChHandler
 }
 
 func NewKcpChannel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChannelConf, chHandle *gch.ChannelHandle, server bool) *KcpChannel {
@@ -30,6 +31,9 @@ func NewKcpChannel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChan
 	kcpConn.SetWriteBuffer(writeBufSize)
 	kcpConn.SetACKNoDelay(true)
 	kcpConn.SetWriteDelay(false)
+	ch.onKcpReadHandler = chHandle.GetOnReadHandler()
+	// 重新包装
+	chHandle.SetOnReadHandler(ch.onKcpWapperReadHandler)
 	ch.SetId("kcp-" + kcpConn.LocalAddr().String() + "-" + kcpConn.RemoteAddr().String() + "-" + fmt.Sprintf("%v", kcpConn.GetConv()))
 	return ch
 }
@@ -38,7 +42,26 @@ func (b *KcpChannel) Read() (gch.IPacket, error) {
 	return Read(b)
 }
 
-func Read(ch gch.IChannel) (gch.IPacket, error) {
+func (b *KcpChannel) onKcpWapperReadHandler(ctx gch.IChHandlerContext) {
+	handleFunc := b.onKcpReadHandler
+	if handleFunc != nil {
+		if b.IsServer() {
+			// 激活处理方法
+			if !b.IsActived() {
+				gch.HandleOnActive(ctx)
+				b.SetActived(true)
+			}
+			packet := ctx.GetPacket()
+			if packet != nil && !packet.IsRelease() {
+				handleFunc(ctx)
+			}
+		} else {
+			handleFunc(ctx)
+		}
+	}
+}
+
+func Read(ch *KcpChannel) (gch.IPacket, error) {
 	// TODO 超时配置
 	conn := ch.GetConn()
 	conf := ch.GetConf()
@@ -103,7 +126,12 @@ func (b *KcpChannel) NewPacket() gch.IPacket {
 }
 
 func (b *KcpChannel) Start() error {
-	return b.StartChannel(b)
+	err := b.StartChannel(b)
+	if err == nil && !b.IsServer() {
+		// 客户端启动即激活？
+		gch.HandleOnActive(gch.NewChHandlerContext(b, nil))
+	}
+	return err
 }
 
 func (b *KcpChannel) Stop() {

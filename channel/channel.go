@@ -15,12 +15,12 @@ import (
 )
 
 const (
-	ERR_READ  = "ERR_READ"
-	ERR_MSG   = "ERR_MSG"
-	ERR_WRITE = "ERR_WRITE"
-	ERR_STOP  = "ERR_STOP"
-	ERR_START = "ERR_START"
-	ERR_REG   = "ERR_REG"
+	ERR_READ     = "ERR_READ"
+	ERR_MSG      = "ERR_MSG"
+	ERR_WRITE    = "ERR_WRITE"
+	ERR_INACTIVE = "ERR_INACTIVE"
+	ERR_ACTIVE   = "ERR_ACTIVE"
+	ERR_REG      = "ERR_REG"
 )
 
 // IChannel 通信通道接口
@@ -64,9 +64,9 @@ type IChannel interface {
 
 	GetChHandle() *ChannelHandle
 
-	IsRegistered() bool
+	IsActived() bool
 
-	SetRegistered(register bool)
+	SetActived(register bool)
 
 	// 是否是服务端产生的channel
 	IsServer() bool
@@ -88,7 +88,7 @@ type Channel struct {
 	readPool      *ReadPool
 	closed        bool
 	closeExit     chan bool
-	registered    bool
+	actived       bool
 
 	server bool
 
@@ -145,9 +145,9 @@ func NewDefChannel(parent interface{}, chConf IChannelConf, chHandle *ChannelHan
 
 // NewSimpleChannel 创建默认基础通信通道
 // msghandle 消息处理
-func NewSimpleChannel(msghandle OnMsgHandle) *Channel {
+func NewSimpleChannel(onReadHandler ChHandler) *Channel {
 	// 全局初始化一次
-	chHandle := NewDefChHandle(msghandle)
+	chHandle := NewDefChHandle(onReadHandler)
 	return NewChannel(nil, nil, nil, chHandle, false)
 }
 
@@ -188,7 +188,7 @@ func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chH
 		server:        server,
 	}
 	channel.SetClosed(true)
-	channel.SetRegistered(false)
+	channel.SetActived(false)
 	channel.Attact = *common.NewAttact()
 	channel.Id = *common.NewId()
 	channel.Parent = *common.NewParent(parent)
@@ -210,15 +210,15 @@ func (b *Channel) StartChannel(channel IChannel) error {
 		return errors.New("channel is open, chId:" + id)
 	}
 
-	handle := channel.GetChHandle()
+	ctx := NewChHandlerContext(channel, nil)
 	defer func() {
 		rec := recover()
 		if rec != nil {
-			logx.Errorf("Start channel error, chId:%v, ret:%v", id, rec)
+			logx.Errorf("connect channel error, chId:%v, ret:%v", id, rec)
 			err, ok := rec.(error)
 			if ok {
 				// 捕获处理消息异常
-				handle.OnErrorHandle(channel, common.NewError1(ERR_START, err))
+				NotifyErrorHandle(ctx, err, ERR_ACTIVE)
 			}
 			channel.Stop()
 		}
@@ -226,18 +226,15 @@ func (b *Channel) StartChannel(channel IChannel) error {
 	go b.startReadLoop(channel)
 
 	b.SetClosed(false)
-
-	// 启动后处理方法
-	startFunc := handle.OnStartHandle
-	if startFunc != nil {
-		err := startFunc(channel)
-		if err != nil {
-			return err
-		}
-	}
-
 	logx.Info("finish to start channel, chId:", channel.GetId())
 	return nil
+}
+
+func NotifyErrorHandle(ctx IChHandlerContext, err error, errMsg string) {
+	chHandle := ctx.GetChannel().GetChHandle()
+	errorHandler := chHandle.GetOnErrorHandler()
+	ctx.SetError(common.NewError1(errMsg, err))
+	errorHandler(ctx)
 }
 
 func (b *Channel) NewPacket() IPacket {
@@ -262,6 +259,7 @@ func (b *Channel) Write(datapacket IPacket) error {
 	}
 
 	channel := datapacket.GetChannel()
+	ctx := NewChHandlerContext(channel, datapacket)
 	chHandle := channel.GetChHandle()
 	defer func() {
 		rec := recover()
@@ -272,7 +270,7 @@ func (b *Channel) Write(datapacket IPacket) error {
 				err = errors.New(fmt.Sprintf("%v", rec))
 			}
 			// 捕获处理消息异常
-			chHandle.OnErrorHandle(channel, common.NewError1(ERR_WRITE, err))
+			NotifyErrorHandle(ctx, err, ERR_WRITE)
 			// 有异常，终止执行
 			channel.Stop()
 		}
@@ -280,9 +278,10 @@ func (b *Channel) Write(datapacket IPacket) error {
 
 	if datapacket.IsPrepare() {
 		// 发送前的处理
-		befWriteHandle := chHandle.OnBefWriteHandle
+		befWriteHandle := chHandle.onWriteHandler
 		if befWriteHandle != nil {
-			err := befWriteHandle(datapacket)
+			befWriteHandle(ctx)
+			err := ctx.gerr
 			if err != nil {
 				logx.Error("befWriteHandle error:", err)
 				return err
@@ -296,11 +295,6 @@ func (b *Channel) Write(datapacket IPacket) error {
 		}
 
 		SendStatis(datapacket, true)
-		// 发送成功后的处理
-		aftWriteHandle := chHandle.OnAftWriteHandle
-		if aftWriteHandle != nil {
-			aftWriteHandle(datapacket)
-		}
 		return err
 	} else {
 		logx.Warn("datapacket is not prepare.")
@@ -334,12 +328,12 @@ func (b *Channel) GetChHandle() *ChannelHandle {
 	return b.ChannelHandle
 }
 
-func (b *Channel) IsRegistered() bool {
-	return b.registered
+func (b *Channel) IsActived() bool {
+	return b.actived
 }
 
-func (b *Channel) SetRegistered(register bool) {
-	b.registered = register
+func (b *Channel) SetActived(actived bool) {
+	b.actived = actived
 }
 
 // 是否是服务端产生的channel
@@ -355,6 +349,7 @@ func (b *Channel) StopChannel(channel IChannel) {
 		return
 	}
 
+	ctx := NewChHandlerContext(channel, nil)
 	handle := channel.GetChHandle()
 	defer func() {
 		rec := recover()
@@ -363,13 +358,13 @@ func (b *Channel) StopChannel(channel IChannel) {
 			err, ok := rec.(error)
 			if ok {
 				// 捕获处理消息异常
-				handle.OnErrorHandle(channel, common.NewError1(ERR_STOP, err))
+				NotifyErrorHandle(ctx, err, ERR_INACTIVE)
 			}
 		} else {
 			// 执行关闭后的方法
-			closeFunc := handle.OnStopHandle
+			closeFunc := handle.onInActiveHandler
 			if closeFunc != nil {
-				closeFunc(channel)
+				closeFunc(ctx)
 			}
 			logx.Info("finish to close channel, chId:", id)
 		}
@@ -389,11 +384,16 @@ func (b *Channel) StopChannel(channel IChannel) {
 // StartReadLoop 启动循环读取，读取到数据包后，放入#ReadQueue中，等待处理
 func (b *Channel) startReadLoop(channel IChannel) {
 	chId := b.GetId()
+	ctx := NewChHandlerContext(channel, nil)
 	defer func() {
 		rec := recover()
 		if rec != nil {
 			logx.Errorf("readloop error, chId:%v, err:%v", chId, rec)
-			channel.GetChHandle().OnErrorHandle(channel, common.NewError3(ERR_READ, rec))
+			err, ok := rec.(error)
+			if ok {
+				// 捕获处理消息异常
+				NotifyErrorHandle(ctx, err, ERR_READ)
+			}
 			b.Stop()
 		}
 	}()
@@ -421,9 +421,24 @@ func (b *Channel) startReadLoop(channel IChannel) {
 					readPool.Cache(rev)
 				} else {
 					// 否则默认直接处理
-					channel.GetChHandle().innerMsgHandleFunc(rev)
+					context := NewChHandlerContext(channel, rev)
+					channel.GetChHandle().onInnerReadHandler(context)
 				}
 			}}
+	}
+}
+
+func HandleOnActive(ctx IChHandlerContext) {
+	channel := ctx.GetChannel()
+	activeFunc := channel.GetChHandle().GetOnActiveHandler()
+	if activeFunc != nil {
+		activeFunc(ctx)
+		gerr := ctx.GetError()
+		if gerr != nil {
+			NotifyErrorHandle(ctx, gerr.GetErr(), ERR_READ)
+		} else {
+			channel.SetActived(true)
+		}
 	}
 }
 

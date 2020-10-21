@@ -29,6 +29,8 @@ type ChannelConf struct {
 
 	// 使用的协议
 	Network Network
+
+	ExtConfs map[string]interface{}
 }
 
 type IChannelConf interface {
@@ -37,6 +39,9 @@ type IChannelConf interface {
 	GetWriteTimeout() time.Duration
 	GetWriteBufSize() int
 	GetCloseRevFailTime() int
+
+	// GetExtConfs 扩展配置
+	GetExtConfs() map[string]interface{}
 
 	// GetNetwork 获取通道协议类型
 	// @see Network
@@ -111,6 +116,11 @@ func (bc *ChannelConf) GetWriteBufSize() int {
 // GetNetwork 获取通道协议类型
 func (bc *ChannelConf) GetNetwork() Network {
 	return bc.Network
+}
+
+// GetExtConfs 扩展配置
+func (bc *ChannelConf) GetExtConfs() map[string]interface{} {
+	return bc.ExtConfs
 }
 
 type AddrConf struct {

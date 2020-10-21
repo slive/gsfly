@@ -2,7 +2,7 @@
  * Author:slive
  * DATE:2020/7/17
  */
-package httpx
+package tcpx
 
 import (
 	gch "github.com/Slive/gsfly/channel"
@@ -24,8 +24,8 @@ func newWsChannel(parent interface{}, wsconn *gws.Conn, conf gch.IChannelConf, c
 	return ch
 }
 
-func NewWsSimpleChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChannelConf, msgFunc gch.OnMsgHandle, server bool) *WsChannel {
-	chHandle := gch.NewDefChHandle(msgFunc)
+func NewWsSimpleChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChannelConf, onReadHandler gch.ChHandler, server bool) *WsChannel {
+	chHandle := gch.NewDefChHandle(onReadHandler)
 	return NewWsChannel(parent, wsConn, chConf, chHandle, nil, server)
 }
 
@@ -36,51 +36,42 @@ func NewWsChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChannelConf,
 	return ch
 }
 
-func (wsChannel *WsChannel) Start() error {
-	err := wsChannel.StartChannel(wsChannel)
-	if err == nil {
-		onRegisterHandle := wsChannel.GetChHandle().OnRegisteredHandle
-		if onRegisterHandle != nil {
-			onRegisterHandle(wsChannel, nil)
-		}
+func (wsCh *WsChannel) Start() error {
+	err := wsCh.StartChannel(wsCh)
+	if err == nil{
+		gch.HandleOnActive(gch.NewChHandlerContext(wsCh, nil))
 	}
 	return err
 }
 
-func (wsChannel *WsChannel) Stop() {
-	if !wsChannel.IsClosed() {
-		onUnRegisterHandle := wsChannel.GetChHandle().OnUnRegisteredHandle
-		if onUnRegisterHandle != nil {
-			onUnRegisterHandle(wsChannel, nil)
-		}
-	}
-	wsChannel.StopChannel(wsChannel)
+func (wsCh *WsChannel) Stop() {
+	wsCh.StopChannel(wsCh)
 }
 
-func (wsChannel *WsChannel) Read() (gch.IPacket, error) {
+func (wsCh *WsChannel) Read() (gch.IPacket, error) {
 	// TODO 超时配置
-	// conf := wsChannel.GetConf()
+	// conf := wsCh.GetConf()
 	now := time.Now()
-	conf := wsChannel.GetConf()
+	conf := wsCh.GetConf()
 	failTime := time.Duration(conf.GetCloseRevFailTime())
 	duration := conf.GetReadTimeout() * time.Second * failTime
 	// 一次失败都会失败
-	wsChannel.Conn.SetReadDeadline(now.Add(duration))
-	msgType, data, err := wsChannel.readMessage()
+	wsCh.Conn.SetReadDeadline(now.Add(duration))
+	msgType, data, err := wsCh.readMessage()
 	if err != nil {
 		logx.Warn("read ws err:", err)
-		gch.RevStatisFail(wsChannel, now)
+		gch.RevStatisFail(wsCh, now)
 		return nil, err
 	}
 
-	wspacket := wsChannel.NewPacket().(*WsPacket)
+	wspacket := wsCh.NewPacket().(*WsPacket)
 	wspacket.MsgType = msgType
 	wspacket.SetData(data)
 	gch.RevStatis(wspacket, true)
 	return wspacket, err
 }
 
-func (wsChannel *WsChannel) readMessage() (messageType int, p []byte, err error) {
+func (wsCh *WsChannel) readMessage() (messageType int, p []byte, err error) {
 	defer func() {
 		rec := recover()
 		if rec != nil {
@@ -90,33 +81,33 @@ func (wsChannel *WsChannel) readMessage() (messageType int, p []byte, err error)
 			}
 		}
 	}()
-	return wsChannel.Conn.ReadMessage()
+	return wsCh.Conn.ReadMessage()
 }
 
-func (wsChannel *WsChannel) IsReadLoopContinued(err error) bool {
+func (wsCh *WsChannel) IsReadLoopContinued(err error) bool {
 	// 失败不继续
 	return false
 }
 
-func (wsChannel *WsChannel) Write(datapacket gch.IPacket) error {
-	return wsChannel.Channel.Write(datapacket)
-	// if wsChannel.IsClosed() {
-	// 	return errors.New("wschannel had closed, chId:" + wsChannel.GetId())
+func (wsCh *WsChannel) Write(datapacket gch.IPacket) error {
+	return wsCh.Channel.Write(datapacket)
+	// if wsCh.IsClosed() {
+	// 	return errors.New("wschannel had closed, chId:" + wsCh.GetId())
 	// }
 	//
-	// chHandle := wsChannel.GetChHandle()
+	// chHandle := wsCh.GetChHandle()
 	// defer func() {
 	// 	rec := recover()
 	// 	if rec != nil {
-	// 		logx.Error("write ws error, chId:%v, error:%v", wsChannel.GetId(), rec)
+	// 		logx.Error("write ws error, chId:%v, error:%v", wsCh.GetId(), rec)
 	// 		err, ok := rec.(error)
 	// 		if !ok {
 	// 			err = errors.New(fmt.Sprintf("%v", rec))
 	// 		}
 	// 		// 捕获处理消息异常
-	// 		chHandle.OnErrorHandle(wsChannel, common.NewError1(gch.ERR_WRITE, err))
+	// 		chHandle.OnErrorHandle(wsCh, common.NewError1(gch.ERR_WRITE, err))
 	// 		// 有异常，终止执行
-	// 		wsChannel.StopChannel(wsChannel)
+	// 		wsCh.StopChannel(wsCh)
 	// 	}
 	// }()
 	//
@@ -132,10 +123,10 @@ func (wsChannel *WsChannel) Write(datapacket gch.IPacket) error {
 	// 	}
 	// 	wspacket := datapacket.(*WsPacket)
 	// 	data := wspacket.GetData()
-	// 	conf := wsChannel.GetConf()
+	// 	conf := wsCh.GetConf()
 	// 	// TODO 设置超时?
-	// 	wsChannel.Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
-	// 	err := wsChannel.Conn.WriteMessage(wspacket.MsgType, data)
+	// 	wsCh.Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
+	// 	err := wsCh.Conn.WriteMessage(wspacket.MsgType, data)
 	// 	if err != nil {
 	// 		logx.Error("write ws error:", err)
 	// 		gch.SendStatis(wspacket, false)
@@ -144,7 +135,7 @@ func (wsChannel *WsChannel) Write(datapacket gch.IPacket) error {
 	// 	}
 	//
 	// 	gch.SendStatis(wspacket, true)
-	// 	logx.Info(wsChannel.GetChStatis().StringSend())
+	// 	logx.Info(wsCh.GetChStatis().StringSend())
 	// 	// 发送成功后的处理
 	// 	aftWriteHandle := chHandle.OnAftWriteHandle
 	// 	if aftWriteHandle != nil {
@@ -157,13 +148,13 @@ func (wsChannel *WsChannel) Write(datapacket gch.IPacket) error {
 	// return nil
 }
 
-func (wsChannel *WsChannel) WriteByConn(datapacket gch.IPacket) error {
+func (wsCh *WsChannel) WriteByConn(datapacket gch.IPacket) error {
 	wspacket := datapacket.(*WsPacket)
 	data := wspacket.GetData()
-	conf := wsChannel.GetConf()
+	conf := wsCh.GetConf()
 	// TODO 设置超时?
-	wsChannel.Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
-	err := wsChannel.Conn.WriteMessage(wspacket.MsgType, data)
+	wsCh.Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
+	err := wsCh.Conn.WriteMessage(wspacket.MsgType, data)
 	if err != nil {
 		logx.Error("write ws error:", err)
 		gch.SendStatis(wspacket, false)
@@ -174,25 +165,25 @@ func (wsChannel *WsChannel) WriteByConn(datapacket gch.IPacket) error {
 }
 
 // GetConn Deprecated
-func (wsChannel *WsChannel) GetConn() net.Conn {
-	return wsChannel.Conn.UnderlyingConn()
+func (wsCh *WsChannel) GetConn() net.Conn {
+	return wsCh.Conn.UnderlyingConn()
 }
 
-func (wsChannel *WsChannel) LocalAddr() net.Addr {
-	return wsChannel.Conn.LocalAddr()
+func (wsCh *WsChannel) LocalAddr() net.Addr {
+	return wsCh.Conn.LocalAddr()
 }
 
-func (wsChannel *WsChannel) RemoteAddr() net.Addr {
-	return wsChannel.Conn.RemoteAddr()
+func (wsCh *WsChannel) RemoteAddr() net.Addr {
+	return wsCh.Conn.RemoteAddr()
 }
 
-func (wsChannel *WsChannel) GetParams() map[string]interface{} {
-	return wsChannel.params
+func (wsCh *WsChannel) GetParams() map[string]interface{} {
+	return wsCh.params
 }
 
-func (wsChannel *WsChannel) NewPacket() gch.IPacket {
+func (wsCh *WsChannel) NewPacket() gch.IPacket {
 	w := &WsPacket{}
-	w.Packet = *gch.NewPacket(wsChannel, gch.NETWORK_WS)
+	w.Packet = *gch.NewPacket(wsCh, gch.NETWORK_WS)
 	return w
 }
 

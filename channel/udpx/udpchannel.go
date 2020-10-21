@@ -29,8 +29,8 @@ func newUdpChannel(parent interface{}, conn *net.UDPConn, conf gch.IChannelConf,
 }
 
 // NewSimpleUdpChannel 创建udpchannel，需实现handleMsgFunc方法
-func NewSimpleUdpChannel(parent interface{}, udpConn *net.UDPConn, chConf gch.IChannelConf, msgFunc gch.OnMsgHandle, server bool) *UdpChannel {
-	chHandle := gch.NewDefChHandle(msgFunc)
+func NewSimpleUdpChannel(parent interface{}, udpConn *net.UDPConn, chConf gch.IChannelConf, onReadHandler gch.ChHandler, server bool) *UdpChannel {
+	chHandle := gch.NewDefChHandle(onReadHandler)
 	return NewUdpChannel(parent, udpConn, chConf, chHandle, server)
 }
 
@@ -42,7 +42,11 @@ func NewUdpChannel(parent interface{}, udpConn *net.UDPConn, chConf gch.IChannel
 }
 
 func (b *UdpChannel) Start() error {
-	return b.StartChannel(b)
+	err := b.StartChannel(b)
+	if err == nil{
+		gch.HandleOnActive(gch.NewChHandlerContext(b, nil))
+	}
+	return err
 }
 
 func (b *UdpChannel) Stop() {

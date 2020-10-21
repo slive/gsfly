@@ -34,7 +34,7 @@ type IId interface {
 }
 
 type Id struct {
-	Id string `json:"id"`
+	Id string
 }
 
 func NewId() *Id {

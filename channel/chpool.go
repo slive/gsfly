@@ -6,7 +6,6 @@
 package channel
 
 import (
-	"github.com/Slive/gsfly/common"
 	logx "github.com/Slive/gsfly/logger"
 	"hash/crc32"
 	"os"
@@ -85,8 +84,9 @@ func handelReadQueue(queue *ReadQueue) {
 		select {
 		case packet, isOpened := <-queue.readChan:
 			if packet != nil {
+				channel := packet.GetChannel()
+				context := NewChHandlerContext(channel, packet)
 				func() {
-					channel := packet.GetChannel()
 					handle := channel.GetChHandle()
 					// 有错误可以继续执行
 					defer func() {
@@ -96,14 +96,12 @@ func handelReadQueue(queue *ReadQueue) {
 							err, ok := rec.(error)
 							if ok {
 								// 捕获处理消息异常
-								errorHandle := handle.OnErrorHandle
-								if errorHandle != nil {
-									errorHandle(channel, common.NewError1(ERR_MSG, err))
-								}
+								NotifyErrorHandle(context, err, ERR_MSG)
 							}
 						}
 					}()
-					handle.innerMsgHandleFunc(packet)
+					handler := handle.GetOnReadHandler()
+					handler(context)
 				}()
 
 				// 管道关闭后的操作

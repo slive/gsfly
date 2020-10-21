@@ -27,8 +27,8 @@ func newTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannel
 	return ch
 }
 
-func NewSimpleTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, msgFunc gch.OnMsgHandle, server bool) *TcpChannel {
-	chHandle := gch.NewDefChHandle(msgFunc)
+func NewSimpleTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, onReadHandler gch.ChHandler, server bool) *TcpChannel {
+	chHandle := gch.NewDefChHandle(onReadHandler)
 	return NewTcpChannel(parent, tcpConn, chConf, chHandle, server)
 }
 
@@ -39,7 +39,11 @@ func NewTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannel
 }
 
 func (b *TcpChannel) Start() error {
-	return b.StartChannel(b)
+	err := b.StartChannel(b)
+	if err == nil {
+		gch.HandleOnActive(gch.NewChHandlerContext(b, nil))
+	}
+	return err
 }
 
 func (b *TcpChannel) Stop() {

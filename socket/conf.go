@@ -2,16 +2,19 @@
  * Author:slive
  * DATE:2020/7/30
  */
-package bootstrap
+package socket
 
 import (
 	"github.com/Slive/gsfly/channel"
+	"github.com/Slive/gsfly/common"
 	"net/url"
 )
 
 type IServerConf interface {
 	channel.IAddrConf
 	channel.IChannelConf
+	common.IId
+	common.IParent
 	GetMaxChannelSize() int
 	SetMaxChannelSize(maxChannelSize int)
 }
@@ -19,6 +22,8 @@ type IServerConf interface {
 type ServerConf struct {
 	channel.AddrConf
 	channel.ChannelConf
+	common.Id
+	common.Parent
 	MaxChannelSize int
 }
 
@@ -79,28 +84,6 @@ func NewKcpClientConf(ip string, port int) *KcpClientConf {
 	return s
 }
 
-type IKws00ClientConf interface {
-	IKcpClientConf
-	GetPath() string
-}
-
-type Kws00ClientConf struct {
-	KcpClientConf
-	// Path 可选，代表所在的相对路径，用于可能存在的路由，类似http的request url，如"/admin/user"
-	Path string `json:"path"`
-}
-
-func NewKws00ClientConf(ip string, port int, path string) *Kws00ClientConf {
-	s := &Kws00ClientConf{}
-	s.ClientConf = *NewClientConf(ip, port, channel.NETWORK_KWS00)
-	s.Path = path
-	return s
-}
-
-func (kwsClientConf *Kws00ClientConf) GetPath() string {
-	return kwsClientConf.Path
-}
-
 type IKcpServerConf interface {
 	IServerConf
 	IKcpConf
@@ -114,20 +97,6 @@ type KcpServerConf struct {
 func NewKcpServerConf(ip string, port int) *KcpServerConf {
 	s := &KcpServerConf{}
 	s.ServerConf = *NewServerConf(ip, port, channel.NETWORK_KCP)
-	return s
-}
-
-type IKw00ServerConf interface {
-	IKcpServerConf
-}
-
-type Kw00ServerConf struct {
-	KcpServerConf
-}
-
-func NewKw00ServerConf(ip string, port int) *Kw00ServerConf {
-	s := &Kw00ServerConf{}
-	s.ServerConf = *NewServerConf(ip, port, channel.NETWORK_KWS00)
 	return s
 }
 
@@ -167,9 +136,9 @@ type IWsConf interface {
 }
 
 type WsConf struct {
-	Scheme      string   `json:"scheme"`
-	SubProtocol []string `json:"subProtocol"`
-	Path        string   `json:"path"`
+	Scheme      string
+	SubProtocol []string
+	Path        string
 }
 
 func NewWsConf(scheme string, path string, subProtocol ...string) *WsConf {

@@ -15,14 +15,11 @@ type Network string
 
 const (
 	// 协议类型，移位增长
-	NETWORK_TCP   Network = "tcp"
-	NETWORK_HTTP  Network = "http"
-	NETWORK_WS    Network = "ws"
-	NETWORK_UDP   Network = "udp"
-	NETWORK_KCP   Network = "kcp"
-	NETWORK_KWS00 Network = "kws00"
-	NETWORK_KWS01 Network = "kws001"
-	NETWORK_HTTPX Network = "httpx"
+	NETWORK_TCP  Network = "tcp"
+	NETWORK_HTTP Network = "http"
+	NETWORK_WS   Network = "ws"
+	NETWORK_UDP  Network = "udp"
+	NETWORK_KCP  Network = "kcp"
 )
 
 // String 获取协议对应的字符串
@@ -38,12 +35,6 @@ func (p Network) String() string {
 		return "udp"
 	case NETWORK_KCP:
 		return "kcp"
-	case NETWORK_KWS00:
-		return "kws00"
-	case NETWORK_KWS01:
-		return "kws001"
-	case NETWORK_HTTPX:
-		return "httpx"
 	default:
 		return "unknown"
 	}
@@ -59,6 +50,9 @@ type IPacket interface {
 
 	// 释放资源
 	Release()
+
+	// 是否释放
+	IsRelease() bool
 
 	// GetNetwork 获取网络协议类型
 	GetNetwork() Network
@@ -91,6 +85,10 @@ func (b *Packet) GetChannel() IChannel {
 
 func (b *Packet) Release() {
 	b.data = nil
+}
+
+func (b *Packet) IsRelease() bool {
+	return b.data == nil
 }
 
 func (b *Packet) GetNetwork() Network {

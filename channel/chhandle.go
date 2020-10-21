@@ -9,160 +9,163 @@ import (
 	logx "github.com/Slive/gsfly/logger"
 )
 
-// OnMsgHandle 处理消息方法
-// packet 接收到的包，不可以为nil
-type OnMsgHandle func(packet IPacket) error
+type IChHandlerContext interface {
+	common.IAttact
+	GetChannel() IChannel
+	GetPacket() IPacket
 
-// OnBefWriteHandle 发送消息之前
-// packet 发送的包，不可以为nil，发送前处理失败，则不继续执行
-type OnBefWriteHandle func(packet IPacket) error
+	GetError() common.GError
+	SetError(gError common.GError)
 
-// OnAftWriteHandle 发送消息之后
-// packet 发送的包，不可以为nil
-type OnAftWriteHandle func(packet IPacket) error
+	GetRet() struct{}
+	SetRet(ret struct{})
+}
 
-// OnStopHandle 处理停止时的方法
-// channel 通信通道
-type OnStopHandle func(channel IChannel) error
+type ChHandlerContext struct {
+	channel IChannel
+	packet  IPacket
+	common.Attact
+	gerr common.GError
+	ret  struct{}
+}
 
-// OnStartHandle 处理启动时的方法
-// channel 通信通道， 启动有问题则不再继续执行
-type OnStartHandle func(channel IChannel) error
+func NewChHandlerContext(channel IChannel, packet IPacket) *ChHandlerContext {
+	return &ChHandlerContext{channel: channel, packet: packet, Attact: *common.NewAttact()}
+}
 
-// OnRegisteredHandle 处理注册后（可能成功也可能失败）的方法
-// channel 通信通道
-// packet 接收到的包，可能nil
-// attach 附带参数，可能为nil
-type OnRegisteredHandle func(channel IChannel, packet IPacket) error
+func (ctx *ChHandlerContext) GetChannel() IChannel {
+	return ctx.channel
+}
 
-// OnUnRegisteredHandle 处理取消注册的方法
-// channel 通信通道
-// packet 接收到的包，可能nil
-// attach 附带参数，可能为nil
-type OnUnRegisteredHandle func(channel IChannel, packet IPacket) error
+func (ctx *ChHandlerContext) GetPacket() IPacket {
+	return ctx.packet
+}
 
-// OnErrorHandle 处理取消注册的方法
-// channel 通信通道
-// err 各种异常
-type OnErrorHandle func(channel IChannel, gerr common.GError)
+func (ctx *ChHandlerContext) SetRet(ret struct{}) {
+	ctx.ret = ret
+}
+
+func (ctx *ChHandlerContext) GetRet() struct{} {
+	return ctx.ret
+}
+
+func (ctx *ChHandlerContext) SetError(error common.GError) {
+	ctx.gerr = error
+}
+
+func (ctx *ChHandlerContext) GetError() common.GError {
+	return ctx.gerr
+}
+
+type ChHandler func(ctx IChHandlerContext)
 
 // 空实现
-func innerErrorHandle(channel IChannel, gerr common.GError) {
-	logx.Errorf("channel error, chId:%v, error:%v", channel.GetId(), gerr)
+func innerErrorHandle(ctx IChHandlerContext) {
+	logx.Errorf("channel error, chId:%v, error:%v", ctx.GetChannel().GetId(), ctx.GetError())
 }
 
 type IChannelHandle interface {
-	GetOnMsgHandle() OnMsgHandle
+	GetOnReadHandler() ChHandler
+	SetOnReadHandler(onReadHandler ChHandler)
 
-	SetOnStartHandle(handle OnStartHandle)
-	SetOnStopHandle(handle OnStopHandle)
-	SetOnRegisteredHandle(handle OnRegisteredHandle)
-	SetOnUnRegisteredHandle(handle OnUnRegisteredHandle)
-	SetOnErrorHandle(handle OnErrorHandle)
-	SetOnAftWriteHandle(handle OnAftWriteHandle)
-	SetOnBefWriteHandle(handle OnBefWriteHandle)
+	GetOnWriteHandler() ChHandler
+	SetOnWriteHandler(onWriteHandler ChHandler)
+
+	GetOnActiveHandler() ChHandler
+	SetOnActiveHandler(onActiveHandler ChHandler)
+
+	GetOnInActiveHandler() ChHandler
+	SetOnInActiveHandler(onInActiveHandler ChHandler)
+
+	GetOnErrorHandler() ChHandler
+	SetOnErrorHandler(onErrorHandler ChHandler)
 }
 
 // ChannelHandle 通信通道处理结构，针对如开始，关闭和收到消息的方法
 type ChannelHandle struct {
-	OnStartHandle        OnStartHandle
-	OnRegisteredHandle   OnRegisteredHandle
-	OnUnRegisteredHandle OnUnRegisteredHandle
-	OnStopHandle         OnStopHandle
-	OnErrorHandle        OnErrorHandle
-	OnAftWriteHandle     OnAftWriteHandle
-	OnBefWriteHandle     OnBefWriteHandle
-
-	// 处理消息方法，必须方法
-	msgHandleFunc      OnMsgHandle
-	innerMsgHandleFunc OnMsgHandle
+	onActiveHandler    ChHandler
+	onInActiveHandler  ChHandler
+	onInnerReadHandler ChHandler
+	onReadHandler      ChHandler
+	onWriteHandler     ChHandler
+	onErrorHandler     ChHandler
 }
 
-func (c *ChannelHandle) SetOnStartHandle(handle OnStartHandle) {
-	c.OnStartHandle = handle
+func (c *ChannelHandle) SetOnReadHandler(onReadHandler ChHandler) {
+	c.onReadHandler = onReadHandler
 }
 
-func (c *ChannelHandle) SetOnStopHandle(handle OnStopHandle) {
-	c.OnStopHandle = handle
+func (c *ChannelHandle) GetOnReadHandler() ChHandler {
+	return c.onReadHandler
 }
 
-func (c *ChannelHandle) SetOnRegisteredHandle(handle OnRegisteredHandle) {
-	c.OnRegisteredHandle = handle
+func (c *ChannelHandle) SetOnWriteHandler(onWriteHandler ChHandler) {
+	c.onWriteHandler = onWriteHandler
 }
 
-func (c *ChannelHandle) SetOnUnRegisteredHandle(handle OnUnRegisteredHandle) {
-	c.OnUnRegisteredHandle = handle
+func (c *ChannelHandle) GetOnWriteHandler() ChHandler {
+	return c.onWriteHandler
 }
 
-func (c *ChannelHandle) SetOnErrorHandle(handle OnErrorHandle) {
-	if handle == nil {
-		c.OnErrorHandle = innerErrorHandle
+func (c *ChannelHandle) SetOnActiveHandler(onActiveHandler ChHandler) {
+	c.onActiveHandler = onActiveHandler
+}
+
+func (c *ChannelHandle) GetOnActiveHandler() ChHandler {
+	return c.onActiveHandler
+}
+
+func (c *ChannelHandle) SetOnInActiveHandler(onInActiveHandler ChHandler) {
+	c.onInActiveHandler = onInActiveHandler
+}
+
+func (c *ChannelHandle) GetOnInActiveHandler() ChHandler {
+	return c.onInActiveHandler
+}
+
+func (c *ChannelHandle) SetOnErrorHandler(errHandler ChHandler) {
+	if errHandler == nil {
+		c.onErrorHandler = innerErrorHandle
 	} else {
-		c.OnErrorHandle = handle
+		c.onErrorHandler = errHandler
 	}
 }
 
-func (c *ChannelHandle) SetOnAftWriteHandle(handle OnAftWriteHandle) {
-	c.OnAftWriteHandle = handle
-}
-
-func (c *ChannelHandle) SetOnBefWriteHandle(handle OnBefWriteHandle) {
-	c.OnBefWriteHandle = handle
-}
-
-func (c *ChannelHandle) GetOnMsgHandle() OnMsgHandle {
-	return c.msgHandleFunc
+func (c *ChannelHandle) GetOnErrorHandler() ChHandler {
+	return c.onErrorHandler
 }
 
 // NewDefChHandle 创建默认的， 必须实现OnMsgHandleFunc 方法
-func NewDefChHandle(msgHandleFunc OnMsgHandle) *ChannelHandle {
-	if msgHandleFunc == nil {
-		errMsg := "msgHandleFunc is nil."
+func NewDefChHandle(onReadHandler ChHandler) *ChannelHandle {
+	if onReadHandler == nil {
+		errMsg := "onReadHandler is nil."
 		logx.Error(errMsg)
 		panic(errMsg)
 	}
 	c := &ChannelHandle{}
-	c.msgHandleFunc = msgHandleFunc
-	c.innerMsgHandleFunc = c.onMsgHandle
-	c.OnErrorHandle = innerErrorHandle
+	c.SetOnReadHandler(onReadHandler)
+	c.SetOnErrorHandler(innerErrorHandle)
+	c.onInnerReadHandler = c.onWapperReadHandler
 	return c
 }
 
-func UpdateMsgHandle(msgHandleFunc OnMsgHandle, chHandle *ChannelHandle) {
-	if msgHandleFunc == nil {
-		errMsg := "OnMsgHandle is nil."
-		logx.Error(errMsg)
-		panic(errMsg)
-	}
-	chHandle.msgHandleFunc = msgHandleFunc
-}
-
 // 内部代理调用 OnMsgHandle
-func (c *ChannelHandle) onMsgHandle(packet IPacket) error {
-	handleFunc := c.msgHandleFunc
+func (c *ChannelHandle) onWapperReadHandler(ctx IChHandlerContext) {
+	handleFunc := c.GetOnReadHandler()
+	packet := ctx.GetPacket()
 	if handleFunc != nil {
-		err := handleFunc(packet)
+		handleFunc(ctx)
+		err := ctx.GetError()
 		// 记录统计相关信息
 		if err != nil {
 			HandleMsgStatis(packet, false)
+			errHandler := c.GetOnErrorHandler()
+			errHandler(ctx)
 		} else {
 			HandleMsgStatis(packet, true)
 		}
-		return err
 	} else {
 		HandleMsgStatis(packet, false)
 		panic("implement me")
 	}
-}
-
-func CopyChannelHandle(srcChHandle *ChannelHandle) *ChannelHandle {
-	ch := NewDefChHandle(srcChHandle.GetOnMsgHandle())
-	ch.SetOnStopHandle(srcChHandle.OnStopHandle)
-	ch.SetOnStartHandle(srcChHandle.OnStartHandle)
-	ch.SetOnAftWriteHandle(srcChHandle.OnAftWriteHandle)
-	ch.SetOnBefWriteHandle(srcChHandle.OnBefWriteHandle)
-	ch.SetOnErrorHandle(srcChHandle.OnErrorHandle)
-	ch.SetOnRegisteredHandle(srcChHandle.OnRegisteredHandle)
-	ch.SetOnUnRegisteredHandle(srcChHandle.OnUnRegisteredHandle)
-	return ch
 }
