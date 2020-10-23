@@ -29,7 +29,7 @@ type ClientConn struct {
 	Channel gch.IChannel
 }
 
-func NewClientConn(parent interface{}, clientConf IClientConf, handle gch.IChannelHandle, params ...interface{}) *ClientConn {
+func NewClientConn(parent interface{}, clientConf IClientConf, handle gch.IChHandle, params ...interface{}) *ClientConn {
 	b := &ClientConn{}
 	b.Conf = clientConf
 	b.Socket = *NewSocketConn(parent, handle, params...)
@@ -63,7 +63,7 @@ func (clientConn *ClientConn) Dial() error {
 
 func dialWs(clientStrap *ClientConn) error {
 	wsClientConf := clientStrap.GetConf().(IWsClientConf)
-	handle := clientStrap.GetChHandle().(*gch.ChannelHandle)
+	handle := clientStrap.GetChHandle().(*gch.ChHandle)
 	url := wsClientConf.GetUrl()
 	params := getWsParams(clientStrap)
 	if params != nil && len(params) > 0 {
@@ -107,7 +107,7 @@ func getWsParams(clientStrap *ClientConn) map[string]interface{} {
 
 func dialKcp(clientStrap *ClientConn) error {
 	kcpClientConf := clientStrap.GetConf()
-	chHandle := clientStrap.GetChHandle().(*gch.ChannelHandle)
+	chHandle := clientStrap.GetChHandle().(*gch.ChHandle)
 	addr := kcpClientConf.GetAddrStr()
 	logx.Info("dial kcp addr:", addr)
 	conn, err := kcp.DialWithOptions(addr, nil, 0, 0)

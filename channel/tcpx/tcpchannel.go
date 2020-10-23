@@ -16,7 +16,7 @@ type TcpChannel struct {
 	Conn *net.TCPConn
 }
 
-func newTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, chHandle *gch.ChannelHandle, server bool) *TcpChannel {
+func newTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, chHandle *gch.ChHandle, server bool) *TcpChannel {
 	ch := &TcpChannel{Conn: tcpConn}
 	ch.Channel = *gch.NewDefChannel(parent, chConf, chHandle, server)
 	readBufSize := chConf.GetReadBufSize()
@@ -27,12 +27,12 @@ func newTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannel
 	return ch
 }
 
-func NewSimpleTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, onReadHandler gch.ChHandler, server bool) *TcpChannel {
+func NewSimpleTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, onReadHandler gch.ChHandleFunc, server bool) *TcpChannel {
 	chHandle := gch.NewDefChHandle(onReadHandler)
 	return NewTcpChannel(parent, tcpConn, chConf, chHandle, server)
 }
 
-func NewTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, chHandle *gch.ChannelHandle, server bool) *TcpChannel {
+func NewTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, chHandle *gch.ChHandle, server bool) *TcpChannel {
 	ch := newTcpChannel(parent, tcpConn, chConf, chHandle, server)
 	ch.SetId("tcp-" + tcpConn.LocalAddr().String() + "-" + tcpConn.RemoteAddr().String())
 	return ch
@@ -41,7 +41,7 @@ func NewTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannel
 func (b *TcpChannel) Start() error {
 	err := b.StartChannel(b)
 	if err == nil {
-		gch.HandleOnActive(gch.NewChHandlerContext(b, nil))
+		gch.HandleOnActive(gch.NewChHandleContext(b, nil))
 	}
 	return err
 }

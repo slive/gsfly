@@ -62,7 +62,7 @@ type IChannel interface {
 
 	GetConn() net.Conn
 
-	GetChHandle() *ChannelHandle
+	GetChHandle() *ChHandle
 
 	IsActived() bool
 
@@ -81,7 +81,7 @@ type IChannel interface {
 
 // Channel channel基类
 type Channel struct {
-	ChannelHandle *ChannelHandle
+	ChannelHandle *ChHandle
 	ChannelStatis *ChannelStatis
 	Conn          net.Conn
 	conf          IChannelConf
@@ -138,14 +138,14 @@ func InitChannelConfs(rpConf *ReadPoolConf, chConf *ChannelConf) {
 var initOnce sync.Once
 
 // NewDefChannel 创建默认基础通信通道
-func NewDefChannel(parent interface{}, chConf IChannelConf, chHandle *ChannelHandle, server bool) *Channel {
+func NewDefChannel(parent interface{}, chConf IChannelConf, chHandle *ChHandle, server bool) *Channel {
 	// 全局初始化一次
 	return NewChannel(parent, chConf, def_readPool, chHandle, server)
 }
 
 // NewSimpleChannel 创建默认基础通信通道
 // msghandle 消息处理
-func NewSimpleChannel(onReadHandler ChHandler) *Channel {
+func NewSimpleChannel(onReadHandler ChHandleFunc) *Channel {
 	// 全局初始化一次
 	chHandle := NewDefChHandle(onReadHandler)
 	return NewChannel(nil, nil, nil, chHandle, false)
@@ -156,9 +156,9 @@ func NewSimpleChannel(onReadHandler ChHandler) *Channel {
 // chConf channel配置，可为nil，如果为nil，则选用默认
 // readPool 读取消息池，可为nil，如果为nil，则选用默认
 // chHandle 处理handle，包括读写，注册等处理，不可为空
-func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chHandle *ChannelHandle, server bool) *Channel {
+func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chHandle *ChHandle, server bool) *Channel {
 	if chHandle == nil {
-		errMsg := "ChannelHandle is nil"
+		errMsg := "ChHandle is nil"
 		logx.Error(errMsg)
 		panic(errMsg)
 	}
@@ -210,7 +210,7 @@ func (b *Channel) StartChannel(channel IChannel) error {
 		return errors.New("channel is open, chId:" + id)
 	}
 
-	ctx := NewChHandlerContext(channel, nil)
+	ctx := NewChHandleContext(channel, nil)
 	defer func() {
 		rec := recover()
 		if rec != nil {
@@ -230,9 +230,9 @@ func (b *Channel) StartChannel(channel IChannel) error {
 	return nil
 }
 
-func NotifyErrorHandle(ctx IChHandlerContext, err error, errMsg string) {
+func NotifyErrorHandle(ctx IChHandleContext, err error, errMsg string) {
 	chHandle := ctx.GetChannel().GetChHandle()
-	errorHandler := chHandle.GetOnErrorHandler()
+	errorHandler := chHandle.GetOnError()
 	ctx.SetError(common.NewError1(errMsg, err))
 	errorHandler(ctx)
 }
@@ -259,7 +259,7 @@ func (b *Channel) Write(datapacket IPacket) error {
 	}
 
 	channel := datapacket.GetChannel()
-	ctx := NewChHandlerContext(channel, datapacket)
+	ctx := NewChHandleContext(channel, datapacket)
 	chHandle := channel.GetChHandle()
 	defer func() {
 		rec := recover()
@@ -278,7 +278,7 @@ func (b *Channel) Write(datapacket IPacket) error {
 
 	if datapacket.IsPrepare() {
 		// 发送前的处理
-		befWriteHandle := chHandle.onWriteHandler
+		befWriteHandle := chHandle.onWrite
 		if befWriteHandle != nil {
 			befWriteHandle(ctx)
 			err := ctx.gerr
@@ -324,7 +324,7 @@ func (b *Channel) IsReadLoopContinued(err error) bool {
 	return b.GetChStatis().RevStatics.FailTimes < (int64)(b.conf.GetCloseRevFailTime())
 }
 
-func (b *Channel) GetChHandle() *ChannelHandle {
+func (b *Channel) GetChHandle() *ChHandle {
 	return b.ChannelHandle
 }
 
@@ -349,7 +349,7 @@ func (b *Channel) StopChannel(channel IChannel) {
 		return
 	}
 
-	ctx := NewChHandlerContext(channel, nil)
+	ctx := NewChHandleContext(channel, nil)
 	handle := channel.GetChHandle()
 	defer func() {
 		rec := recover()
@@ -362,7 +362,7 @@ func (b *Channel) StopChannel(channel IChannel) {
 			}
 		} else {
 			// 执行关闭后的方法
-			closeFunc := handle.onInActiveHandler
+			closeFunc := handle.onInActive
 			if closeFunc != nil {
 				closeFunc(ctx)
 			}
@@ -384,7 +384,7 @@ func (b *Channel) StopChannel(channel IChannel) {
 // StartReadLoop 启动循环读取，读取到数据包后，放入#ReadQueue中，等待处理
 func (b *Channel) startReadLoop(channel IChannel) {
 	chId := b.GetId()
-	ctx := NewChHandlerContext(channel, nil)
+	ctx := NewChHandleContext(channel, nil)
 	defer func() {
 		rec := recover()
 		if rec != nil {
@@ -421,16 +421,16 @@ func (b *Channel) startReadLoop(channel IChannel) {
 					readPool.Cache(rev)
 				} else {
 					// 否则默认直接处理
-					context := NewChHandlerContext(channel, rev)
-					channel.GetChHandle().onInnerReadHandler(context)
+					context := NewChHandleContext(channel, rev)
+					channel.GetChHandle().onInnerRead(context)
 				}
 			}}
 	}
 }
 
-func HandleOnActive(ctx IChHandlerContext) {
+func HandleOnActive(ctx IChHandleContext) {
 	channel := ctx.GetChannel()
-	activeFunc := channel.GetChHandle().GetOnActiveHandler()
+	activeFunc := channel.GetChHandle().GetOnActive()
 	if activeFunc != nil {
 		activeFunc(ctx)
 		gerr := ctx.GetError()

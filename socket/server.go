@@ -32,7 +32,7 @@ type ServerListener struct {
 	ChannelPool *hashmap.Map
 }
 
-func NewServerListener(parent interface{}, serverConf IServerConf, chHandle gch.IChannelHandle) *ServerListener {
+func NewServerListener(parent interface{}, serverConf IServerConf, chHandle gch.IChHandle) *ServerListener {
 	if chHandle == nil {
 		errMsg := "chHandle is nil."
 		logx.Panic(errMsg)
@@ -199,9 +199,9 @@ func upgradeWs(serverStrap *ServerListener, writer http.ResponseWriter, req *htt
 	}
 	addHttpRequest(serverStrap, req)
 
-	chHandle := serverStrap.GetChHandle().(*gch.ChannelHandle)
+	chHandle := serverStrap.GetChHandle().(*gch.ChHandle)
 	// OnStopHandle重新包装，以便释放资源
-	chHandle.SetOnInActiveHandler(ConverOnInActiveHandler(serverStrap.GetChannelPool(), chHandle.GetOnInActiveHandler()))
+	chHandle.SetOnInActive(ConverOnInActiveHandler(serverStrap.GetChannelPool(), chHandle.GetOnInActive()))
 	// 复制新的handle
 	// chHandle = gch.CopyChannelHandle(chHandle)
 	wsCh := tcpx.NewWsChannel(serverStrap, conn, serverConf, chHandle, params, true)
@@ -226,8 +226,8 @@ func getHttpServer(serverStrap *ServerListener) *http.Server {
 }
 
 // ConverOnInActiveHandle 转化OnStopHandle方法
-func ConverOnInActiveHandler(channels *hashmap.Map, onInActiveHandler gch.ChHandler) func(ctx gch.IChHandlerContext) {
-	return func(ctx gch.IChHandlerContext) {
+func ConverOnInActiveHandler(channels *hashmap.Map, onInActiveHandler gch.ChHandleFunc) func(ctx gch.IChHandleContext) {
+	return func(ctx gch.IChHandleContext) {
 		// 释放现有资源
 		chId := ctx.GetChannel().GetId()
 		channels.Remove(chId)
@@ -270,9 +270,9 @@ func listenKcp(serverStrap *ServerListener) error {
 				logx.Error("accept kcpconn error:", nil)
 				panic(err)
 			}
-			chHandle := serverStrap.GetChHandle().(*gch.ChannelHandle)
+			chHandle := serverStrap.GetChHandle().(*gch.ChHandle)
 			// OnStopHandle重新包装，以便释放资源
-			chHandle.SetOnInActiveHandler(ConverOnInActiveHandler(kcpChannels, chHandle.GetOnInActiveHandler()))
+			chHandle.SetOnInActive(ConverOnInActiveHandler(kcpChannels, chHandle.GetOnInActive()))
 			// 复制新的handle
 			// chHandle = gch.CopyChannelHandle(chHandle)
 			kcpCh := kcpx.NewKcpChannel(serverStrap, kcpConn, kcpServerConf, chHandle, true)

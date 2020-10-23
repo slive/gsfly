@@ -85,7 +85,7 @@ func handelReadQueue(queue *ReadQueue) {
 		case packet, isOpened := <-queue.readChan:
 			if packet != nil {
 				channel := packet.GetChannel()
-				context := NewChHandlerContext(channel, packet)
+				context := NewChHandleContext(channel, packet)
 				func() {
 					handle := channel.GetChHandle()
 					// 有错误可以继续执行
@@ -100,7 +100,7 @@ func handelReadQueue(queue *ReadQueue) {
 							}
 						}
 					}()
-					handler := handle.GetOnReadHandler()
+					handler := handle.GetOnRead()
 					handler(context)
 				}()
 
