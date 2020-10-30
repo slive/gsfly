@@ -29,10 +29,10 @@ type ClientConn struct {
 	Channel gch.IChannel
 }
 
-func NewClientConn(parent interface{}, clientConf IClientConf, handle gch.IChHandle, params ...interface{}) *ClientConn {
+func NewClientConn(parent interface{}, clientConf IClientConf, handle gch.IChHandle, params map[string]interface{}) *ClientConn {
 	b := &ClientConn{}
 	b.Conf = clientConf
-	b.Socket = *NewSocketConn(parent, handle, params...)
+	b.Socket = *NewSocketConn(parent, handle, params)
 	return b
 }
 
@@ -98,11 +98,7 @@ func dialWs(clientStrap *ClientConn) error {
 }
 
 func getWsParams(clientStrap *ClientConn) map[string]interface{} {
-	params := clientStrap.GetParams()
-	if len(params) > 0 {
-		return params[0].(map[string]interface{})
-	}
-	return nil
+	return clientStrap.GetParams()
 }
 
 func dialKcp(clientStrap *ClientConn) error {

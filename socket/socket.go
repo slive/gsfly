@@ -22,7 +22,7 @@ type ISocket interface {
 
 	GetChHandle() gch.IChHandle
 
-	GetParams() []interface{}
+	GetParams() map[string]interface{}
 }
 
 type Socket struct {
@@ -33,10 +33,10 @@ type Socket struct {
 	Closed        bool
 	channelHandle gch.IChHandle
 	Exit          chan bool
-	params        []interface{}
+	params        map[string] interface{}
 }
 
-func NewSocketConn(parent interface{}, handle gch.IChHandle, params ...interface{}) *Socket {
+func NewSocketConn(parent interface{}, handle gch.IChHandle, params map[string] interface{}) *Socket {
 	b := &Socket{
 		Closed:        true,
 		Exit:          make(chan bool, 1),
@@ -55,6 +55,6 @@ func (socketConn *Socket) GetChHandle() gch.IChHandle {
 	return socketConn.channelHandle
 }
 
-func (socketConn *Socket) GetParams() []interface{} {
+func (socketConn *Socket) GetParams() map[string]interface{} {
 	return socketConn.params
 }
