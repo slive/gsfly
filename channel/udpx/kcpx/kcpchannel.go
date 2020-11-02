@@ -14,6 +14,7 @@ import (
 	"time"
 )
 
+// KcpChannel
 type KcpChannel struct {
 	gch.Channel
 	Conn             *kcp.UDPSession
@@ -21,6 +22,7 @@ type KcpChannel struct {
 	onKcpReadHandler gch.ChHandleFunc
 }
 
+// NewKcpChannel 创建KcpChannel
 func NewKcpChannel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChannelConf, chHandle *gch.ChHandle, server bool) *KcpChannel {
 	ch := &KcpChannel{Conn: kcpConn}
 	ch.Channel = *gch.NewDefChannel(parent, chConf, chHandle, server)

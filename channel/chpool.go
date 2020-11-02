@@ -40,7 +40,7 @@ func NewReadPool(maxReadPoolSize int, maxReadQueueSize int) *ReadPool {
 	}
 	go func() {
 		n := make(chan os.Signal, 1)
-		signal.Notify(n, os.Interrupt, os.Kill)
+		signal.Notify(n)
 		select {
 		case s := <-n:
 			// 结束时释放所有chan
@@ -61,7 +61,7 @@ func (p *ReadPool) Cache(pack IPacket) {
 	queue.readChan <- pack
 }
 
-// fetchReadQueue 获取ReadQueue， 如果没有则创建
+// fetchReadQueue 获取ReadQueue，如果没有则创建
 func (p *ReadPool) fetchReadQueue(key int) *ReadQueue {
 	// 加锁避免获取出现问题
 	p.mut.Lock()
@@ -79,6 +79,7 @@ func (p *ReadPool) fetchReadQueue(key int) *ReadQueue {
 
 }
 
+// handelReadQueue 处理读队列
 func handelReadQueue(queue *ReadQueue) {
 	for {
 		select {
@@ -100,6 +101,7 @@ func handelReadQueue(queue *ReadQueue) {
 							}
 						}
 					}()
+					// 交给handle处理
 					handler := handle.GetOnRead()
 					handler(context)
 				}()
@@ -118,6 +120,7 @@ func (p *ReadPool) get(key int) *ReadQueue {
 	return p.readQueue[key]
 }
 
+// Close 关闭
 func (p *ReadPool) Close() {
 	p.mut.Lock()
 	defer p.mut.Unlock()
@@ -127,6 +130,7 @@ func (p *ReadPool) Close() {
 	}
 }
 
+// hashCode 哈希计算
 func hashCode(s string) int {
 	v := int(crc32.ChecksumIEEE([]byte(s)))
 	if v >= 0 {

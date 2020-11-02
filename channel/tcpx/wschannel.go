@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// WsChannel
 type WsChannel struct {
 	gch.Channel
 	Conn   *gws.Conn
@@ -29,6 +30,7 @@ func NewWsSimpleChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChanne
 	return NewWsChannel(parent, wsConn, chConf, chHandle, nil, server)
 }
 
+// NewWsChannel 创建WsChannel
 func NewWsChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChannelConf, chHandle *gch.ChHandle, params map[string]interface{}, server bool) *WsChannel {
 	ch := newWsChannel(parent, wsConn, chConf, chHandle, params, server)
 	wsConn.SetReadLimit(int64(chConf.GetReadBufSize()))
@@ -38,7 +40,7 @@ func NewWsChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChannelConf,
 
 func (wsCh *WsChannel) Start() error {
 	err := wsCh.StartChannel(wsCh)
-	if err == nil{
+	if err == nil {
 		gch.HandleOnActive(gch.NewChHandleContext(wsCh, nil))
 	}
 	return err
@@ -181,13 +183,18 @@ func (wsCh *WsChannel) GetParams() map[string]interface{} {
 	return wsCh.params
 }
 
+// NewPacket 创建ws对应的packet默认TextMessage 文本类型
 func (wsCh *WsChannel) NewPacket() gch.IPacket {
 	w := &WsPacket{}
 	w.Packet = *gch.NewPacket(wsCh, gch.NETWORK_WS)
+	// 默认TextMessage 文本类型
+	w.MsgType = gws.TextMessage
 	return w
 }
 
 type WsPacket struct {
 	gch.Packet
+
+	// ws类型
 	MsgType int
 }

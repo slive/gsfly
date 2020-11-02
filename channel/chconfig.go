@@ -1,4 +1,5 @@
 /*
+ * channel 相关配置
  * Author:slive
  * DATE:2020/7/24
  */
@@ -11,6 +12,40 @@ import (
 	"time"
 )
 
+const (
+	READ_TIMEOUT       = 20
+	READ_BUFSIZE       = 128 * 1024
+	WRITE_TIMEOUT      = 15
+	WRITE_BUFSIZE      = 128 * 1024
+	CLOSE_REV_FAILTIME = 3
+)
+
+// IChannelConf channel配置接口
+type IChannelConf interface {
+	// GetReadTimeout 获取读超时时间，单位为s
+	GetReadTimeout() time.Duration
+
+	// GetReadBufSize 获取读buffer大小，单位是字节(byte)
+	GetReadBufSize() int
+
+	// GetWriteTimeout 获取写超时时间，单位为s
+	GetWriteTimeout() time.Duration
+
+	// GetWriteBufSize 获取写buffer大小，单位是字节(byte)
+	GetWriteBufSize() int
+
+	// GetCloseRevFailTime 多少次读取失败后，关闭channel
+	GetCloseRevFailTime() int
+
+	// GetExtConfs 扩展配置
+	GetExtConfs() map[string]interface{}
+
+	// GetNetwork 获取通道协议类型
+	// @see Network
+	GetNetwork() Network
+}
+
+// ChannelConf channel配置接口
 type ChannelConf struct {
 	// ReadTimeout 读超时时间间隔，单位s
 	ReadTimeout time.Duration
@@ -30,32 +65,16 @@ type ChannelConf struct {
 	// 使用的协议
 	Network Network
 
+	// 扩展配置
 	ExtConfs map[string]interface{}
 }
 
-type IChannelConf interface {
-	GetReadTimeout() time.Duration
-	GetReadBufSize() int
-	GetWriteTimeout() time.Duration
-	GetWriteBufSize() int
-	GetCloseRevFailTime() int
-
-	// GetExtConfs 扩展配置
-	GetExtConfs() map[string]interface{}
-
-	// GetNetwork 获取通道协议类型
-	// @see Network
-	GetNetwork() Network
-}
-
-const (
-	READ_TIMEOUT       = 20
-	READ_BUFSIZE       = 128 * 1024
-	WRITE_TIMEOUT      = 15
-	WRITE_BUFSIZE      = 128 * 1024
-	CLOSE_REV_FAILTIME = 3
-)
-
+// NewChannelConf 创建配置
+// readTimeout 读超时时间间隔，单位s
+// readBufSize 读buffer大小，单位是字节(byte)
+// writeTimeout 写超时时间间隔，单位s
+// writeBufSize 写buffer大小，单位是字节(byte)
+// network 使用的协议
 func NewChannelConf(readTimeout time.Duration, readBufSize int, writeTimeout time.Duration,
 	writeBufSize int, network Network) *ChannelConf {
 	b := &ChannelConf{
@@ -69,10 +88,13 @@ func NewChannelConf(readTimeout time.Duration, readBufSize int, writeTimeout tim
 	return b
 }
 
+// NewDefChannelConf 创建默认channelconf
+// network 使用的协议
 func NewDefChannelConf(network Network) *ChannelConf {
 	return NewChannelConf(READ_TIMEOUT, READ_BUFSIZE, WRITE_TIMEOUT, WRITE_BUFSIZE, network)
 }
 
+// GetReadTimeout 获取读超时时间，单位为s
 func (bc *ChannelConf) GetReadTimeout() time.Duration {
 	timeout := bc.ReadTimeout
 	if timeout <= 0 {
@@ -81,6 +103,7 @@ func (bc *ChannelConf) GetReadTimeout() time.Duration {
 	return timeout
 }
 
+// GetReadBufSize 获取读buffer大小，单位是字节(byte)
 func (bc *ChannelConf) GetReadBufSize() int {
 	ret := bc.ReadBufSize
 	if ret <= 0 {
@@ -89,14 +112,7 @@ func (bc *ChannelConf) GetReadBufSize() int {
 	return ret
 }
 
-func (bc *ChannelConf) GetCloseRevFailTime() int {
-	ret := bc.CloseRevFailTime
-	if ret <= 0 {
-		ret = CLOSE_REV_FAILTIME
-	}
-	return ret
-}
-
+// GetWriteTimeout 获取写超时时间，单位为s
 func (bc *ChannelConf) GetWriteTimeout() time.Duration {
 	timeout := bc.WriteTimeout
 	if timeout <= 0 {
@@ -105,10 +121,20 @@ func (bc *ChannelConf) GetWriteTimeout() time.Duration {
 	return timeout
 }
 
+// GetWriteBufSize 获取写buffer大小，单位是字节(byte)
 func (bc *ChannelConf) GetWriteBufSize() int {
 	ret := bc.WriteBufSize
 	if ret <= 0 {
 		ret = WRITE_BUFSIZE
+	}
+	return ret
+}
+
+// CloseRevFailTime 最大接收多少次失败后关闭
+func (bc *ChannelConf) GetCloseRevFailTime() int {
+	ret := bc.CloseRevFailTime
+	if ret <= 0 {
+		ret = CLOSE_REV_FAILTIME
 	}
 	return ret
 }
@@ -123,11 +149,7 @@ func (bc *ChannelConf) GetExtConfs() map[string]interface{} {
 	return bc.ExtConfs
 }
 
-type AddrConf struct {
-	Ip   string
-	Port int
-}
-
+// IAddrConf
 type IAddrConf interface {
 	// GetIp 获取ip或者url
 	GetIp() string
@@ -139,11 +161,19 @@ type IAddrConf interface {
 	GetAddrStr() string
 }
 
+// AddrConf
+type AddrConf struct {
+	Ip   string
+	Port int
+}
+
+// NewAddrConf 地址配置
 func NewAddrConf(ip string, port int) *AddrConf {
 	b := &AddrConf{Ip: ip, Port: port}
 	return b
 }
 
+// GetIp 获取ip
 func (addr *AddrConf) GetIp() string {
 	return addr.Ip
 }
@@ -152,6 +182,7 @@ func (addr *AddrConf) GetPort() int {
 	return addr.Port
 }
 
+// GetAddrStr 获取地址字符串
 func (addr *AddrConf) GetAddrStr() string {
 	if addr.Port <= 0 {
 		return addr.Ip
@@ -159,14 +190,19 @@ func (addr *AddrConf) GetAddrStr() string {
 	return addr.Ip + fmt.Sprintf(":%v", addr.Port)
 }
 
+// ReadPoolConf 读资源池配置
 type ReadPoolConf struct {
 	MaxReadPoolSize  int
 	MaxReadQueueSize int
 }
 
+// 每个队列最大读缓冲数
 const MAX_READ_QUEUE_SIZE = 100
+
+// 对应每个cpu的读线程池最大数
 const MAX_READ_POOL_EVERY_CPU = 100
 
+// NewReadPoolConf 初始化资源池
 func NewReadPoolConf(maxReadPoolSize, maxReadQueueSize int) *ReadPoolConf {
 	r := &ReadPoolConf{
 		MaxReadQueueSize: maxReadQueueSize,
@@ -195,6 +231,7 @@ var (
 	readPoolConf = NewDefReadPoolConf()
 )
 
+// NewDefReadPoolConf 创建默认的读线程池配置
 func NewDefReadPoolConf() *ReadPoolConf {
 	return &ReadPoolConf{
 		MaxReadQueueSize: MAX_READ_QUEUE_SIZE,
@@ -204,6 +241,7 @@ func NewDefReadPoolConf() *ReadPoolConf {
 
 var Global_Conf DefaultConf
 
+// LoadDefaultConf 加载默认配置
 func LoadDefaultConf() {
 	Global_Conf = DefaultConf{
 		ChannelConf:  channelConf,

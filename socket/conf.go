@@ -1,4 +1,5 @@
 /*
+ * 各种协议相关的配置
  * Author:slive
  * DATE:2020/7/30
  */
@@ -10,15 +11,19 @@ import (
 	"net/url"
 )
 
+// IServerConf 服务端的配置接口
 type IServerConf interface {
 	channel.IAddrConf
 	channel.IChannelConf
 	common.IId
 	common.IParent
+	// GetMaxChannelSize 获取可接受最大channel数
 	GetMaxChannelSize() int
+	// SetMaxChannelSize 设置可接受最大channel数
 	SetMaxChannelSize(maxChannelSize int)
 }
 
+// ServerConf 服务配置
 type ServerConf struct {
 	channel.AddrConf
 	channel.ChannelConf
@@ -27,6 +32,7 @@ type ServerConf struct {
 	MaxChannelSize int
 }
 
+// NewServerConf 创建服务端配置
 func NewServerConf(ip string, port int, protocol channel.Network) *ServerConf {
 	s := &ServerConf{}
 	s.AddrConf = *channel.NewAddrConf(ip, port)
@@ -35,24 +41,29 @@ func NewServerConf(ip string, port int, protocol channel.Network) *ServerConf {
 	return s
 }
 
+// SetMaxChannelSize 设置可接受最大channel数
 func (bs *ServerConf) SetMaxChannelSize(maxChannelSize int) {
 	bs.MaxChannelSize = maxChannelSize
 }
 
+// GetMaxChannelSize 获取可接受最大channel数
 func (bs *ServerConf) GetMaxChannelSize() int {
 	return bs.MaxChannelSize
 }
 
+// IClientConf 客户端配置接口
 type IClientConf interface {
 	channel.IAddrConf
 	channel.IChannelConf
 }
 
+// ClientConf 客户端配置
 type ClientConf struct {
 	channel.AddrConf
 	channel.ChannelConf
 }
 
+// NewClientConf 创建客户端配置
 func NewClientConf(ip string, port int, protocol channel.Network) *ClientConf {
 	s := &ClientConf{}
 	s.AddrConf = *channel.NewAddrConf(ip, port)

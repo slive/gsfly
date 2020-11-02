@@ -1,4 +1,5 @@
 /*
+ * 客户端 connection
  * Author:slive
  * DATE:2020/9/21
  */
@@ -15,6 +16,7 @@ import (
 	"github.com/xtaci/kcp-go"
 )
 
+// IClientConn 客户端conn
 type IClientConn interface {
 	ISocket
 	GetConf() IClientConf
@@ -29,10 +31,15 @@ type ClientConn struct {
 	Channel gch.IChannel
 }
 
-func NewClientConn(parent interface{}, clientConf IClientConf, handle gch.IChHandle, params map[string]interface{}) *ClientConn {
+// NewClientConn 创建客户端socketconn
+// parent 父类
+// clientConf 客户端配置
+// chHandle handle
+// inputParams 所需参数
+func NewClientConn(parent interface{}, clientConf IClientConf, handle gch.IChHandle, inputParams map[string]interface{}) *ClientConn {
 	b := &ClientConn{}
 	b.Conf = clientConf
-	b.Socket = *NewSocketConn(parent, handle, params)
+	b.Socket = *NewSocketConn(parent, handle, inputParams)
 	return b
 }
 
@@ -61,6 +68,7 @@ func (clientConn *ClientConn) Dial() error {
 	return errors.New("start clentstrap error.")
 }
 
+// dialWs 拨号实现ws
 func dialWs(clientStrap *ClientConn) error {
 	wsClientConf := clientStrap.GetConf().(IWsClientConf)
 	handle := clientStrap.GetChHandle().(*gch.ChHandle)
@@ -88,6 +96,7 @@ func dialWs(clientStrap *ClientConn) error {
 
 	// TODO 处理resonse？
 	logx.Info("ws response:", response)
+	// 创建channel
 	wsCh := tcpx.NewWsChannel(clientStrap, conn, wsClientConf, handle, params, false)
 	err = wsCh.Start()
 	if err == nil {
@@ -98,7 +107,7 @@ func dialWs(clientStrap *ClientConn) error {
 }
 
 func getWsParams(clientStrap *ClientConn) map[string]interface{} {
-	return clientStrap.GetParams()
+	return clientStrap.GetInputParams()
 }
 
 func dialKcp(clientStrap *ClientConn) error {

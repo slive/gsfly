@@ -1,5 +1,5 @@
 /*
- * 通信通道，主要是负责通信通道的收发+事件的处理
+ * 通用的通信通道，主要是负责通信通道的收发+事件的处理
  * Author:slive
  * DATE:2020/7/17
  */
@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	// 错误相关的定义
 	ERR_READ     = "ERR_READ"
 	ERR_MSG      = "ERR_MSG"
 	ERR_WRITE    = "ERR_WRITE"
@@ -26,16 +27,16 @@ const (
 // IChannel 通信通道接口
 type IChannel interface {
 
-	// 启动通信通道
+	// Start 启动通信通道
 	Start() error
 
-	// 停止通道
+	// Stop 停止通道
 	Stop()
 
-	// 通过conn写
+	// WriteByConn 通过conn写
 	WriteByConn(packet IPacket) error
 
-	// 读出错是是否继续
+	// IsReadLoopContinued 读出错是是否继续
 	IsReadLoopContinued(err error) bool
 
 	// NewPacket 创建收发包
@@ -56,19 +57,25 @@ type IChannel interface {
 	// GetChStatis 获取通道统计相关
 	GetChStatis() *ChannelStatis
 
+	// LocalAddr 本地地址
 	LocalAddr() net.Addr
 
+	// RemoteAddr 远程地址
 	RemoteAddr() net.Addr
 
+	// GetConn 获取原始的conn
 	GetConn() net.Conn
 
+	// GetChHandle 获取handle相关类
 	GetChHandle() *ChHandle
 
+	// IsActived 是否是激活状态
 	IsActived() bool
 
+	// SetActived 设置是否激活
 	SetActived(register bool)
 
-	// 是否是服务端产生的channel
+	// IsServer 是否是服务端产生的channel
 	IsServer() bool
 
 	common.IAttact
@@ -89,8 +96,7 @@ type Channel struct {
 	closed        bool
 	closeExit     chan bool
 	actived       bool
-
-	server bool
+	server        bool
 
 	// 父接口
 	common.Parent
@@ -101,8 +107,10 @@ type Channel struct {
 // 初始化读协程池，全局配置
 var def_readPoolConf *ReadPoolConf
 
+// 默认读线程池
 var def_readPool *ReadPool
 
+// 默认channel配置
 var def_channel_Conf IChannelConf
 
 func initDefChannelConfs() {
@@ -119,19 +127,23 @@ func initDefChannelConfs() {
 	logx.Info("init default channelConf:", def_channel_Conf)
 }
 
-func InitChannelConfs(rpConf *ReadPoolConf, chConf *ChannelConf) {
-	if rpConf == nil {
+// InitChannelConfs 初始化channel相关配置，如果该方法未调用，则调用默认初始化方法
+// readPoolConf 读线程池配置
+// chConf channel相关配置
+func InitChannelConfs(readPoolConf *ReadPoolConf, chConf *ChannelConf) {
+	if readPoolConf == nil {
 		err := "ReadPoolConf is nil"
 		logx.Panic(err)
 		panic(err)
 	}
+
 	if chConf == nil {
 		err := "ChannelConf is nil"
 		logx.Panic(err)
 		panic(err)
 	}
 
-	def_readPool = NewReadPool(rpConf.MaxReadPoolSize, rpConf.MaxReadQueueSize)
+	def_readPool = NewReadPool(readPoolConf.MaxReadPoolSize, readPoolConf.MaxReadQueueSize)
 	def_channel_Conf = chConf
 }
 
@@ -144,7 +156,7 @@ func NewDefChannel(parent interface{}, chConf IChannelConf, chHandle *ChHandle, 
 }
 
 // NewSimpleChannel 创建默认基础通信通道
-// msghandle 消息处理
+// onReadHandler 消息处理方法
 func NewSimpleChannel(onReadHandler ChHandleFunc) *Channel {
 	// 全局初始化一次
 	chHandle := NewDefChHandle(onReadHandler)
@@ -156,6 +168,7 @@ func NewSimpleChannel(onReadHandler ChHandleFunc) *Channel {
 // chConf channel配置，可为nil，如果为nil，则选用默认
 // readPool 读取消息池，可为nil，如果为nil，则选用默认
 // chHandle 处理handle，包括读写，注册等处理，不可为空
+// server 是否为服务端创建
 func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chHandle *ChHandle, server bool) *Channel {
 	if chHandle == nil {
 		errMsg := "ChHandle is nil"
@@ -264,7 +277,7 @@ func (b *Channel) Write(datapacket IPacket) error {
 	defer func() {
 		rec := recover()
 		if rec != nil {
-			logx.Error("write ws error, chId:%v, error:%v", b.GetId(), rec)
+			logx.Errorf("write ws error, chId:%v, error:%v", b.GetId(), rec)
 			err, ok := rec.(error)
 			if !ok {
 				err = errors.New(fmt.Sprintf("%v", rec))
@@ -278,12 +291,12 @@ func (b *Channel) Write(datapacket IPacket) error {
 
 	if datapacket.IsPrepare() {
 		// 发送前的处理
-		befWriteHandle := chHandle.onWrite
-		if befWriteHandle != nil {
-			befWriteHandle(ctx)
+		onWriteHandle := chHandle.onWrite
+		if onWriteHandle != nil {
+			onWriteHandle(ctx)
 			err := ctx.gerr
 			if err != nil {
-				logx.Error("befWriteHandle error:", err)
+				logx.Error("onWriteHandle error:", err)
 				return err
 			}
 		}

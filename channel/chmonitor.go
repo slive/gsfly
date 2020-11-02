@@ -23,6 +23,7 @@ func newStatisUnit() *StatisUnit {
 	return &StatisUnit{Time: time.Now(), SpendTime: 0, IsOk: false, ByteNum: 0}
 }
 
+// Statis 统计相关收发包
 type Statis struct {
 	// 总字节数
 	TotalByteNum int64 `json:"totalByteNum"`
@@ -62,6 +63,7 @@ type ChannelStatis struct {
 	HandleMsgStatics *Statis `json:"handleMsg"`
 }
 
+// NewChStatis 新建channel统计
 func NewChStatis() *ChannelStatis {
 	return &ChannelStatis{
 		SendStatics:      newStatis(),
@@ -85,6 +87,7 @@ func copyStaticunit(current *StatisUnit, last *StatisUnit) {
 	last.ByteNum = current.ByteNum
 }
 
+// RevStatisFail 度统计失败
 func RevStatisFail(channel IChannel, initTime time.Time) {
 	statis := channel.GetChStatis().RevStatics
 	copyStaticunit(statis.Current, statis.Last)
@@ -97,7 +100,7 @@ func RevStatisFail(channel IChannel, initTime time.Time) {
 	logx.Infof("chId:%v, rev falil static:%v", channel.GetId(), statis.ToString())
 }
 
-// 读取统计
+// RevStatis 读取统计
 func RevStatis(packet IPacket, isOk bool) {
 	channel := packet.GetChannel()
 	statis := channel.GetChStatis().RevStatics
@@ -106,6 +109,7 @@ func RevStatis(packet IPacket, isOk bool) {
 	logx.Infof("chId:%v, rev static:%v", channel.GetId(), statis.ToString())
 }
 
+// handleStatis 通用的统计
 func handleStatis(statis *Statis, packet IPacket, isOk bool) {
 	copyStaticunit(statis.Current, statis.Last)
 	dataLen := int64(len(packet.GetData()))
@@ -125,7 +129,7 @@ func handleStatis(statis *Statis, packet IPacket, isOk bool) {
 	}
 }
 
-// 写统计
+// SendStatis 写统计
 func SendStatis(packet IPacket, isOk bool) {
 	channel := packet.GetChannel()
 	statis := channel.GetChStatis().SendStatics
@@ -134,7 +138,7 @@ func SendStatis(packet IPacket, isOk bool) {
 	logx.Infof("chId:%v, write static:%v", channel.GetId(), statis.ToString())
 }
 
-// 写统计
+// HandleMsgStatis 读统计
 func HandleMsgStatis(packet IPacket, isOk bool) {
 	channel := packet.GetChannel()
 	statis := channel.GetChStatis().HandleMsgStatics

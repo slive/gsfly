@@ -66,11 +66,13 @@ type IPacket interface {
 	// SetData 设置收发数据
 	SetData(data []byte)
 
+	// GetInitTime 初始化时间
 	GetInitTime() time.Time
 
 	common.IAttact
 }
 
+// Packet channel通用packet
 type Packet struct {
 	channel  IChannel
 	network  Network
@@ -79,42 +81,53 @@ type Packet struct {
 	common.Attact
 }
 
+// GetChannel 获取对应的channel
 func (b *Packet) GetChannel() IChannel {
 	return b.channel
 }
 
+// Release 释放资源
 func (b *Packet) Release() {
 	b.data = nil
 }
 
+// IsRelease 是否以释放
 func (b *Packet) IsRelease() bool {
 	return b.data == nil
 }
 
+// GetNetwork 获取网络协议类型
 func (b *Packet) GetNetwork() Network {
 	return b.network
 }
 
+// SetNetwork 设置网络协议类型
 func (b *Packet) SetNetwork(ptype Network) {
 	b.network = ptype
 }
 
+// GetData 获取收发数据
 func (b *Packet) GetData() []byte {
 	return b.data
 }
 
+// SetData 设置收发数据
 func (b *Packet) SetData(data []byte) {
 	b.data = data
 }
 
+// IsPrepare 数据是否已准备好
 func (b *Packet) IsPrepare() bool {
 	return len(b.data) > 0
 }
 
+// GetInitTime 获取初始化的时间
 func (b *Packet) GetInitTime() time.Time {
 	return b.initTime
 }
 
+// NewPacket 根据不同类型创建不同的packet
+// network 网络类型
 func NewPacket(channel IChannel, network Network) *Packet {
 	b := &Packet{
 		channel:  channel,

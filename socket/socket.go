@@ -1,4 +1,5 @@
 /*
+ * 通用的socket处理类
  * Author:slive
  * DATE:2020/7/31
  */
@@ -9,6 +10,7 @@ import (
 	cmm "github.com/Slive/gsfly/common"
 )
 
+// ISocket socket接口
 type ISocket interface {
 	cmm.IParent
 
@@ -22,9 +24,11 @@ type ISocket interface {
 
 	GetChHandle() gch.IChHandle
 
-	GetParams() map[string]interface{}
+	// GetInputParams 建立socketconn所需的参数
+	GetInputParams() map[string]interface{}
 }
 
+// Socket socketconn通信
 type Socket struct {
 	// 父接口
 	cmm.Parent
@@ -33,17 +37,21 @@ type Socket struct {
 	Closed        bool
 	channelHandle gch.IChHandle
 	Exit          chan bool
-	params        map[string] interface{}
+	params        map[string]interface{}
 }
 
-func NewSocketConn(parent interface{}, handle gch.IChHandle, params map[string] interface{}) *Socket {
+// NewSocketConn 创建socketconn
+// parent 父类
+// chHandle handle
+// inputParams 所需参数
+func NewSocketConn(parent interface{}, chHandle gch.IChHandle, inputParams map[string]interface{}) *Socket {
 	b := &Socket{
 		Closed:        true,
 		Exit:          make(chan bool, 1),
-		channelHandle: handle}
+		channelHandle: chHandle}
 	b.Parent = *cmm.NewParent(parent)
 	b.Attact = *cmm.NewAttact()
-	b.params = params
+	b.params = inputParams
 	return b
 }
 
@@ -55,6 +63,7 @@ func (socketConn *Socket) GetChHandle() gch.IChHandle {
 	return socketConn.channelHandle
 }
 
-func (socketConn *Socket) GetParams() map[string]interface{} {
+// GetInputParams 建立socketconn所需的参数
+func (socketConn *Socket) GetInputParams() map[string]interface{} {
 	return socketConn.params
 }

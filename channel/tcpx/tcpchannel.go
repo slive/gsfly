@@ -1,4 +1,6 @@
 /*
+ * 基于channel实现的tcpchannel功能，因tcp是协议层，需用户根据各自需要定制上层协议。
+ *
  * Author:slive
  * DATE:2020/7/17
  */

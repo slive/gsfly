@@ -22,6 +22,7 @@ import (
 	"time"
 )
 
+// IServerListener 服务监听接口
 type IServerListener interface {
 	ISocket
 	GetConf() IServerConf
@@ -33,6 +34,7 @@ type IServerListener interface {
 	SetHttpServer(httpServer *http.Server)
 }
 
+// ServerListener 服务监听
 type ServerListener struct {
 	Socket
 	Conf        IServerConf
@@ -40,6 +42,10 @@ type ServerListener struct {
 	httpServer  *http.Server
 }
 
+// NewServerListener 创建服务监听器
+// parent 父类
+// serverConf 服务端配置
+// chHandle handle
 func NewServerListener(parent interface{}, serverConf IServerConf, chHandle gch.IChHandle) *ServerListener {
 	if chHandle == nil {
 		errMsg := "chHandle is nil."
@@ -162,9 +168,9 @@ func listenWs(serverListener *ServerListener) error {
 			s := make(chan os.Signal, 1)
 			signal.Notify(s)
 			select {
-			case <-s:
+			case sg := <-s:
 				httpServer.Close()
-				logx.Info("listenAnServe close, id:", id)
+				logx.Infof("listenAnServe close, id:%v, signal:%v", id, sg)
 			}
 		}()
 
@@ -198,7 +204,7 @@ func (proxy *proxyHandler) ServeHTTP(writer http.ResponseWriter, req *http.Reque
 	uri := req.RequestURI
 	logx.Info("request:", uri)
 	conf := proxy.serverListener.GetConf().(IWsServerConf)
-	if strings.Contains(uri,conf.GetPath()) {
+	if strings.Contains(uri, conf.GetPath()) {
 		err := upgradeWs(proxy.serverListener, writer, req, proxy.upgrader)
 		if err != nil {
 			logx.Error("start ws error:", err)
@@ -228,7 +234,7 @@ func upgradeWs(serverListener IServerListener, writer http.ResponseWriter, req *
 	}
 
 	urlStr := req.URL.String()
-	logx.Infof("params:%v, url:%v", params, urlStr)
+	logx.Infof("form:%v, params:%v, url:%v", form, params, urlStr)
 	// upgrade处理
 	subPros := serverConf.GetSubProtocol()
 	header := req.Header
