@@ -15,6 +15,7 @@ import (
 	"github.com/emirpasic/gods/maps/hashmap"
 	"github.com/gorilla/websocket"
 	"github.com/xtaci/kcp-go"
+	"net"
 	http "net/http"
 	"os"
 	"os/signal"
@@ -26,20 +27,24 @@ import (
 type IServerListener interface {
 	ISocket
 	GetConf() IServerConf
-	GetChannelPool() *hashmap.Map
+	GetChannels() *hashmap.Map
 	Listen() error
 
 	// GetHttpServer 针对http
 	GetHttpServer() *http.Server
 	SetHttpServer(httpServer *http.Server)
+
+	// GetBasePath 监听基本path，符合该规则（有优先级控制）匹配的requestPath都可以进来
+	GetBasePath() string
 }
 
 // ServerListener 服务监听
 type ServerListener struct {
 	Socket
-	Conf        IServerConf
-	ChannelPool *hashmap.Map
-	httpServer  *http.Server
+	Conf       IServerConf
+	channels   *hashmap.Map
+	httpServer *http.Server
+	basePath   string
 }
 
 // NewServerListener 创建服务监听器
@@ -60,8 +65,8 @@ func NewServerListener(parent interface{}, serverConf IServerConf, chHandle gch.
 	}
 
 	b := &ServerListener{
-		Conf:        serverConf,
-		ChannelPool: hashmap.New(),
+		Conf:     serverConf,
+		channels: hashmap.New(),
 	}
 	b.Socket = *NewSocketConn(parent, chHandle, nil)
 	return b
@@ -81,15 +86,15 @@ func (listener *ServerListener) Close() {
 		logx.Info("start to stop listen, id:", id)
 		listener.Closed = true
 		listener.Exit <- true
-		acceptChannels := listener.GetChannelPool().Values()
+		acceptChannels := listener.GetChannels().Values()
 		for _, ch := range acceptChannels {
 			ch.(gch.IChannel).Stop()
 		}
 	}
 }
 
-func (listener *ServerListener) GetChannelPool() *hashmap.Map {
-	return listener.ChannelPool
+func (listener *ServerListener) GetChannels() *hashmap.Map {
+	return listener.channels
 }
 
 func (listener *ServerListener) GetConf() IServerConf {
@@ -103,6 +108,10 @@ func (listener *ServerListener) Listen() error {
 	case gch.NETWORK_WS:
 		return listenWs(listener)
 	case gch.NETWORK_KCP:
+		return listenKcp(listener)
+	case gch.NETWORK_TCP:
+		return listenTcp(listener)
+	case gch.NETWORK_HTTP:
 		return listenKcp(listener)
 	default:
 		logx.Info("unsupport network:", network)
@@ -174,14 +183,25 @@ func listenWs(serverListener *ServerListener) error {
 			}
 		}()
 
-		// ws处理事件
-		http.HandleFunc(wsServerConf.GetPath(), func(writer http.ResponseWriter, req *http.Request) {
-			logx.Info("requestWs:", req.URL)
-			err := upgradeWs(serverListener, writer, req, upgrader)
-			if err != nil {
-				logx.Error("start ws error:", err)
+		wsChildren := wsServerConf.GetListenConfs()
+		if wsChildren != nil {
+			for _, child := range wsChildren {
+				network := child.GetNetwork()
+				if len(network) <= 0 {
+					network = wsServerConf.GetNetwork()
+				}
+				if network == gch.NETWORK_WS {
+					// ws处理事件
+					http.HandleFunc(child.GetBasePath(), func(writer http.ResponseWriter, req *http.Request) {
+						logx.Info("requestWs:", req.URL)
+						err := upgradeWs(serverListener, writer, req, upgrader, child)
+						if err != nil {
+							logx.Error("start ws error:", err)
+						}
+					})
+				}
 			}
-		})
+		}
 	} else {
 		httpHandler := httpServer.Handler
 		httpServer.Handler = newProxyHandler(httpHandler, upgrader, serverListener)
@@ -204,20 +224,27 @@ func (proxy *proxyHandler) ServeHTTP(writer http.ResponseWriter, req *http.Reque
 	uri := req.RequestURI
 	logx.Info("request:", uri)
 	conf := proxy.serverListener.GetConf().(IWsServerConf)
-	if strings.Contains(uri, conf.GetPath()) {
-		err := upgradeWs(proxy.serverListener, writer, req, proxy.upgrader)
-		if err != nil {
-			logx.Error("start ws error:", err)
+	// TODO 模糊匹配?，优先级如何？
+	wsChildren := conf.GetListenConfs()
+	if wsChildren != nil {
+		for _, child := range wsChildren {
+			path := child.GetBasePath()
+			if strings.Contains(uri, path) {
+				err := upgradeWs(proxy.serverListener, writer, req, proxy.upgrader, child)
+				if err != nil {
+					logx.Error("start ws error:", err)
+				}
+				return
+			}
 		}
-		return
 	}
 
 	proxy.handler.ServeHTTP(writer, req)
 }
 
 // listenWs 启动ws处理
-func upgradeWs(serverListener IServerListener, writer http.ResponseWriter, req *http.Request, upgr websocket.Upgrader) error {
-	acceptChannels := serverListener.GetChannelPool()
+func upgradeWs(serverListener IServerListener, writer http.ResponseWriter, req *http.Request, upgr websocket.Upgrader, childConf IListenConf) error {
+	acceptChannels := serverListener.GetChannels()
 	serverConf := serverListener.GetConf().(IWsServerConf)
 	connLen := acceptChannels.Size()
 	maxAcceptSize := serverConf.GetMaxChannelSize()
@@ -236,14 +263,24 @@ func upgradeWs(serverListener IServerListener, writer http.ResponseWriter, req *
 	urlStr := req.URL.String()
 	logx.Infof("form:%v, params:%v, url:%v", form, params, urlStr)
 	// upgrade处理
-	subPros := serverConf.GetSubProtocol()
+	subPros := childConf.GetAttach(WS_SUBPROTOCOL_KEY)
 	header := req.Header
-	if subPros != nil && len(subPros) > 0 {
+	if subPros != nil {
 		// 设置subprotocol
-		for _, pro := range subPros {
-			header.Add("Sec-WebSocket-Protocol", pro)
-			logx.Info("set ws subprotocol:", pro)
+		pros, ok := subPros.(string)
+		if ok {
+			header.Add("Sec-WebSocket-Protocol", pros)
+			logx.Info("set ws subprotocol:", pros)
+		} else {
+			pros, ok := subPros.([]string)
+			if ok {
+				for _, pro := range pros {
+					header.Add("Sec-WebSocket-Protocol", pro)
+					logx.Info("set ws subprotocol:", pro)
+				}
+			}
 		}
+
 	}
 	conn, err := upgr.Upgrade(writer, req, header)
 	if err != nil {
@@ -254,10 +291,12 @@ func upgradeWs(serverListener IServerListener, writer http.ResponseWriter, req *
 
 	chHandle := serverListener.GetChHandle().(*gch.ChHandle)
 	// OnStopHandle重新包装，以便释放资源
-	chHandle.SetOnInActive(ConverOnInActiveHandler(serverListener.GetChannelPool(), chHandle.GetOnInActive()))
+	chHandle.SetOnInActive(ConverOnInActiveHandler(serverListener.GetChannels(), chHandle.GetOnInActive()))
 	// 复制新的handle
 	// chHandle = gch.CopyChannelHandle(chHandle)
 	wsCh := tcpx.NewWsChannel(serverListener, conn, serverConf, chHandle, params, true)
+	// 设置为请求过来的path
+	wsCh.SetRelativePath(req.URL.Path)
 	err = wsCh.Start()
 	if err == nil {
 		// TODO 线程安全？
@@ -276,6 +315,10 @@ func (serverListener *ServerListener) GetHttpServer() *http.Server {
 
 func (serverListener *ServerListener) SetHttpServer(httpServer *http.Server) {
 	serverListener.httpServer = httpServer
+}
+
+func (serverListener *ServerListener) GetBasePath() string {
+	return serverListener.basePath
 }
 
 // ConverOnInActiveHandle 转化OnStopHandle方法
@@ -315,7 +358,7 @@ func listenKcp(serverListener *ServerListener) error {
 		}
 	}()
 
-	kcpChannels := serverListener.GetChannelPool()
+	kcpChannels := serverListener.GetChannels()
 	go func() {
 		for {
 			kcpConn, err := list.AcceptKCP()
@@ -332,6 +375,60 @@ func listenKcp(serverListener *ServerListener) error {
 			err = kcpCh.Start()
 			if err == nil {
 				kcpChannels.Put(kcpCh.GetId(), kcpCh)
+			}
+		}
+	}()
+
+	if err == nil {
+		serverListener.Closed = false
+	}
+
+	return nil
+}
+
+func listenTcp(serverListener *ServerListener) error {
+	if !serverListener.IsClosed() {
+		return errors.New("server had opened, id:" + serverListener.GetId())
+	}
+
+	serverConf := serverListener.GetConf()
+	addr := serverConf.GetAddrStr()
+	logx.Info("listen tcp addr:", addr)
+	network := serverConf.GetNetwork().String()
+	tcpAddr, err := net.ResolveTCPAddr(network, addr)
+	list, err := net.ListenTCP(network, tcpAddr)
+	if err != nil {
+		logx.Info("listen tcp error, addr:", addr, err)
+		return err
+	}
+
+	defer func() {
+		ret := recover()
+		if ret != nil {
+			logx.Warnf("finish tcp serverListener, id:%v, ret:%v", serverListener.GetId(), ret)
+			serverListener.Close()
+		} else {
+			logx.Info("finish tcp serverListener, id:", serverListener.GetId())
+		}
+	}()
+
+	channels := serverListener.GetChannels()
+	go func() {
+		for {
+			tcpConn, err := list.AcceptTCP()
+			if err != nil {
+				logx.Error("accept tcpconn error:", nil)
+				panic(err)
+			}
+			chHandle := serverListener.GetChHandle().(*gch.ChHandle)
+			// OnStopHandle重新包装，以便释放资源
+			chHandle.SetOnInActive(ConverOnInActiveHandler(channels, chHandle.GetOnInActive()))
+			// 复制新的handle
+			// chHandle = gch.CopyChannelHandle(chHandle)
+			tcpCh := tcpx.NewTcpChannel(serverListener, tcpConn, serverConf, chHandle, true)
+			err = tcpCh.Start()
+			if err == nil {
+				channels.Put(tcpCh.GetId(), tcpCh)
 			}
 		}
 	}()

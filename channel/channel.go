@@ -78,6 +78,12 @@ type IChannel interface {
 	// IsServer 是否是服务端产生的channel
 	IsServer() bool
 
+	// GetReqPath 获取path路径
+	GetRelativePath() string
+
+	// SetRelativePath 设置path
+	SetRelativePath(path string)
+
 	common.IAttact
 
 	common.IParent
@@ -97,6 +103,9 @@ type Channel struct {
 	closeExit     chan bool
 	actived       bool
 	server        bool
+
+	// 路径，根据各自需要定义
+	relativePath string
 
 	// 父接口
 	common.Parent
@@ -199,7 +208,9 @@ func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chH
 		readPool:      readPool,
 		closeExit:     make(chan bool, 1),
 		server:        server,
+		relativePath:  "",
 	}
+
 	channel.SetClosed(true)
 	channel.SetActived(false)
 	channel.Attact = *common.NewAttact()
@@ -352,6 +363,16 @@ func (b *Channel) SetActived(actived bool) {
 // 是否是服务端产生的channel
 func (b *Channel) IsServer() bool {
 	return b.server
+}
+
+// GetReqPath 获取相对path，根据各自业务需要进行定义
+func (b *Channel) GetRelativePath() string {
+	return b.relativePath
+}
+
+// SetRelativePath 设置相对path，根据各自业务需要进行定义
+func (b *Channel) SetRelativePath(relativePath string) {
+	b.relativePath = relativePath
 }
 
 func (b *Channel) StopChannel(channel IChannel) {

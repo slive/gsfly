@@ -17,10 +17,40 @@ type IServerConf interface {
 	channel.IChannelConf
 	common.IId
 	common.IParent
+
 	// GetMaxChannelSize 获取可接受最大channel数
 	GetMaxChannelSize() int
 	// SetMaxChannelSize 设置可接受最大channel数
 	SetMaxChannelSize(maxChannelSize int)
+
+	// GetListenConfs 监听相关的配置
+	GetListenConfs() []IListenConf
+}
+
+type IListenConf interface {
+	common.IAttact
+	GetNetwork() channel.Network
+	GetBasePath() string
+}
+
+type ListenConf struct {
+	common.Attact
+	network  channel.Network
+	basePath string
+}
+
+func NewListenConf(network channel.Network, basePath string) *ListenConf {
+	conf := ListenConf{network: network, basePath: basePath}
+	conf.Attact = *common.NewAttact()
+	return &conf
+}
+
+func (lsConf *ListenConf) GetBasePath() string {
+	return lsConf.basePath
+}
+
+func (lsConf *ListenConf) GetNetwork() channel.Network {
+	return lsConf.network
 }
 
 // ServerConf 服务配置
@@ -29,26 +59,63 @@ type ServerConf struct {
 	channel.ChannelConf
 	common.Id
 	common.Parent
-	MaxChannelSize int
+	maxChannelSize int
+
+	listenConfs []IListenConf
 }
 
 // NewServerConf 创建服务端配置
-func NewServerConf(ip string, port int, protocol channel.Network) *ServerConf {
+func NewServerConf(ip string, port int, protocol channel.Network, listenConfs ...IListenConf) *ServerConf {
 	s := &ServerConf{}
 	s.AddrConf = *channel.NewAddrConf(ip, port)
 	s.ChannelConf = *channel.NewDefChannelConf(protocol)
-	s.MaxChannelSize = 0
+	s.maxChannelSize = -1
+	s.listenConfs = listenConfs
 	return s
 }
 
 // SetMaxChannelSize 设置可接受最大channel数
 func (bs *ServerConf) SetMaxChannelSize(maxChannelSize int) {
-	bs.MaxChannelSize = maxChannelSize
+	bs.maxChannelSize = maxChannelSize
 }
 
 // GetMaxChannelSize 获取可接受最大channel数
 func (bs *ServerConf) GetMaxChannelSize() int {
-	return bs.MaxChannelSize
+	return bs.maxChannelSize
+}
+
+// GetListenConfs 监听相关的配置
+func (bs *ServerConf) GetListenConfs() []IListenConf {
+	return bs.listenConfs
+}
+
+// 存放ws对应的subprotocol的key值，对应的值为一个string数组
+const WS_SUBPROTOCOL_KEY = "WS_SUBPROTOCOL_KEY"
+
+type IWsServerConf interface {
+	IServerConf
+	GetScheme() string
+}
+
+type WsServerConf struct {
+	ServerConf
+	scheme string
+}
+
+func NewWsServerConf(ip string, port int, scheme string, listenConfs ...IListenConf) *WsServerConf {
+	if listenConfs == nil || len(listenConfs) <= 0 {
+		panic("listenConfs conf are nil.")
+	}
+	if len(scheme) <= 0 {
+		scheme = "ws"
+	}
+	w := &WsServerConf{scheme: scheme}
+	w.ServerConf = *NewServerConf(ip, port, channel.NETWORK_WS, listenConfs...)
+	return w
+}
+
+func (wsServerConf *WsServerConf) GetScheme() string {
+	return wsServerConf.scheme
 }
 
 // IClientConf 客户端配置接口
@@ -64,6 +131,9 @@ type ClientConf struct {
 }
 
 // NewClientConf 创建客户端配置
+// ip 地址
+// port 端口
+// reqPath 请求地址，可选
 func NewClientConf(ip string, port int, protocol channel.Network) *ClientConf {
 	s := &ClientConf{}
 	s.AddrConf = *channel.NewAddrConf(ip, port)
@@ -141,22 +211,22 @@ func NewUdpClientConf(ip string, port int) *UdpClientConf {
 
 type IWsConf interface {
 	GetUrl() string
-	GetPath() string
+	GetReqPath() string
 	GetSubProtocol() []string
-	GetScheme() string
 }
 
 type WsConf struct {
-	Scheme      string
-	SubProtocol []string
-	Path        string
+	subProtocol []string
+	reqPath     string
 }
 
-func NewWsConf(scheme string, path string, subProtocol ...string) *WsConf {
+func NewWsConf(reqPath string, subProtocol ...string) *WsConf {
+	if len(reqPath) <= 0 {
+		reqPath = ""
+	}
 	w := &WsConf{
-		Scheme:      scheme,
-		SubProtocol: subProtocol,
-		Path:        path,
+		subProtocol: subProtocol,
+		reqPath:     reqPath,
 	}
 	return w
 }
@@ -165,60 +235,50 @@ func (wsConf *WsConf) GetUrl() string {
 	panic("implement")
 }
 
-func (wsConf *WsConf) GetPath() string {
-	return wsConf.Path
+func (wsConf *WsConf) GetReqPath() string {
+	return wsConf.reqPath
 }
 
 func (wsConf *WsConf) GetSubProtocol() []string {
-	return wsConf.SubProtocol
-}
-
-func (wsConf *WsConf) GetScheme() string {
-	return wsConf.Scheme
-}
-
-type IWsServerConf interface {
-	IServerConf
-	IWsConf
-}
-
-type WsServerConf struct {
-	ServerConf
-	WsConf
-}
-
-func NewWsServerConf(ip string, port int, scheme string, path string, subProtocol ...string) *WsServerConf {
-	w := &WsServerConf{}
-	w.ServerConf = *NewServerConf(ip, port, channel.NETWORK_WS)
-	w.WsConf = *NewWsConf(scheme, path, subProtocol...)
-	return w
-}
-
-func (wsServerConf *WsServerConf) GetUrl() string {
-	u := url.URL{Scheme: wsServerConf.Scheme, Host: wsServerConf.GetAddrStr(), Path: wsServerConf.Path}
-	return u.String()
+	return wsConf.subProtocol
 }
 
 type IWsClientConf interface {
 	IClientConf
 	IWsConf
+	GetUrlByPath(path string) string
+	GetScheme() string
 }
 
 type WsClientConf struct {
 	ClientConf
 	WsConf
+	scheme string
 }
 
 func NewWsClientConf(ip string, port int, scheme string, path string, subProtocol ...string) *WsClientConf {
 	w := &WsClientConf{}
-	w.WsConf = *NewWsConf(scheme, path, subProtocol...)
+	w.WsConf = *NewWsConf(path, subProtocol...)
 	w.ClientConf = *NewClientConf(ip, port, channel.NETWORK_WS)
+	if len(scheme) <= 0 {
+		scheme = "ws"
+	}
+	w.scheme = scheme
 	return w
 }
 
 func (wsClientConf *WsClientConf) GetUrl() string {
-	u := url.URL{Scheme: wsClientConf.Scheme, Host: wsClientConf.GetAddrStr(), Path: wsClientConf.Path}
+	u := url.URL{Scheme: wsClientConf.GetScheme(), Host: wsClientConf.GetAddrStr(), Path: wsClientConf.GetReqPath()}
 	return u.String()
+}
+
+func (wsClientConf *WsClientConf) GetUrlByPath(path string) string {
+	u := url.URL{Scheme: wsClientConf.scheme, Host: wsClientConf.GetAddrStr(), Path: path}
+	return u.String()
+}
+
+func (wsClientConf *WsClientConf) GetScheme() string {
+	return wsClientConf.scheme
 }
 
 type ITcpServerConf interface {

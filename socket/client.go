@@ -26,6 +26,10 @@ type IClientConn interface {
 
 type ClientConn struct {
 	Socket
+
+	// 路径
+	reqPath string
+
 	Conf IClientConf
 	// 每一个客户端只有一个channel
 	Channel gch.IChannel
@@ -62,6 +66,10 @@ func (clientConn *ClientConn) Dial() error {
 		return dialWs(clientConn)
 	case gch.NETWORK_KCP:
 		return dialKcp(clientConn)
+	case gch.NETWORK_TCP:
+		return nil
+	case gch.NETWORK_UDP:
+		return nil
 	default:
 		return nil
 	}
@@ -69,12 +77,19 @@ func (clientConn *ClientConn) Dial() error {
 }
 
 // dialWs 拨号实现ws
-func dialWs(clientStrap *ClientConn) error {
-	wsClientConf := clientStrap.GetConf().(IWsClientConf)
-	handle := clientStrap.GetChHandle().(*gch.ChHandle)
+func dialWs(clientConn *ClientConn) error {
+	wsClientConf := clientConn.GetConf().(IWsClientConf)
+	handle := clientConn.GetChHandle().(*gch.ChHandle)
+
 	url := wsClientConf.GetUrl()
-	params := getWsParams(clientStrap)
+	params := clientConn.GetInputParams()
 	if params != nil && len(params) > 0 {
+		path := wsClientConf.GetReqPath()
+		if len(path) <= 0 {
+			// 如果配置中的path为空，则选用参数中的path
+			path := params["path"].(string)
+			url = wsClientConf.GetUrlByPath(path)
+		}
 		url += "?"
 		index := 1
 		pLen := len(params)
@@ -97,22 +112,19 @@ func dialWs(clientStrap *ClientConn) error {
 	// TODO 处理resonse？
 	logx.Info("ws response:", response)
 	// 创建channel
-	wsCh := tcpx.NewWsChannel(clientStrap, conn, wsClientConf, handle, params, false)
+	wsCh := tcpx.NewWsChannel(clientConn, conn, wsClientConf, handle, params, false)
+	wsCh.SetRelativePath(wsClientConf.GetReqPath())
 	err = wsCh.Start()
 	if err == nil {
-		clientStrap.Channel = wsCh
-		clientStrap.Closed = false
+		clientConn.Channel = wsCh
+		clientConn.Closed = false
 	}
 	return err
 }
 
-func getWsParams(clientStrap *ClientConn) map[string]interface{} {
-	return clientStrap.GetInputParams()
-}
-
-func dialKcp(clientStrap *ClientConn) error {
-	kcpClientConf := clientStrap.GetConf()
-	chHandle := clientStrap.GetChHandle().(*gch.ChHandle)
+func dialKcp(clientConn *ClientConn) error {
+	kcpClientConf := clientConn.GetConf()
+	chHandle := clientConn.GetChHandle().(*gch.ChHandle)
 	addr := kcpClientConf.GetAddrStr()
 	logx.Info("dial kcp addr:", addr)
 	conn, err := kcp.DialWithOptions(addr, nil, 0, 0)
@@ -120,11 +132,20 @@ func dialKcp(clientStrap *ClientConn) error {
 		logx.Error("dial kcp conn error:", nil)
 		return err
 	}
-	kcpCh := kcpx.NewKcpChannel(clientStrap, conn, kcpClientConf, chHandle, false)
+	kcpCh := kcpx.NewKcpChannel(clientConn, conn, kcpClientConf, chHandle, false)
+	var path string
+	params := clientConn.GetInputParams()
+	if params != nil {
+		p := params["path"]
+		if p != nil {
+			path = p.(string)
+		}
+	}
+	kcpCh.SetRelativePath(path)
 	err = kcpCh.Start()
 	if err == nil {
-		clientStrap.Channel = kcpCh
-		clientStrap.Closed = false
+		clientConn.Channel = kcpCh
+		clientConn.Closed = false
 	}
 	return err
 }

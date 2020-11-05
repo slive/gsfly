@@ -50,7 +50,7 @@ func (i *Id) SetId(id string) {
 }
 
 type IAttact interface {
-	AddAttach(key string, val interface{})
+	AddAttach(key string, val interface{}) bool
 
 	GetAttach(key string) interface{}
 
@@ -69,10 +69,15 @@ func NewAttact() *Attact {
 	return a
 }
 
-func (b *Attact) AddAttach(key string, val interface{}) {
+func (b *Attact) AddAttach(key string, val interface{}) bool {
+	if len(key) <= 0 || val == nil {
+		return false
+	}
+
 	b.amut.Lock()
 	defer b.amut.Unlock()
 	b.attach[key] = val
+	return true
 }
 
 func (b *Attact) GetAttach(key string) interface{} {
