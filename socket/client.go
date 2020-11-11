@@ -14,6 +14,7 @@ import (
 	logx "github.com/Slive/gsfly/logger"
 	"github.com/gorilla/websocket"
 	"github.com/xtaci/kcp-go"
+	"net"
 )
 
 // IClientConn 客户端conn
@@ -67,9 +68,10 @@ func (clientConn *ClientConn) Dial() error {
 	case gch.NETWORK_KCP:
 		return dialKcp(clientConn)
 	case gch.NETWORK_TCP:
-		return nil
-	case gch.NETWORK_UDP:
-		return nil
+		return dialTcp(clientConn)
+	case gch.NETWORK_HTTP:
+		// TODO 默认为ws
+		return dialWs(clientConn)
 	default:
 		return nil
 	}
@@ -122,6 +124,41 @@ func dialWs(clientConn *ClientConn) error {
 	return err
 }
 
+func dialTcp(clientConn *ClientConn) error {
+	tcpClientConf := clientConn.GetConf()
+	chHandle := clientConn.GetChHandle().(*gch.ChHandle)
+	addr := tcpClientConf.GetAddrStr()
+	logx.Info("dial tcp addr:", addr)
+	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		logx.Error("dial tcp addr error:", err)
+		return err
+	}
+
+	conn, err := net.DialTCP("tcp", nil, tcpAddr)
+	if err != nil {
+		logx.Error("dial tcp conn error:", err)
+		return err
+	}
+
+	tcpCh := tcpx.NewTcpChannel(clientConn, conn, tcpClientConf, chHandle, false)
+	var path string
+	params := clientConn.GetInputParams()
+	if params != nil {
+		p := params["path"]
+		if p != nil {
+			path = p.(string)
+		}
+	}
+	tcpCh.SetRelativePath(path)
+	err = tcpCh.Start()
+	if err == nil {
+		clientConn.Channel = tcpCh
+		clientConn.Closed = false
+	}
+	return err
+}
+
 func dialKcp(clientConn *ClientConn) error {
 	kcpClientConf := clientConn.GetConf()
 	chHandle := clientConn.GetChHandle().(*gch.ChHandle)
@@ -129,7 +166,7 @@ func dialKcp(clientConn *ClientConn) error {
 	logx.Info("dial kcp addr:", addr)
 	conn, err := kcp.DialWithOptions(addr, nil, 0, 0)
 	if err != nil {
-		logx.Error("dial kcp conn error:", nil)
+		logx.Error("dial kcp conn error:", err)
 		return err
 	}
 	kcpCh := kcpx.NewKcpChannel(clientConn, conn, kcpClientConf, chHandle, false)

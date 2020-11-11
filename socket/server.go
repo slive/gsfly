@@ -112,7 +112,8 @@ func (listener *ServerListener) Listen() error {
 	case gch.NETWORK_TCP:
 		return listenTcp(listener)
 	case gch.NETWORK_HTTP:
-		return listenKcp(listener)
+		//TODO http也是ws处理
+		return listenWs(listener)
 	default:
 		logx.Info("unsupport network:", network)
 		return nil
@@ -188,10 +189,11 @@ func listenWs(serverListener *ServerListener) error {
 			for _, child := range wsChildren {
 				network := child.GetNetwork()
 				if len(network) <= 0 {
+					// 子配置没有配置network，则取父节点
 					network = wsServerConf.GetNetwork()
 				}
 				if network == gch.NETWORK_WS {
-					// ws处理事件
+					// ws处理事件，针对不同的basePath进行处理
 					http.HandleFunc(child.GetBasePath(), func(writer http.ResponseWriter, req *http.Request) {
 						logx.Info("requestWs:", req.URL)
 						err := upgradeWs(serverListener, writer, req, upgrader, child)

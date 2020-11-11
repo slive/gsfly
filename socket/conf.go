@@ -30,6 +30,8 @@ type IServerConf interface {
 type IListenConf interface {
 	common.IAttact
 	GetNetwork() channel.Network
+
+	// GetBasePath 监听的基本的path配置
 	GetBasePath() string
 }
 
@@ -45,6 +47,7 @@ func NewListenConf(network channel.Network, basePath string) *ListenConf {
 	return &conf
 }
 
+// GetBasePath 监听的基本的path配置
 func (lsConf *ListenConf) GetBasePath() string {
 	return lsConf.basePath
 }
