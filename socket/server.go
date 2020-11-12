@@ -10,6 +10,7 @@ import (
 	"fmt"
 	gch "github.com/Slive/gsfly/channel"
 	"github.com/Slive/gsfly/channel/tcpx"
+	"github.com/Slive/gsfly/channel/udpx"
 	kcpx "github.com/Slive/gsfly/channel/udpx/kcpx"
 	logx "github.com/Slive/gsfly/logger"
 	"github.com/emirpasic/gods/maps/hashmap"
@@ -100,6 +101,30 @@ func (listener *ServerListener) GetChannels() *hashmap.Map {
 func (listener *ServerListener) GetConf() IServerConf {
 	return listener.Conf
 }
+func (serverListener *ServerListener) GetHttpServer() *http.Server {
+	return serverListener.httpServer
+}
+
+func (serverListener *ServerListener) SetHttpServer(httpServer *http.Server) {
+	serverListener.httpServer = httpServer
+}
+
+func (serverListener *ServerListener) GetBasePath() string {
+	return serverListener.basePath
+}
+
+// ConverOnInActiveHandle 转化OnStopHandle方法
+func ConverOnInActiveHandler(channels *hashmap.Map, onInActiveHandler gch.ChHandleFunc) func(ctx gch.IChHandleContext) {
+	return func(ctx gch.IChHandleContext) {
+		// 释放现有资源
+		chId := ctx.GetChannel().GetId()
+		channels.Remove(chId)
+		logx.Infof("remove serverchannel, chId:%v, channelSize:%v", chId, channels.Size())
+		if onInActiveHandler != nil {
+			onInActiveHandler(ctx)
+		}
+	}
+}
 
 // Listen 监听方法，可自定义实现
 func (listener *ServerListener) Listen() error {
@@ -112,8 +137,10 @@ func (listener *ServerListener) Listen() error {
 	case gch.NETWORK_TCP:
 		return listenTcp(listener)
 	case gch.NETWORK_HTTP:
-		//TODO http也是ws处理
+		// TODO http也是ws处理
 		return listenWs(listener)
+	case gch.NETWORK_UDP:
+		return listenUdp(listener)
 	default:
 		logx.Info("unsupport network:", network)
 		return nil
@@ -131,7 +158,7 @@ const KEY_HTTP_REQUEST = "http-request"
 func listenWs(serverListener *ServerListener) error {
 	id := serverListener.GetId()
 	if !serverListener.IsClosed() {
-		return errors.New("httpServer had opened, id:" + id)
+		return errors.New("websocket Server is opened, id:" + id)
 	}
 
 	defer func() {
@@ -164,6 +191,7 @@ func listenWs(serverListener *ServerListener) error {
 			IdleTimeout:       wsServerConf.GetReadTimeout() * time.Second * 3,
 			MaxHeaderBytes:    1 << 20,
 		}
+		// 启动监听
 		go func() {
 			// 异步监听http和ws
 			logx.Info("listenAnServe id:", id)
@@ -173,8 +201,9 @@ func listenWs(serverListener *ServerListener) error {
 				panic(err)
 			}
 		}()
+
+		// 等待关闭操作
 		go func() {
-			// 关闭操作
 			s := make(chan os.Signal, 1)
 			signal.Notify(s)
 			select {
@@ -184,6 +213,7 @@ func listenWs(serverListener *ServerListener) error {
 			}
 		}()
 
+		// 处理children
 		wsChildren := wsServerConf.GetListenConfs()
 		if wsChildren != nil {
 			for _, child := range wsChildren {
@@ -205,6 +235,7 @@ func listenWs(serverListener *ServerListener) error {
 			}
 		}
 	} else {
+		// 已在外面完成的监听，重写httphandler处理事件，以便通过不同的path分别处理http和ws
 		httpHandler := httpServer.Handler
 		httpServer.Handler = newProxyHandler(httpHandler, upgrader, serverListener)
 	}
@@ -222,10 +253,12 @@ type proxyHandler struct {
 	serverListener IServerListener
 }
 
+// ServeHTTP 通过不同的path分别处理http和ws
 func (proxy *proxyHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 	uri := req.RequestURI
 	logx.Info("request:", uri)
 	conf := proxy.serverListener.GetConf().(IWsServerConf)
+	// 优先处理ws的handler
 	// TODO 模糊匹配?，优先级如何？
 	wsChildren := conf.GetListenConfs()
 	if wsChildren != nil {
@@ -241,6 +274,7 @@ func (proxy *proxyHandler) ServeHTTP(writer http.ResponseWriter, req *http.Reque
 		}
 	}
 
+	// 除了ws，默认处理http的handler
 	proxy.handler.ServeHTTP(writer, req)
 }
 
@@ -292,10 +326,8 @@ func upgradeWs(serverListener IServerListener, writer http.ResponseWriter, req *
 	addHttpRequest(serverListener, req)
 
 	chHandle := serverListener.GetChHandle().(*gch.ChHandle)
-	// OnStopHandle重新包装，以便释放资源
+	// OnInActiveHandle重新包装，以便释放资源
 	chHandle.SetOnInActive(ConverOnInActiveHandler(serverListener.GetChannels(), chHandle.GetOnInActive()))
-	// 复制新的handle
-	// chHandle = gch.CopyChannelHandle(chHandle)
 	wsCh := tcpx.NewWsChannel(serverListener, conn, serverConf, chHandle, params, true)
 	// 设置为请求过来的path
 	wsCh.SetRelativePath(req.URL.Path)
@@ -311,40 +343,15 @@ func addHttpRequest(serverListener IServerListener, req *http.Request) {
 	serverListener.AddAttach(KEY_HTTP_REQUEST, req)
 }
 
-func (serverListener *ServerListener) GetHttpServer() *http.Server {
-	return serverListener.httpServer
-}
-
-func (serverListener *ServerListener) SetHttpServer(httpServer *http.Server) {
-	serverListener.httpServer = httpServer
-}
-
-func (serverListener *ServerListener) GetBasePath() string {
-	return serverListener.basePath
-}
-
-// ConverOnInActiveHandle 转化OnStopHandle方法
-func ConverOnInActiveHandler(channels *hashmap.Map, onInActiveHandler gch.ChHandleFunc) func(ctx gch.IChHandleContext) {
-	return func(ctx gch.IChHandleContext) {
-		// 释放现有资源
-		chId := ctx.GetChannel().GetId()
-		channels.Remove(chId)
-		logx.Infof("remove serverchannel, chId:%v, channelSize:%v", chId, channels.Size())
-		if onInActiveHandler != nil {
-			onInActiveHandler(ctx)
-		}
-	}
-}
-
 func listenKcp(serverListener *ServerListener) error {
 	if !serverListener.IsClosed() {
-		return errors.New("server had opened, id:" + serverListener.GetId())
+		return errors.New("kcp server is opened, id:" + serverListener.GetId())
 	}
 
 	kcpServerConf := serverListener.GetConf()
 	addr := kcpServerConf.GetAddrStr()
 	logx.Info("listen kcp addr:", addr)
-	list, err := kcp.ListenWithOptions(addr, nil, 0, 0)
+	listKcp, err := kcp.ListenWithOptions(addr, nil, 0, 0)
 	if err != nil {
 		logx.Info("listen kcp error, addr:", addr, err)
 		return err
@@ -363,16 +370,16 @@ func listenKcp(serverListener *ServerListener) error {
 	kcpChannels := serverListener.GetChannels()
 	go func() {
 		for {
-			kcpConn, err := list.AcceptKCP()
+			kcpConn, err := listKcp.AcceptKCP()
 			if err != nil {
 				logx.Error("accept kcpconn error:", nil)
+				listKcp.Close()
 				panic(err)
 			}
+
 			chHandle := serverListener.GetChHandle().(*gch.ChHandle)
-			// OnStopHandle重新包装，以便释放资源
+			// OnInActiveHandle重新包装，以便释放资源
 			chHandle.SetOnInActive(ConverOnInActiveHandler(kcpChannels, chHandle.GetOnInActive()))
-			// 复制新的handle
-			// chHandle = gch.CopyChannelHandle(chHandle)
 			kcpCh := kcpx.NewKcpChannel(serverListener, kcpConn, kcpServerConf, chHandle, true)
 			err = kcpCh.Start()
 			if err == nil {
@@ -384,8 +391,7 @@ func listenKcp(serverListener *ServerListener) error {
 	if err == nil {
 		serverListener.Closed = false
 	}
-
-	return nil
+	return err
 }
 
 func listenTcp(serverListener *ServerListener) error {
@@ -398,7 +404,7 @@ func listenTcp(serverListener *ServerListener) error {
 	logx.Info("listen tcp addr:", addr)
 	network := serverConf.GetNetwork().String()
 	tcpAddr, err := net.ResolveTCPAddr(network, addr)
-	list, err := net.ListenTCP(network, tcpAddr)
+	listenTCP, err := net.ListenTCP(network, tcpAddr)
 	if err != nil {
 		logx.Info("listen tcp error, addr:", addr, err)
 		return err
@@ -417,16 +423,15 @@ func listenTcp(serverListener *ServerListener) error {
 	channels := serverListener.GetChannels()
 	go func() {
 		for {
-			tcpConn, err := list.AcceptTCP()
+			tcpConn, err := listenTCP.AcceptTCP()
 			if err != nil {
 				logx.Error("accept tcpconn error:", nil)
+				listenTCP.Close()
 				panic(err)
 			}
 			chHandle := serverListener.GetChHandle().(*gch.ChHandle)
-			// OnStopHandle重新包装，以便释放资源
+			// OnInActiveHandle重新包装，以便释放资源
 			chHandle.SetOnInActive(ConverOnInActiveHandler(channels, chHandle.GetOnInActive()))
-			// 复制新的handle
-			// chHandle = gch.CopyChannelHandle(chHandle)
 			tcpCh := tcpx.NewTcpChannel(serverListener, tcpConn, serverConf, chHandle, true)
 			err = tcpCh.Start()
 			if err == nil {
@@ -435,9 +440,79 @@ func listenTcp(serverListener *ServerListener) error {
 		}
 	}()
 
+	return err
+}
+
+func listenUdp(serverListener *ServerListener) error {
+	if !serverListener.IsClosed() {
+		return errors.New("udp server is opened, id:" + serverListener.GetId())
+	}
+
+	serverConf := serverListener.GetConf()
+	addr := serverConf.GetAddrStr()
+	logx.Info("listen udp addr:", addr)
+	network := serverConf.GetNetwork().String()
+	udpAddr, err := net.ResolveUDPAddr(network, addr)
+	udpConn, err := net.ListenUDP(network, udpAddr)
+	if err != nil {
+		logx.Error("listen udp error, addr:", addr, err)
+		return err
+	}
+
+	defer func() {
+		ret := recover()
+		if ret != nil {
+			logx.Warnf("finish udp serverListener, id:%v, ret:%v", serverListener.GetId(), ret)
+			serverListener.Close()
+		} else {
+			logx.Info("finish udp serverListener, id:", serverListener.GetId())
+		}
+	}()
+
+	readbf := make([]byte, serverConf.GetReadBufSize())
+	channels := serverListener.GetChannels()
+	go func() {
+		for {
+			// TODO 是否有性能问题？
+			readNum, addr, err := udpConn.ReadFromUDP(readbf)
+			if readNum < 0 {
+				continue
+			}
+			if err != nil {
+				logx.Error("read udp error:", err)
+				udpConn.Close()
+				panic(err)
+			}
+
+			var udpCh *udpx.UdpChannel
+			buf := readbf[0:readNum]
+			udpChId := udpx.FetchUdpId(udpConn, addr)
+			channel, found := channels.Get(udpChId)
+			if !found {
+				// 第一次生成一个channel
+				chHandle := serverListener.GetChHandle().(*gch.ChHandle)
+				// OnInActiveHandle重新包装，以便释放资源
+				chHandle.SetOnInActive(ConverOnInActiveHandler(channels, chHandle.GetOnInActive()))
+				udpCh = udpx.NewUdpChannel(serverListener, udpConn, serverConf, chHandle, addr, true)
+				err = udpCh.Start()
+				if err == nil {
+					channels.Put(udpCh.GetId(), udpCh)
+				}
+				udpCh.CacheServerRead(buf)
+			} else {
+				// 已存在直接缓存
+				udpCh = channel.(*udpx.UdpChannel)
+			}
+
+			if udpCh != nil {
+				// 通过缓存
+				udpCh.CacheServerRead(buf)
+			}
+		}
+	}()
+
 	if err == nil {
 		serverListener.Closed = false
 	}
-
-	return nil
+	return err
 }

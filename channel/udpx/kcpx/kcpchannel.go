@@ -69,7 +69,7 @@ func Read(ch *KcpChannel) (gch.IPacket, error) {
 	conf := ch.GetConf()
 	now := time.Now()
 	conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
-	readbf := make([]byte, conf.GetReadBufSize())
+	readbf := ch.GetReadBuf()
 	readNum, err := conn.Read(readbf)
 	if err != nil {
 		// TODO 超时后抛出异常？
@@ -81,9 +81,9 @@ func Read(ch *KcpChannel) (gch.IPacket, error) {
 		return nil, err
 	}
 	// 接收到8个字节数据，是bug?
-	if readNum <= 8 {
-		return nil, nil
-	}
+	// if readNum <= 8 {
+	// 	return nil, nil
+	// }
 
 	datapack := ch.NewPacket()
 	bytes := readbf[0:readNum]

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	gch "github.com/Slive/gsfly/channel"
 	"github.com/Slive/gsfly/channel/tcpx"
+	"github.com/Slive/gsfly/channel/udpx"
 	"github.com/Slive/gsfly/channel/udpx/kcpx"
 	logx "github.com/Slive/gsfly/logger"
 	"github.com/gorilla/websocket"
@@ -72,6 +73,8 @@ func (clientConn *ClientConn) Dial() error {
 	case gch.NETWORK_HTTP:
 		// TODO 默认为ws
 		return dialWs(clientConn)
+	case gch.NETWORK_UDP:
+		return dialUdp(clientConn)
 	default:
 		return nil
 	}
@@ -187,6 +190,41 @@ func dialKcp(clientConn *ClientConn) error {
 	return err
 }
 
+func dialUdp(clientConn *ClientConn) error {
+	udpConf := clientConn.GetConf()
+	chHandle := clientConn.GetChHandle().(*gch.ChHandle)
+	addr := udpConf.GetAddrStr()
+	logx.Info("dial udp addr:", addr)
+	udpAddr, err := net.ResolveUDPAddr("udp", addr)
+	if err != nil {
+		logx.Error("dial udp addr error:", err)
+		return err
+	}
+
+	conn, err := net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		logx.Error("dial udp conn error:", err)
+		return err
+	}
+
+	udpCh := udpx.NewUdpChannel(clientConn, conn, udpConf, chHandle, udpAddr, false)
+	var path string
+	params := clientConn.GetInputParams()
+	if params != nil {
+		p := params["path"]
+		if p != nil {
+			path = p.(string)
+		}
+	}
+	udpCh.SetRelativePath(path)
+	err = udpCh.Start()
+	if err == nil {
+		clientConn.Channel = udpCh
+		clientConn.Closed = false
+	}
+	return err
+}
+
 func (clientConn *ClientConn) Close() {
 	if !clientConn.Closed {
 		id := clientConn.GetId()
@@ -199,5 +237,6 @@ func (clientConn *ClientConn) Close() {
 		clientConn.Exit <- true
 		clientConn.Channel.Stop()
 		clientConn.Channel = nil
+		clientConn.Channel.GetConn().Close()
 	}
 }

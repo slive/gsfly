@@ -40,101 +40,47 @@ func NewTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannel
 	return ch
 }
 
-func (b *TcpChannel) Start() error {
-	err := b.StartChannel(b)
+func (tcpCh *TcpChannel) Start() error {
+	err := tcpCh.StartChannel(tcpCh)
 	if err == nil {
-		gch.HandleOnActive(gch.NewChHandleContext(b, nil))
+		gch.HandleOnActive(gch.NewChHandleContext(tcpCh, nil))
 	}
 	return err
 }
 
-func (b *TcpChannel) Stop() {
-	b.StopChannel(b)
+func (tcpCh *TcpChannel) Stop() {
+	tcpCh.StopChannel(tcpCh)
 }
 
-func (b *TcpChannel) Read() (gch.IPacket, error) {
+func (tcpCh *TcpChannel) Read() (gch.IPacket, error) {
 	// TODO 超时配置
-	conf := b.GetConf()
+	conf := tcpCh.GetConf()
 	now := time.Now()
-	b.Conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
-	readbf := make([]byte, conf.GetReadBufSize())
-	readNum, err := b.Conn.Read(readbf)
+	tcpCh.Conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
+	readbf := tcpCh.GetReadBuf()
+	readNum, err := tcpCh.Conn.Read(readbf)
 	if err != nil {
 		logx.Warn("read udp err:", err)
-		gch.RevStatisFail(b, now)
+		gch.RevStatisFail(tcpCh, now)
 		return nil, err
 	}
 
 	bytes := readbf[0:readNum]
-	datapack := b.NewPacket()
+	datapack := tcpCh.NewPacket()
 	datapack.SetData(bytes)
 	gch.RevStatis(datapack, true)
 	return datapack, err
 }
 
-func (b *TcpChannel) Write(datapack gch.IPacket) error {
-	return b.Channel.Write(datapack)
-	// if b.IsClosed() {
-	// 	return errors.New("tcpchannel had closed, chId:" + b.GetId())
-	// }
-	//
-	// chHandle := b.GetChHandle()
-	// defer func() {
-	// 	rec := recover()
-	// 	if rec != nil {
-	// 		logx.Error("write tcp error, chId:%v, error:%v", b.GetId(), rec)
-	// 		err, ok := rec.(error)
-	// 		if !ok {
-	// 			err = errors.New(fmt.Sprintf("%v", rec))
-	// 		}
-	// 		// 捕获处理消息异常
-	// 		chHandle.OnErrorHandle(b, common.NewError1(gch.ERR_WRITE, err))
-	// 		// 有异常，终止执行
-	// 		b.StopChannel(b)
-	// 	}
-	// }()
-	// if datapack.IsPrepare() {
-	// 	// 发送前的处理
-	// 	befWriteHandle := chHandle.OnBefWriteHandle
-	// 	if befWriteHandle != nil {
-	// 		err := befWriteHandle(datapack)
-	// 		if err != nil{
-	// 			logx.Error("befWriteHandle error:", err)
-	// 			return err
-	// 		}
-	// 	}
-	//
-	// 	bytes := datapack.GetData()
-	// 	conf := b.GetConf()
-	// 	b.Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
-	// 	_, err := b.Conn.Write(bytes)
-	// 	if err != nil {
-	// 		logx.Error("write tcp error:", err)
-	// 		gch.SendStatis(datapack, false)
-	// 		panic(err)
-	// 		return err
-	// 	}
-	//
-	// 	gch.SendStatis(datapack, true)
-	// 	logx.Info(b.GetChStatis().StringSend())
-	//
-	// 	// 发送成功后的处理
-	// 	aftWriteHandle := chHandle.OnAftWriteHandle
-	// 	if aftWriteHandle != nil {
-	// 		aftWriteHandle(datapack)
-	// 	}
-	// 	return err
-	// } else {
-	// 	logx.Warn("packet is not prepare.")
-	// }
-	// return nil
+func (tcpCh *TcpChannel) Write(datapack gch.IPacket) error {
+	return tcpCh.Channel.Write(datapack)
 }
 
-func (b *TcpChannel) WriteByConn(datapacket gch.IPacket) error {
+func (tcpCh *TcpChannel) WriteByConn(datapacket gch.IPacket) error {
 	bytes := datapacket.GetData()
-	conf := b.GetConf()
-	b.Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
-	_, err := b.Conn.Write(bytes)
+	conf := tcpCh.GetConf()
+	tcpCh.Conn.SetWriteDeadline(time.Now().Add(conf.GetWriteTimeout() * time.Second))
+	_, err := tcpCh.Conn.Write(bytes)
 	if err != nil {
 		logx.Error("write tcp error:", err)
 		gch.SendStatis(datapacket, false)
@@ -144,21 +90,21 @@ func (b *TcpChannel) WriteByConn(datapacket gch.IPacket) error {
 	return nil
 }
 
-func (b *TcpChannel) GetConn() net.Conn {
-	return b.Conn
+func (tcpCh *TcpChannel) GetConn() net.Conn {
+	return tcpCh.Conn
 }
 
-func (b *TcpChannel) LocalAddr() net.Addr {
-	return b.Conn.LocalAddr()
+func (tcpCh *TcpChannel) LocalAddr() net.Addr {
+	return tcpCh.Conn.LocalAddr()
 }
 
-func (b *TcpChannel) RemoteAddr() net.Addr {
-	return b.Conn.RemoteAddr()
+func (tcpCh *TcpChannel) RemoteAddr() net.Addr {
+	return tcpCh.Conn.RemoteAddr()
 }
 
-func (b *TcpChannel) NewPacket() gch.IPacket {
+func (tcpCh *TcpChannel) NewPacket() gch.IPacket {
 	w := &TcpPacket{}
-	w.Packet = *gch.NewPacket(b, gch.NETWORK_TCP)
+	w.Packet = *gch.NewPacket(tcpCh, gch.NETWORK_TCP)
 	return w
 }
 

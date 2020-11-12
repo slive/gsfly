@@ -14,8 +14,11 @@ import (
 // IServerConf 服务端的配置接口
 type IServerConf interface {
 	channel.IAddrConf
+
 	channel.IChannelConf
+
 	common.IId
+
 	common.IParent
 
 	// GetMaxChannelSize 获取可接受最大channel数
@@ -29,6 +32,7 @@ type IServerConf interface {
 
 type IListenConf interface {
 	common.IAttact
+
 	GetNetwork() channel.Network
 
 	// GetBasePath 监听的基本的path配置

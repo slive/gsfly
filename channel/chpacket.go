@@ -15,11 +15,12 @@ type Network string
 
 const (
 	// 协议类型，移位增长
-	NETWORK_TCP  Network = "tcp"
-	NETWORK_HTTP Network = "http"
-	NETWORK_WS   Network = "ws"
-	NETWORK_UDP  Network = "udp"
-	NETWORK_KCP  Network = "kcp"
+	NETWORK_TCP     Network = "tcp"
+	NETWORK_HTTP    Network = "http"
+	NETWORK_WS      Network = "ws"
+	NETWORK_UDP     Network = "udp"
+	NETWORK_KCP     Network = "kcp"
+	NETWORK_UNKNOWN Network = "kcp"
 )
 
 // String 获取协议对应的字符串
@@ -37,6 +38,23 @@ func (p Network) String() string {
 		return "kcp"
 	default:
 		return "unknown"
+	}
+}
+
+func ToNetwork(network string) Network {
+	switch network {
+	case "tcp":
+		return NETWORK_TCP
+	case "http":
+		return NETWORK_HTTP
+	case "ws":
+		return NETWORK_WS
+	case "udp":
+		return NETWORK_UDP
+	case "kcp":
+		return NETWORK_KCP
+	default:
+		return NETWORK_UNKNOWN
 	}
 }
 

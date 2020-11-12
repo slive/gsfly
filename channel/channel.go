@@ -111,6 +111,8 @@ type Channel struct {
 	common.Parent
 	common.Id
 	common.Attact
+
+	readBuf []byte
 }
 
 // 初始化读协程池，全局配置
@@ -217,19 +219,20 @@ func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chH
 	channel.Id = *common.NewId()
 	channel.Parent = *common.NewParent(parent)
 	logx.Info("create base channel, conf:", chConf)
+	channel.readBuf = make([]byte, chConf.GetReadBufSize())
 	return channel
 }
 
-func (b *Channel) Start() error {
-	return b.StartChannel(b)
+func (ch *Channel) Start() error {
+	return ch.StartChannel(ch)
 }
 
-func (b *Channel) Stop() {
-	b.StopChannel(b)
+func (ch *Channel) Stop() {
+	ch.StopChannel(ch)
 }
 
-func (b *Channel) StartChannel(channel IChannel) error {
-	id := b.GetId()
+func (ch *Channel) StartChannel(channel IChannel) error {
+	id := ch.GetId()
 	if !channel.IsClosed() {
 		return errors.New("channel is open, chId:" + id)
 	}
@@ -247,11 +250,15 @@ func (b *Channel) StartChannel(channel IChannel) error {
 			channel.Stop()
 		}
 	}()
-	go b.startReadLoop(channel)
+	go ch.startReadLoop(channel)
 
-	b.SetClosed(false)
+	ch.SetClosed(false)
 	logx.Info("finish to start channel, chId:", channel.GetId())
 	return nil
+}
+
+func (ch *Channel) GetReadBuf() []byte {
+	return ch.readBuf
 }
 
 func NotifyErrorHandle(ctx IChHandleContext, err error, errMsg string) {
@@ -261,25 +268,25 @@ func NotifyErrorHandle(ctx IChHandleContext, err error, errMsg string) {
 	errorHandler(ctx)
 }
 
-func (b *Channel) NewPacket() IPacket {
+func (ch *Channel) NewPacket() IPacket {
 	panic("implement me")
 }
 
-func (b *Channel) IsClosed() bool {
-	return b.closed
+func (ch *Channel) IsClosed() bool {
+	return ch.closed
 }
 
-func (b *Channel) SetClosed(closed bool) {
-	b.closed = closed
+func (ch *Channel) SetClosed(closed bool) {
+	ch.closed = closed
 }
 
-func (b *Channel) Read() (packet IPacket, err error) {
+func (ch *Channel) Read() (packet IPacket, err error) {
 	panic("implement me")
 }
 
-func (b *Channel) Write(datapacket IPacket) error {
-	if b.IsClosed() {
-		return errors.New("wschannel had closed, chId:" + b.GetId())
+func (ch *Channel) Write(datapacket IPacket) error {
+	if ch.IsClosed() {
+		return errors.New("wschannel had closed, chId:" + ch.GetId())
 	}
 
 	channel := datapacket.GetChannel()
@@ -288,7 +295,7 @@ func (b *Channel) Write(datapacket IPacket) error {
 	defer func() {
 		rec := recover()
 		if rec != nil {
-			logx.Errorf("write ws error, chId:%v, error:%v", b.GetId(), rec)
+			logx.Errorf("write ws error, chId:%v, error:%v", ch.GetId(), rec)
 			err, ok := rec.(error)
 			if !ok {
 				err = errors.New(fmt.Sprintf("%v", rec))
@@ -327,57 +334,57 @@ func (b *Channel) Write(datapacket IPacket) error {
 }
 
 // WriteByConn 实现通过conn发送
-func (b *Channel) WriteByConn(datapacket IPacket) error {
+func (ch *Channel) WriteByConn(datapacket IPacket) error {
 	panic("implement me")
 }
 
-func (b *Channel) GetConf() IChannelConf {
-	return b.conf
+func (ch *Channel) GetConf() IChannelConf {
+	return ch.conf
 }
 
-func (b *Channel) GetChStatis() *ChannelStatis {
-	return b.ChannelStatis
+func (ch *Channel) GetChStatis() *ChannelStatis {
+	return ch.ChannelStatis
 }
 
-func (b *Channel) GetConn() net.Conn {
-	return b.Conn
+func (ch *Channel) GetConn() net.Conn {
+	return ch.Conn
 }
 
-func (b *Channel) IsReadLoopContinued(err error) bool {
+func (ch *Channel) IsReadLoopContinued(err error) bool {
 	// 读取超过一定失败次数后，不再继续执行
-	return b.GetChStatis().RevStatics.FailTimes < (int64)(b.conf.GetCloseRevFailTime())
+	return ch.GetChStatis().RevStatics.FailTimes < (int64)(ch.conf.GetCloseRevFailTime())
 }
 
-func (b *Channel) GetChHandle() *ChHandle {
-	return b.ChannelHandle
+func (ch *Channel) GetChHandle() *ChHandle {
+	return ch.ChannelHandle
 }
 
-func (b *Channel) IsActived() bool {
-	return b.actived
+func (ch *Channel) IsActived() bool {
+	return ch.actived
 }
 
-func (b *Channel) SetActived(actived bool) {
-	b.actived = actived
+func (ch *Channel) SetActived(actived bool) {
+	ch.actived = actived
 }
 
 // 是否是服务端产生的channel
-func (b *Channel) IsServer() bool {
-	return b.server
+func (ch *Channel) IsServer() bool {
+	return ch.server
 }
 
 // GetReqPath 获取相对path，根据各自业务需要进行定义
-func (b *Channel) GetRelativePath() string {
-	return b.relativePath
+func (ch *Channel) GetRelativePath() string {
+	return ch.relativePath
 }
 
 // SetRelativePath 设置相对path，根据各自业务需要进行定义
-func (b *Channel) SetRelativePath(relativePath string) {
-	b.relativePath = relativePath
+func (ch *Channel) SetRelativePath(relativePath string) {
+	ch.relativePath = relativePath
 }
 
-func (b *Channel) StopChannel(channel IChannel) {
+func (ch *Channel) StopChannel(channel IChannel) {
 	// 关闭状态不再执行后面的内容
-	id := b.GetId()
+	id := ch.GetId()
 	if channel.IsClosed() {
 		logx.Info("channel is closed, chId:", id)
 		return
@@ -406,18 +413,20 @@ func (b *Channel) StopChannel(channel IChannel) {
 
 	logx.Info("start to close channel, chId:", id)
 	// 清理关闭相关
-	b.SetClosed(true)
-	b.closeExit <- true
-	close(b.closeExit)
+	ch.SetClosed(true)
+	ch.closeExit <- true
+	close(ch.closeExit)
+
+	// TODO udpchannel没必要关闭，待定，关闭conn不应该channel来管理？
 	conn := channel.GetConn()
-	if conn != nil {
+	if conn != nil || NETWORK_UDP != ch.GetConf().GetNetwork() {
 		conn.Close()
 	}
 }
 
 // StartReadLoop 启动循环读取，读取到数据包后，放入#ReadQueue中，等待处理
-func (b *Channel) startReadLoop(channel IChannel) {
-	chId := b.GetId()
+func (ch *Channel) startReadLoop(channel IChannel) {
+	chId := ch.GetId()
 	ctx := NewChHandleContext(channel, nil)
 	defer func() {
 		rec := recover()
@@ -428,13 +437,13 @@ func (b *Channel) startReadLoop(channel IChannel) {
 				// 捕获处理消息异常
 				NotifyErrorHandle(ctx, err, ERR_READ)
 			}
-			b.Stop()
+			ch.Stop()
 		}
 	}()
 	logx.Info("start to readloop, chId:", chId)
 	for {
 		select {
-		case <-b.closeExit:
+		case <-ch.closeExit:
 			logx.Info("stop read loop, chId:", chId)
 			return
 		default:
@@ -449,7 +458,7 @@ func (b *Channel) startReadLoop(channel IChannel) {
 			}
 
 			if rev != nil && rev.IsPrepare() {
-				readPool := b.readPool
+				readPool := ch.readPool
 				if readPool != nil {
 					// 放入读取协程池等待处理
 					readPool.Cache(rev)
@@ -476,10 +485,10 @@ func HandleOnActive(ctx IChHandleContext) {
 	}
 }
 
-func (b *Channel) LocalAddr() net.Addr {
+func (ch *Channel) LocalAddr() net.Addr {
 	return nil
 }
 
-func (b *Channel) RemoteAddr() net.Addr {
+func (ch *Channel) RemoteAddr() net.Addr {
 	return nil
 }
