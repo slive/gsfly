@@ -100,48 +100,48 @@ type Packet struct {
 }
 
 // GetChannel 获取对应的channel
-func (b *Packet) GetChannel() IChannel {
-	return b.channel
+func (packet *Packet) GetChannel() IChannel {
+	return packet.channel
 }
 
 // Release 释放资源
-func (b *Packet) Release() {
-	b.data = nil
+func (packet *Packet) Release() {
+	packet.data = nil
 }
 
 // IsRelease 是否以释放
-func (b *Packet) IsRelease() bool {
-	return b.data == nil
+func (packet *Packet) IsRelease() bool {
+	return packet.data == nil
 }
 
 // GetNetwork 获取网络协议类型
-func (b *Packet) GetNetwork() Network {
-	return b.network
+func (packet *Packet) GetNetwork() Network {
+	return packet.network
 }
 
 // SetNetwork 设置网络协议类型
-func (b *Packet) SetNetwork(ptype Network) {
-	b.network = ptype
+func (packet *Packet) SetNetwork(ptype Network) {
+	packet.network = ptype
 }
 
 // GetData 获取收发数据
-func (b *Packet) GetData() []byte {
-	return b.data
+func (packet *Packet) GetData() []byte {
+	return packet.data
 }
 
 // SetData 设置收发数据
-func (b *Packet) SetData(data []byte) {
-	b.data = data
+func (packet *Packet) SetData(data []byte) {
+	packet.data = data
 }
 
 // IsPrepare 数据是否已准备好
-func (b *Packet) IsPrepare() bool {
-	return len(b.data) > 0
+func (packet *Packet) IsPrepare() bool {
+	return len(packet.data) > 0
 }
 
 // GetInitTime 获取初始化的时间
-func (b *Packet) GetInitTime() time.Time {
-	return b.initTime
+func (packet *Packet) GetInitTime() time.Time {
+	return packet.initTime
 }
 
 // NewPacket 根据不同类型创建不同的packet

@@ -395,20 +395,21 @@ func (ch *Channel) StopChannel(channel IChannel) {
 	defer func() {
 		rec := recover()
 		if rec != nil {
-			logx.Warn("close error, chId:", id, rec)
+			logx.Warnf("close error, chId:%v, err:%v", id, rec)
 			err, ok := rec.(error)
 			if ok {
 				// 捕获处理消息异常
 				NotifyErrorHandle(ctx, err, ERR_INACTIVE)
 			}
-		} else {
-			// 执行关闭后的方法
-			closeFunc := handle.onInActive
-			if closeFunc != nil {
-				closeFunc(ctx)
-			}
-			logx.Info("finish to close channel, chId:", id)
 		}
+
+		// 执行关闭后的方法
+		closeFunc := handle.onInActive
+		if closeFunc != nil {
+			closeFunc(ctx)
+		}
+		logx.Info("finish to close channel, chId:", id)
+
 	}()
 
 	logx.Info("start to close channel, chId:", id)
@@ -419,7 +420,7 @@ func (ch *Channel) StopChannel(channel IChannel) {
 
 	// TODO udpchannel没必要关闭，待定，关闭conn不应该channel来管理？
 	conn := channel.GetConn()
-	if conn != nil || NETWORK_UDP != ch.GetConf().GetNetwork() {
+	if conn != nil && NETWORK_UDP != ch.GetConf().GetNetwork() {
 		conn.Close()
 	}
 }
@@ -450,7 +451,7 @@ func (ch *Channel) startReadLoop(channel IChannel) {
 			rev, err := channel.Read()
 			if err != nil {
 				if !channel.IsReadLoopContinued(err) {
-					logx.Panic("read loop error:", err)
+					logx.Panic("readloop error:", err)
 					panic(err)
 				} else {
 					continue

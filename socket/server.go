@@ -132,13 +132,13 @@ func (listener *ServerListener) Listen() error {
 	switch network {
 	case gch.NETWORK_WS:
 		return listenWs(listener)
+	case gch.NETWORK_HTTP:
+		// TODO http也是ws处理
+		return listenWs(listener)
 	case gch.NETWORK_KCP:
 		return listenKcp(listener)
 	case gch.NETWORK_TCP:
 		return listenTcp(listener)
-	case gch.NETWORK_HTTP:
-		// TODO http也是ws处理
-		return listenWs(listener)
 	case gch.NETWORK_UDP:
 		return listenUdp(listener)
 	default:
@@ -258,12 +258,12 @@ func (proxy *proxyHandler) ServeHTTP(writer http.ResponseWriter, req *http.Reque
 	uri := req.RequestURI
 	logx.Info("request:", uri)
 	conf := proxy.serverListener.GetConf().(IWsServerConf)
-	// 优先处理ws的handler
 	// TODO 模糊匹配?，优先级如何？
 	wsChildren := conf.GetListenConfs()
 	if wsChildren != nil {
 		for _, child := range wsChildren {
 			path := child.GetBasePath()
+			// 优先处理ws的handler
 			if strings.Contains(uri, path) {
 				err := upgradeWs(proxy.serverListener, writer, req, proxy.upgrader, child)
 				if err != nil {
