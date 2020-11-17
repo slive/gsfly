@@ -145,7 +145,7 @@ func InitLogger(logConf *LogConf) {
 	logx.SetFormatter(&tf)
 	maxRemainCount := logConf.MaxRemainCount
 	if maxRemainCount <= 0 {
-		maxRemainCount = 10
+		maxRemainCount = 100
 	}
 	logx.AddHook(newRlfHook(maxRemainCount, filePath, &tf))
 	defLogConf = logConf
@@ -193,13 +193,34 @@ func newRlfHook(maxRemainCont uint, logName string, tf *logx.TextFormatter) logx
 
 func caller() string {
 	lfmt := ""
-	_, file, line, ok := runtime.Caller(2)
+	pc, file, line, ok := runtime.Caller(2)
 	if ok {
 		sps := strings.Split(file, "/")
 		if sps != nil {
-			file = sps[len(sps)-1]
+			// 取缩写路径如：logger/logger.go
+			flen := len(sps)
+			if flen >= 2 {
+				file = sps[flen-2] + "/"
+			} else {
+				file = ""
+			}
+			file += sps[flen-1]
 		}
-		lfmt += file + fmt.Sprintf("(%v) ", line)
+		lfmt = file
+
+		forPC := runtime.FuncForPC(pc)
+		if forPC != nil {
+			// 获取文件所属方法
+			fnName := forPC.Name()
+			fs := strings.Split(fnName, ".")
+			if fs != nil {
+				fnName = fs[len(fs)-1]
+			}
+			lfmt += fmt.Sprintf("#%v", fnName)
+		}
+
+		// 获取行数
+		lfmt += fmt.Sprintf("(%v) ", line)
 	}
 	return lfmt
 }

@@ -9,7 +9,6 @@ import (
 	gch "github.com/Slive/gsfly/channel"
 	logx "github.com/Slive/gsfly/logger"
 	"github.com/xtaci/kcp-go"
-	"io"
 	"net"
 	"time"
 )
@@ -48,7 +47,7 @@ func (b *KcpChannel) onKcpWapperReadHandler(ctx gch.IChHandleContext) {
 	handleFunc := b.onKcpReadHandler
 	if handleFunc != nil {
 		if b.IsServer() {
-			// 激活处理方法
+			// 服务端收到第一条信息则为：激活处理方法
 			if !b.IsActived() {
 				gch.HandleOnActive(ctx)
 				b.SetActived(true)
@@ -75,9 +74,6 @@ func Read(ch *KcpChannel) (gch.IPacket, error) {
 		// TODO 超时后抛出异常？
 		logx.Warn("read kcp err:", err)
 		gch.RevStatisFail(ch, now)
-		if err == io.EOF {
-			panic(err)
-		}
 		return nil, err
 	}
 	// 接收到8个字节数据，是bug?

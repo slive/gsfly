@@ -10,6 +10,7 @@ import (
 	"github.com/Slive/gsfly/common"
 	logx "github.com/Slive/gsfly/logger"
 	"github.com/pkg/errors"
+	"io"
 	"net"
 	"sync"
 )
@@ -450,11 +451,17 @@ func (ch *Channel) startReadLoop(channel IChannel) {
 		default:
 			rev, err := channel.Read()
 			if err != nil {
-				if !channel.IsReadLoopContinued(err) {
-					logx.Panic("readloop error:", err)
-					panic(err)
-				} else {
-					continue
+				switch err {
+				case io.EOF, io.ErrClosedPipe, io.ErrUnexpectedEOF:
+					// io的异常直接结束
+					logx.Panicf("readloop io error:%v", err)
+				default:
+					// 其他异常循环等待或者忽略
+					if !channel.IsReadLoopContinued(err) {
+						logx.Panicf("readloop error:%v", err)
+					} else {
+						continue
+					}
 				}
 			}
 

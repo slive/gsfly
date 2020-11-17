@@ -327,7 +327,7 @@ func upgradeWs(serverListener IServerListener, writer http.ResponseWriter, req *
 
 	chHandle := serverListener.GetChHandle().(*gch.ChHandle)
 	// OnInActiveHandle重新包装，以便释放资源
-	chHandle.SetOnInActive(ConverOnInActiveHandler(serverListener.GetChannels(), chHandle.GetOnInActive()))
+	chHandle.SetOnInActive(ConverOnInActiveHandler(acceptChannels, chHandle.GetOnInActive()))
 	wsCh := tcpx.NewWsChannel(serverListener, conn, serverConf, chHandle, params, true)
 	// 设置为请求过来的path
 	wsCh.SetRelativePath(req.URL.Path)
@@ -377,7 +377,9 @@ func listenKcp(serverListener *ServerListener) error {
 				panic(err)
 			}
 
-			chHandle := serverListener.GetChHandle().(*gch.ChHandle)
+			schHandle := serverListener.GetChHandle().(*gch.ChHandle)
+			// 复制一份handle，避免相互覆盖
+			chHandle := gch.CopyChHandle(schHandle)
 			// OnInActiveHandle重新包装，以便释放资源
 			chHandle.SetOnInActive(ConverOnInActiveHandler(kcpChannels, chHandle.GetOnInActive()))
 			kcpCh := kcpx.NewKcpChannel(serverListener, kcpConn, kcpServerConf, chHandle, true)

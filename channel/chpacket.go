@@ -20,7 +20,7 @@ const (
 	NETWORK_WS      Network = "ws"
 	NETWORK_UDP     Network = "udp"
 	NETWORK_KCP     Network = "kcp"
-	NETWORK_UNKNOWN Network = "kcp"
+	NETWORK_UNKNOWN Network = ""
 )
 
 // String 获取协议对应的字符串

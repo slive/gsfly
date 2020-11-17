@@ -210,3 +210,12 @@ func (c *ChHandle) onWapperReadHandler(ctx IChHandleContext) {
 		panic("implement me")
 	}
 }
+
+func CopyChHandle(handle IChHandle) *ChHandle {
+	newHandle := NewDefChHandle(handle.GetOnRead())
+	newHandle.SetOnActive(handle.GetOnActive())
+	newHandle.SetOnInActive(handle.GetOnInActive())
+	newHandle.SetOnError(handle.GetOnError())
+	newHandle.SetOnWrite(handle.GetOnWrite())
+	return newHandle
+}
