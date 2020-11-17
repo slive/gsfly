@@ -128,7 +128,7 @@ var def_channel_Conf IChannelConf
 func initDefChannelConfs() {
 	if def_readPool == nil {
 		def_readPoolConf = Global_Conf.ReadPoolConf
-		def_readPool = NewReadPool(readPoolConf.MaxReadPoolSize, readPoolConf.MaxReadQueueSize)
+		def_readPool = NewReadPool(def_readPoolConf.MaxReadPoolSize, def_readPoolConf.MaxReadQueueSize)
 	}
 
 	if def_channel_Conf == nil {
@@ -219,7 +219,7 @@ func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chH
 	channel.Attact = *common.NewAttact()
 	channel.Id = *common.NewId()
 	channel.Parent = *common.NewParent(parent)
-	logx.Info("create base channel, conf:", chConf)
+	logx.Info("create base channel, chConf:%v", chConf)
 	channel.readBuf = make([]byte, chConf.GetReadBufSize())
 	return channel
 }

@@ -43,6 +43,9 @@ type IChannelConf interface {
 	// GetNetwork 获取通道协议类型
 	// @see Network
 	GetNetwork() Network
+
+	// CopyChConf 复制配置
+	CopyChConf(srcChConf IChannelConf)
 }
 
 // ChannelConf channel配置接口
@@ -95,8 +98,8 @@ func NewDefChannelConf(network Network) *ChannelConf {
 }
 
 // GetReadTimeout 获取读超时时间，单位为s
-func (bc *ChannelConf) GetReadTimeout() time.Duration {
-	timeout := bc.ReadTimeout
+func (chConf *ChannelConf) GetReadTimeout() time.Duration {
+	timeout := chConf.ReadTimeout
 	if timeout <= 0 {
 		timeout = READ_TIMEOUT
 	}
@@ -104,8 +107,8 @@ func (bc *ChannelConf) GetReadTimeout() time.Duration {
 }
 
 // GetReadBufSize 获取读buffer大小，单位是字节(byte)
-func (bc *ChannelConf) GetReadBufSize() int {
-	ret := bc.ReadBufSize
+func (chConf *ChannelConf) GetReadBufSize() int {
+	ret := chConf.ReadBufSize
 	if ret <= 0 {
 		ret = READ_BUFSIZE
 	}
@@ -113,8 +116,8 @@ func (bc *ChannelConf) GetReadBufSize() int {
 }
 
 // GetWriteTimeout 获取写超时时间，单位为s
-func (bc *ChannelConf) GetWriteTimeout() time.Duration {
-	timeout := bc.WriteTimeout
+func (chConf *ChannelConf) GetWriteTimeout() time.Duration {
+	timeout := chConf.WriteTimeout
 	if timeout <= 0 {
 		timeout = WRITE_TIMEOUT
 	}
@@ -122,8 +125,8 @@ func (bc *ChannelConf) GetWriteTimeout() time.Duration {
 }
 
 // GetWriteBufSize 获取写buffer大小，单位是字节(byte)
-func (bc *ChannelConf) GetWriteBufSize() int {
-	ret := bc.WriteBufSize
+func (chConf *ChannelConf) GetWriteBufSize() int {
+	ret := chConf.WriteBufSize
 	if ret <= 0 {
 		ret = WRITE_BUFSIZE
 	}
@@ -131,8 +134,8 @@ func (bc *ChannelConf) GetWriteBufSize() int {
 }
 
 // CloseRevFailTime 最大接收多少次失败后关闭
-func (bc *ChannelConf) GetCloseRevFailTime() int {
-	ret := bc.CloseRevFailTime
+func (chConf *ChannelConf) GetCloseRevFailTime() int {
+	ret := chConf.CloseRevFailTime
 	if ret <= 0 {
 		ret = CLOSE_REV_FAILTIME
 	}
@@ -140,13 +143,22 @@ func (bc *ChannelConf) GetCloseRevFailTime() int {
 }
 
 // GetNetwork 获取通道协议类型
-func (bc *ChannelConf) GetNetwork() Network {
-	return bc.Network
+func (chConf *ChannelConf) GetNetwork() Network {
+	return chConf.Network
+}
+
+// CopyChConf 复制配置
+func (chConf *ChannelConf) CopyChConf(srcChConf IChannelConf) {
+	chConf.ReadBufSize = srcChConf.GetReadBufSize()
+	chConf.WriteTimeout = srcChConf.GetWriteTimeout()
+	chConf.WriteBufSize = srcChConf.GetWriteBufSize()
+	chConf.ReadTimeout = srcChConf.GetReadTimeout()
+	chConf.CloseRevFailTime = srcChConf.GetCloseRevFailTime()
 }
 
 // GetExtConfs 扩展配置
-func (bc *ChannelConf) GetExtConfs() map[string]interface{} {
-	return bc.ExtConfs
+func (chConf *ChannelConf) GetExtConfs() map[string]interface{} {
+	return chConf.ExtConfs
 }
 
 // IAddrConf
