@@ -100,6 +100,8 @@ func handelReadQueue(queue *ReadQueue) {
 								NotifyErrorHandle(context, err, ERR_MSG)
 							}
 						}
+						// 释放资源
+						packet.Clear()
 					}()
 					// 交给handle处理
 					handler := handle.GetOnRead()

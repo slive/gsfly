@@ -55,6 +55,8 @@ type IAttact interface {
 	GetAttach(key string) interface{}
 
 	RemoveAttach(key string)
+
+	Clear()
 }
 
 type Attact struct {
@@ -90,4 +92,10 @@ func (b *Attact) RemoveAttach(key string) {
 	b.amut.RLock()
 	defer b.amut.RUnlock()
 	delete(b.attach, key)
+}
+
+func (b *Attact) Clear() {
+	b.amut.RLock()
+	defer b.amut.RUnlock()
+	b.Clear()
 }

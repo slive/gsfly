@@ -219,7 +219,7 @@ func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chH
 	channel.Attact = *common.NewAttact()
 	channel.Id = *common.NewId()
 	channel.Parent = *common.NewParent(parent)
-	logx.Info("create base channel, chConf:%v", chConf)
+	logx.Info("create base channel, chConf:%+v", chConf)
 	channel.readBuf = make([]byte, chConf.GetReadBufSize())
 	return channel
 }
@@ -416,6 +416,7 @@ func (ch *Channel) StopChannel(channel IChannel) {
 	logx.Info("start to close channel, chId:", id)
 	// 清理关闭相关
 	ch.SetClosed(true)
+	ch.Clear()
 	ch.closeExit <- true
 	close(ch.closeExit)
 
