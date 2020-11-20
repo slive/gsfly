@@ -95,7 +95,5 @@ func (b *Attact) RemoveAttach(key string) {
 }
 
 func (b *Attact) Clear() {
-	b.amut.RLock()
-	defer b.amut.RUnlock()
-	b.Clear()
+	// Todo
 }
