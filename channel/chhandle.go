@@ -16,7 +16,7 @@ type IChHandleContext interface {
 	// GetChannel 获取通道
 	GetChannel() IChannel
 
-	// GetPacket 获取收发包
+	// GetPacket 获取收发包，可能为空
 	GetPacket() IPacket
 
 	// GetError 获取错误码
@@ -86,29 +86,29 @@ func innerErrorHandle(ctx IChHandleContext) {
 
 // IChHandle channel(通信通道)处理方法集接口
 type IChHandle interface {
-	// GetOnRead 获取读处理方法
+	// GetOnRead 获取读信息后的处理方法
 	GetOnRead() ChHandleFunc
-	// SetOnRead 设置读处理方法
+	// SetOnRead 设置读信息后的处理方法
 	SetOnRead(onRead ChHandleFunc)
 
-	// GetOnWrite 获取写处理方法
+	// GetOnWrite 获取写之前的处理方法
 	GetOnWrite() ChHandleFunc
-	// SetOnWrite 设置写处理方法
+	// SetOnWrite 设置写之前的处理方法
 	SetOnWrite(onWrite ChHandleFunc)
 
-	// GetOnActive 获取激活时方法
+	// GetOnActive 获取激活后的处理方法
 	GetOnActive() ChHandleFunc
-	// SetOnActive 设置激活时方法
+	// SetOnActive 设置激活后的处理方法
 	SetOnActive(onActive ChHandleFunc)
 
-	// GetOnInActive 获取非激活时方法
+	// GetOnInActive 获取非激活后的处理方法
 	GetOnInActive() ChHandleFunc
-	// SetOnInActive 设置非激活时方法
+	// SetOnInActive 设置非激活后的处理方法
 	SetOnInActive(onInActive ChHandleFunc)
 
 	// GetOnError 获取错误时方法
 	GetOnError() ChHandleFunc
-	// SetOnError 设置错误时方法
+	// SetOnError 设置错误后的处理方法
 	SetOnError(onError ChHandleFunc)
 }
 
@@ -122,47 +122,47 @@ type ChHandle struct {
 	onError     ChHandleFunc
 }
 
-// SetOnRead 设置读处理方法
+// SetOnRead 设置读到数据后处理方法
 func (c *ChHandle) SetOnRead(onRead ChHandleFunc) {
 	c.onRead = onRead
 }
 
-// GetOnRead 获取读处理方法
+// GetOnRead 获取读到数据后处理方法
 func (c *ChHandle) GetOnRead() ChHandleFunc {
 	return c.onRead
 }
 
-// SetOnWrite 设置写处理方法
+// SetOnWrite 设置写之前的处理方法
 func (c *ChHandle) SetOnWrite(onWrite ChHandleFunc) {
 	c.onWrite = onWrite
 }
 
-// GetOnWrite 获取写处理方法
+// GetOnWrite 获取写之前的处理方法
 func (c *ChHandle) GetOnWrite() ChHandleFunc {
 	return c.onWrite
 }
 
-// SetOnActive 设置激活处理方法
+// SetOnActive 设置激活后处理方法
 func (c *ChHandle) SetOnActive(onActive ChHandleFunc) {
 	c.onActive = onActive
 }
 
-// GetOnActive 获取激活处理方法
+// GetOnActive 获取激活后处理方法
 func (c *ChHandle) GetOnActive() ChHandleFunc {
 	return c.onActive
 }
 
-// SetOnInActive 设置非激活处理方法
+// SetOnInActive 设置非激活后处理方法
 func (c *ChHandle) SetOnInActive(onInActive ChHandleFunc) {
 	c.onInActive = onInActive
 }
 
-// GetOnInActive 获取非激活处理方法
+// GetOnInActive 获取非激活后处理方法
 func (c *ChHandle) GetOnInActive() ChHandleFunc {
 	return c.onInActive
 }
 
-// SetOnError 设置错误处理方法
+// SetOnError 设置错误后处理方法
 func (c *ChHandle) SetOnError(onError ChHandleFunc) {
 	if onError == nil {
 		c.onError = innerErrorHandle
@@ -171,7 +171,7 @@ func (c *ChHandle) SetOnError(onError ChHandleFunc) {
 	}
 }
 
-// GetOnError 获取错误处理方法
+// GetOnError 获取错误后处理方法
 func (c *ChHandle) GetOnError() ChHandleFunc {
 	return c.onError
 }

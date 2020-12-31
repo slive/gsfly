@@ -19,5 +19,5 @@ websocket相关：
 - [gorilla/websocket](https://github.com/gorilla/websocket)
 
 队列集合相关：
-- [emirpasic/gods](https://github.com/emirpasic/gods.git)
+- [emirpasic/gods](https://github.com/emirpasic/gods)
 

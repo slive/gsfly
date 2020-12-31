@@ -7,7 +7,7 @@ package channel
 
 import (
 	"fmt"
-	logx "github.com/Slive/gsfly/logger"
+	"log"
 	"runtime"
 	"time"
 )
@@ -208,11 +208,12 @@ type ReadPoolConf struct {
 	MaxReadQueueSize int
 }
 
-// 每个队列最大读缓冲数
-const MAX_READ_QUEUE_SIZE = 100
-
-// 对应每个cpu的读线程池最大数
-const MAX_READ_POOL_EVERY_CPU = 100
+const (
+	// 每个队列最大读缓冲数
+	MAX_READ_QUEUE_SIZE = 100
+	// 对应每个cpu的读线程池最大数
+	MAX_READ_POOL_EVERY_CPU = 1000
+)
 
 // NewReadPoolConf 初始化资源池
 func NewReadPoolConf(maxReadPoolSize, maxReadQueueSize int) *ReadPoolConf {
@@ -223,41 +224,34 @@ func NewReadPoolConf(maxReadPoolSize, maxReadQueueSize int) *ReadPoolConf {
 	return r
 }
 
-type DefaultConf struct {
-	ChannelConf  *ChannelConf
-	ReadPoolConf *ReadPoolConf
-}
+// globalChannelConf 全局的channel配置，当都没用初始化ChannelConf配置时，使用该配置
+var globalChannelConf *ChannelConf
+
+// globalReadPoolConf 全局的服务端读线程配置，当都没用初始化ReadPoolConf配置时，使用该配置
+var globalServerReadPoolConf *ReadPoolConf
+
+// globalReadPoolConf 全局的客户端读线程配置，当都没用初始化ReadPoolConf配置时，使用该配置
+var globalClientReadPoolConf *ReadPoolConf
 
 func init() {
-	LoadDefaultConf()
+	// 默认初始化一次
+	globalChannelConf = newGlobalChannelConf()
+	log.Println("init global channelConf:", globalChannelConf)
+
+	globalServerReadPoolConf = NewReadPoolConf(MAX_READ_QUEUE_SIZE, runtime.NumCPU()*MAX_READ_POOL_EVERY_CPU)
+	log.Println("init global server readPoolConf:", globalServerReadPoolConf)
+
+	globalClientReadPoolConf = NewReadPoolConf(MAX_READ_QUEUE_SIZE, runtime.NumCPU())
+	log.Println("init global client readPoolConf:", globalClientReadPoolConf)
 }
 
-var (
-	channelConf = &ChannelConf{
+// newGlobalChannelConf 创建全局的channel配置
+func newGlobalChannelConf() *ChannelConf {
+	return &ChannelConf{
 		ReadTimeout:      READ_TIMEOUT,
 		ReadBufSize:      READ_BUFSIZE,
 		WriteTimeout:     WRITE_TIMEOUT,
 		WriteBufSize:     WRITE_BUFSIZE,
 		CloseRevFailTime: CLOSE_REV_FAILTIME,
 	}
-	readPoolConf = NewDefReadPoolConf()
-)
-
-// NewDefReadPoolConf 创建默认的读线程池配置
-func NewDefReadPoolConf() *ReadPoolConf {
-	return &ReadPoolConf{
-		MaxReadQueueSize: MAX_READ_QUEUE_SIZE,
-		MaxReadPoolSize:  runtime.NumCPU() * MAX_READ_POOL_EVERY_CPU,
-	}
-}
-
-var Global_Conf DefaultConf
-
-// LoadDefaultConf 加载默认配置
-func LoadDefaultConf() {
-	Global_Conf = DefaultConf{
-		ChannelConf:  channelConf,
-		ReadPoolConf: readPoolConf}
-	logx.Info("init global channelConf:", channelConf)
-	logx.Info("init global readPoolConf:", channelConf)
 }

@@ -60,7 +60,7 @@ func (logConf *LogConf) GetLevel() logx.Level {
 	}
 }
 
-func NewDefaultLogConf() *LogConf {
+func newDefaultLogConf() *LogConf {
 	logConf := &LogConf{
 		LogFile:        "log-gsfly.log",
 		LogDir:         defaultLogDir(),
@@ -76,11 +76,11 @@ func defaultLogDir() string {
 
 var logLevel logx.Level
 
-var defLogConf *LogConf
+var initLogConf *LogConf
 
 func InitDefLogger() {
-	if defLogConf == nil {
-		InitLogger(NewDefaultLogConf())
+	if initLogConf == nil {
+		InitLogger(newDefaultLogConf())
 	}
 }
 
@@ -148,7 +148,7 @@ func InitLogger(logConf *LogConf) {
 		maxRemainCount = 100
 	}
 	logx.AddHook(newRlfHook(maxRemainCount, filePath, &tf))
-	defLogConf = logConf
+	initLogConf = logConf
 }
 
 func mkdirLog(dir string) (e error) {
