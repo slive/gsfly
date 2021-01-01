@@ -30,6 +30,8 @@ type IChHandleContext interface {
 
 	// SetRet 设置返回值
 	SetRet(ret interface{})
+
+	common.IRunContext
 }
 
 // ChHandleContext channel处理handler上下文实现
@@ -39,11 +41,18 @@ type ChHandleContext struct {
 	common.Attact
 	gerr common.GError
 	ret  interface{}
+	common.RunContext
 }
 
 // NewChHandleContext 创建channelhandle上下文
 func NewChHandleContext(channel IChannel, packet IPacket) *ChHandleContext {
-	return &ChHandleContext{channel: channel, packet: packet, Attact: *common.NewAttact()}
+	c := &ChHandleContext{channel: channel, packet: packet, Attact: *common.NewAttact()}
+	if packet != nil {
+		c.RunContext = *common.NewRunContext(packet.GetContext())
+	} else {
+		c.RunContext = *common.NewRunContext(channel.GetContext())
+	}
+	return c
 }
 
 // GetChannel 获取通道
@@ -81,7 +90,7 @@ type ChHandleFunc func(ctx IChHandleContext)
 
 // innerErrorHandle 内部错误处理，空实现
 func innerErrorHandle(ctx IChHandleContext) {
-	logx.Errorf("channel error, chId:%v, error:%v", ctx.GetChannel().GetId(), ctx.GetError())
+	logx.ErrorTracef(ctx, "channel error, error:%v", ctx.GetError())
 }
 
 // IChHandle channel(通信通道)处理方法集接口
@@ -207,7 +216,7 @@ func (c *ChHandle) onWapperReadHandler(ctx IChHandleContext) {
 		}
 	} else {
 		HandleMsgStatis(packet, false)
-		panic("implement me")
+		logx.PanicTracef(ctx, "implement me")
 	}
 }
 

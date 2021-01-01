@@ -4,6 +4,7 @@
 
 vendor
 logs
+*/log/*
 bin
 
 *.log

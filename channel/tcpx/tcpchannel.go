@@ -36,11 +36,11 @@ func NewSimpleTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IC
 
 func NewTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannelConf, chHandle *gch.ChHandle, server bool) *TcpChannel {
 	ch := newTcpChannel(parent, tcpConn, chConf, chHandle, server)
-	ch.SetId("tcp-" + tcpConn.LocalAddr().String() + "-" + tcpConn.RemoteAddr().String())
+	ch.SetId(tcpConn.LocalAddr().String() + "->" + tcpConn.RemoteAddr().String())
 	return ch
 }
 
-func (tcpCh *TcpChannel) Start() error {
+func (tcpCh *TcpChannel) Open() error {
 	err := tcpCh.StartChannel(tcpCh)
 	if err == nil {
 		gch.HandleOnActive(gch.NewChHandleContext(tcpCh, nil))
@@ -48,7 +48,7 @@ func (tcpCh *TcpChannel) Start() error {
 	return err
 }
 
-func (tcpCh *TcpChannel) Stop() {
+func (tcpCh *TcpChannel) Close() {
 	tcpCh.StopChannel(tcpCh)
 }
 

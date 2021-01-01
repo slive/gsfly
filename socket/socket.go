@@ -26,6 +26,8 @@ type ISocket interface {
 
 	// GetInputParams 建立socketconn所需的参数
 	GetInputParams() map[string]interface{}
+
+	cmm.IRunContext
 }
 
 // Socket socketconn通信
@@ -38,13 +40,15 @@ type Socket struct {
 	channelHandle gch.IChHandle
 	Exit          chan bool
 	params        map[string]interface{}
+
+	cmm.RunContext
 }
 
-// NewSocketConn 创建socketconn
+// NewSocket 创建socketconn
 // parent 父类
 // chHandle handle
 // inputParams 所需参数
-func NewSocketConn(parent interface{}, chHandle gch.IChHandle, inputParams map[string]interface{}) *Socket {
+func NewSocket(parent interface{}, chHandle gch.IChHandle, inputParams map[string]interface{}) *Socket {
 	b := &Socket{
 		Closed:        true,
 		Exit:          make(chan bool, 1),
@@ -52,18 +56,24 @@ func NewSocketConn(parent interface{}, chHandle gch.IChHandle, inputParams map[s
 	b.Parent = *cmm.NewParent(parent)
 	b.Attact = *cmm.NewAttact()
 	b.params = inputParams
+	b.RunContext = *cmm.NewRunContextByParent(parent)
 	return b
 }
 
-func (socketConn *Socket) IsClosed() bool {
-	return socketConn.Closed
+func (socket *Socket) SetId(id string) {
+	socket.AddTrace(id)
+	socket.Id.SetId(id)
 }
 
-func (socketConn *Socket) GetChHandle() gch.IChHandle {
-	return socketConn.channelHandle
+func (socket *Socket) IsClosed() bool {
+	return socket.Closed
+}
+
+func (socket *Socket) GetChHandle() gch.IChHandle {
+	return socket.channelHandle
 }
 
 // GetInputParams 建立socketconn所需的参数
-func (socketConn *Socket) GetInputParams() map[string]interface{} {
-	return socketConn.params
+func (socket *Socket) GetInputParams() map[string]interface{} {
+	return socket.params
 }

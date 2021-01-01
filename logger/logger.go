@@ -6,6 +6,7 @@ package logger
 
 import (
 	"fmt"
+	"github.com/Slive/gsfly/common"
 	"github.com/Slive/gsfly/util"
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/rifflock/lfshook"
@@ -103,7 +104,7 @@ func InitLogger(logConf *LogConf) {
 		logfile, _ = os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	}
 	logLevel = logConf.GetLevel()
-	log.Println("level:", logLevel)
+	log.Println("default level:", logLevel)
 	logx.SetLevel(logLevel)
 	logx.SetOutput(ioutil.Discard) // Send all logs to nowhere by default
 	logx.AddHook(&writer.Hook{ // Send logs with level higher than warning to stderr
@@ -192,8 +193,12 @@ func newRlfHook(maxRemainCont uint, logName string, tf *logx.TextFormatter) logx
 }
 
 func caller() string {
+	return callerWithSkip(3)
+}
+
+func callerWithSkip(skip int) string {
 	lfmt := ""
-	pc, file, line, ok := runtime.Caller(2)
+	pc, file, line, ok := runtime.Caller(skip)
 	if ok {
 		sps := strings.Split(file, "/")
 		if sps != nil {
@@ -235,6 +240,23 @@ func Printf(format string, logs ...interface{}) {
 	field.Printf(format, logs...)
 }
 
+func PrintTracef(ctx common.IRunContext, format string, logs ...interface{}) {
+	field := withField(ctx)
+	field.Printf(format, logs...)
+}
+
+func withField(ctx common.IRunContext) *logx.Entry {
+	field := logx.WithField("file", callerWithSkip(3))
+	if ctx != nil {
+		field = field.WithField("trace", ctx.GetTrace())
+	}
+	return field
+}
+
+func IsDebug() bool {
+	return logx.IsLevelEnabled(logx.DebugLevel)
+}
+
 func Debug(logs ...interface{}) {
 	field := logx.WithField("file", caller())
 	field.Debug(logs...)
@@ -245,13 +267,28 @@ func Debugf(format string, logs ...interface{}) {
 	field.Debugf(format, logs...)
 }
 
+func DebugTracef(ctx common.IRunContext, format string, logs ...interface{}) {
+	field := withField(ctx)
+	field.Debugf(format, logs...)
+}
+
 func Info(logs ...interface{}) {
 	field := logx.WithField("file", caller())
 	field.Info(logs...)
 }
 
+func InfoTrace(ctx common.IRunContext, logs ...interface{}) {
+	field := withField(ctx)
+	field.Info(logs...)
+}
+
 func Infof(format string, logs ...interface{}) {
 	field := logx.WithField("file", caller())
+	field.Infof(format, logs...)
+}
+
+func InfoTracef(ctx common.IRunContext, format string, logs ...interface{}) {
+	field := withField(ctx)
 	field.Infof(format, logs...)
 }
 
@@ -265,6 +302,11 @@ func Warnf(format string, logs ...interface{}) {
 	field.Warnf(format, logs...)
 }
 
+func WarnTracef(ctx common.IRunContext, format string, logs ...interface{}) {
+	field := withField(ctx)
+	field.Warnf(format, logs...)
+}
+
 func Error(logs ...interface{}) {
 	field := logx.WithField("file", caller())
 	field.Error(logs...)
@@ -272,6 +314,11 @@ func Error(logs ...interface{}) {
 
 func Errorf(format string, logs ...interface{}) {
 	field := logx.WithField("file", caller())
+	field.Errorf(format, logs...)
+}
+
+func ErrorTracef(ctx common.IRunContext, format string, logs ...interface{}) {
+	field := withField(ctx)
 	field.Errorf(format, logs...)
 }
 
@@ -285,6 +332,11 @@ func Fatalf(format string, logs ...interface{}) {
 	field.Fatalf(format, logs...)
 }
 
+func FatalTracef(ctx common.IRunContext, format string, logs ...interface{}) {
+	field := withField(ctx)
+	field.Fatalf(format, logs...)
+}
+
 func Panic(logs ...interface{}) {
 	field := logx.WithField("file", caller())
 	field.Panic(logs...)
@@ -293,6 +345,13 @@ func Panic(logs ...interface{}) {
 
 func Panicf(format string, logs ...interface{}) {
 	field := logx.WithField("file", caller())
+	field.Panicf(format, logs...)
+	panic(logs)
+}
+
+// PanicTracef 支持
+func PanicTracef(ctx common.IRunContext, format string, logs ...interface{}) {
+	field := withField(ctx)
 	field.Panicf(format, logs...)
 	panic(logs)
 }

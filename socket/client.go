@@ -18,15 +18,15 @@ import (
 	"net"
 )
 
-// IClientConn 客户端conn
-type IClientConn interface {
+// IClientSocket 客户端conn
+type IClientSocket interface {
 	ISocket
 	GetConf() IClientConf
 	GetChannel() gch.IChannel
 	Dial() error
 }
 
-type ClientConn struct {
+type ClientSocket struct {
 	Socket
 
 	// 路径
@@ -37,44 +37,41 @@ type ClientConn struct {
 	Channel gch.IChannel
 }
 
-// NewClientConn 创建客户端socketconn
+// NewClientSocket 创建客户端socketconn
 // parent 父类
 // clientConf 客户端配置
 // chHandle handle
 // inputParams 所需参数
-func NewClientConn(parent interface{}, clientConf IClientConf, handle gch.IChHandle, inputParams map[string]interface{}) *ClientConn {
-	b := &ClientConn{}
+func NewClientSocket(parent interface{}, clientConf IClientConf, handle gch.IChHandle, inputParams map[string]interface{}) *ClientSocket {
+	b := &ClientSocket{}
 	b.Conf = clientConf
-	b.Socket = *NewSocketConn(parent, handle, inputParams)
+	b.Socket = *NewSocket(parent, handle, inputParams)
+	b.SetId("client#" + b.Conf.GetNetwork().String() + "#" + b.Conf.GetAddrStr())
 	return b
 }
 
-func (clientConn *ClientConn) GetId() string {
-	return clientConn.Conf.GetAddrStr()
+func (clientSocket *ClientSocket) GetChannel() gch.IChannel {
+	return clientSocket.Channel
 }
 
-func (clientConn *ClientConn) GetChannel() gch.IChannel {
-	return clientConn.Channel
+func (clientSocket *ClientSocket) GetConf() IClientConf {
+	return clientSocket.Conf
 }
 
-func (clientConn *ClientConn) GetConf() IClientConf {
-	return clientConn.Conf
-}
-
-func (clientConn *ClientConn) Dial() error {
-	network := clientConn.GetConf().GetNetwork()
+func (clientSocket *ClientSocket) Dial() error {
+	network := clientSocket.GetConf().GetNetwork()
 	switch network {
 	case gch.NETWORK_WS:
-		return dialWs(clientConn)
+		return dialWs(clientSocket)
 	case gch.NETWORK_KCP:
-		return dialKcp(clientConn)
+		return dialKcp(clientSocket)
 	case gch.NETWORK_TCP:
-		return dialTcp(clientConn)
+		return dialTcp(clientSocket)
 	case gch.NETWORK_HTTP:
 		// TODO 默认为ws
-		return dialWs(clientConn)
+		return dialWs(clientSocket)
 	case gch.NETWORK_UDP:
-		return dialUdp(clientConn)
+		return dialUdp(clientSocket)
 	default:
 		return nil
 	}
@@ -82,12 +79,12 @@ func (clientConn *ClientConn) Dial() error {
 }
 
 // dialWs 拨号实现ws
-func dialWs(clientConn *ClientConn) error {
-	wsClientConf := clientConn.GetConf().(IWsClientConf)
-	handle := clientConn.GetChHandle().(*gch.ChHandle)
+func dialWs(cs *ClientSocket) error {
+	wsClientConf := cs.GetConf().(IWsClientConf)
+	handle := cs.GetChHandle().(*gch.ChHandle)
 
 	url := wsClientConf.GetUrl()
-	params := clientConn.GetInputParams()
+	params := cs.GetInputParams()
 	if params != nil && len(params) > 0 {
 		path := wsClientConf.GetReqPath()
 		if len(path) <= 0 {
@@ -107,7 +104,7 @@ func dialWs(clientConn *ClientConn) error {
 			index++
 		}
 	}
-	logx.Info("dial ws url:", url)
+	logx.InfoTracef(cs, "dial ws url:%v", url)
 	conn, response, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
 		logx.Error("dial ws error:", err)
@@ -115,38 +112,38 @@ func dialWs(clientConn *ClientConn) error {
 	}
 
 	// TODO 处理resonse？
-	logx.Info("ws response:", response)
+	logx.InfoTracef(cs, "ws response:%v", response)
 	// 创建channel
-	wsCh := tcpx.NewWsChannel(clientConn, conn, wsClientConf, handle, params, false)
+	wsCh := tcpx.NewWsChannel(cs, conn, wsClientConf, handle, params, false)
 	wsCh.SetRelativePath(wsClientConf.GetReqPath())
-	err = wsCh.Start()
+	err = wsCh.Open()
 	if err == nil {
-		clientConn.Channel = wsCh
-		clientConn.Closed = false
+		cs.Channel = wsCh
+		cs.Closed = false
 	}
 	return err
 }
 
-func dialTcp(clientConn *ClientConn) error {
-	tcpClientConf := clientConn.GetConf()
-	chHandle := clientConn.GetChHandle().(*gch.ChHandle)
+func dialTcp(cs *ClientSocket) error {
+	tcpClientConf := cs.GetConf()
+	chHandle := cs.GetChHandle().(*gch.ChHandle)
 	addr := tcpClientConf.GetAddrStr()
-	logx.Info("dial tcp addr:", addr)
+	logx.InfoTracef(cs, "dial tcp addr:%v", addr)
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
-		logx.Error("dial tcp addr error:", err)
+		logx.ErrorTracef(cs, "dial tcp addr error:%v", err)
 		return err
 	}
 
 	conn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
-		logx.Error("dial tcp conn error:", err)
+		logx.ErrorTracef(cs, "dial tcp error:%v", err)
 		return err
 	}
 
-	tcpCh := tcpx.NewTcpChannel(clientConn, conn, tcpClientConf, chHandle, false)
+	tcpCh := tcpx.NewTcpChannel(cs, conn, tcpClientConf, chHandle, false)
 	var path string
-	params := clientConn.GetInputParams()
+	params := cs.GetInputParams()
 	if params != nil {
 		p := params["path"]
 		if p != nil {
@@ -154,27 +151,27 @@ func dialTcp(clientConn *ClientConn) error {
 		}
 	}
 	tcpCh.SetRelativePath(path)
-	err = tcpCh.Start()
+	err = tcpCh.Open()
 	if err == nil {
-		clientConn.Channel = tcpCh
-		clientConn.Closed = false
+		cs.Channel = tcpCh
+		cs.Closed = false
 	}
 	return err
 }
 
-func dialKcp(clientConn *ClientConn) error {
-	kcpClientConf := clientConn.GetConf()
-	chHandle := clientConn.GetChHandle().(*gch.ChHandle)
+func dialKcp(cs *ClientSocket) error {
+	kcpClientConf := cs.GetConf()
+	chHandle := cs.GetChHandle().(*gch.ChHandle)
 	addr := kcpClientConf.GetAddrStr()
-	logx.Info("dial kcp addr:", addr)
+	logx.InfoTracef(cs, "dial kcp addr:%v", addr)
 	conn, err := kcp.DialWithOptions(addr, nil, 0, 0)
 	if err != nil {
-		logx.Error("dial kcp conn error:", err)
+		logx.ErrorTracef(cs, "dial kcp conn error:%v", err)
 		return err
 	}
-	kcpCh := kcpx.NewKcpChannel(clientConn, conn, kcpClientConf, chHandle, false)
+	kcpCh := kcpx.NewKcpChannel(cs, conn, kcpClientConf, chHandle, false)
 	var path string
-	params := clientConn.GetInputParams()
+	params := cs.GetInputParams()
 	if params != nil {
 		p := params["path"]
 		if p != nil {
@@ -182,34 +179,34 @@ func dialKcp(clientConn *ClientConn) error {
 		}
 	}
 	kcpCh.SetRelativePath(path)
-	err = kcpCh.Start()
+	err = kcpCh.Open()
 	if err == nil {
-		clientConn.Channel = kcpCh
-		clientConn.Closed = false
+		cs.Channel = kcpCh
+		cs.Closed = false
 	}
 	return err
 }
 
-func dialUdp(clientConn *ClientConn) error {
-	udpConf := clientConn.GetConf()
-	chHandle := clientConn.GetChHandle().(*gch.ChHandle)
+func dialUdp(cs *ClientSocket) error {
+	udpConf := cs.GetConf()
+	chHandle := cs.GetChHandle().(*gch.ChHandle)
 	addr := udpConf.GetAddrStr()
-	logx.Info("dial udp addr:", addr)
+	logx.InfoTracef(cs, "dial udp addr:%v", addr)
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
-		logx.Error("dial udp addr error:", err)
+		logx.ErrorTracef(cs, "dial udp addr error:%v", err)
 		return err
 	}
 
 	conn, err := net.DialUDP("udp", nil, udpAddr)
 	if err != nil {
-		logx.Error("dial udp conn error:", err)
+		logx.ErrorTracef(cs, "dial udp error:%v", err)
 		return err
 	}
 
-	udpCh := udpx.NewUdpChannel(clientConn, conn, udpConf, chHandle, udpAddr, false)
+	udpCh := udpx.NewUdpChannel(cs, conn, udpConf, chHandle, udpAddr, false)
 	var path string
-	params := clientConn.GetInputParams()
+	params := cs.GetInputParams()
 	if params != nil {
 		p := params["path"]
 		if p != nil {
@@ -217,26 +214,25 @@ func dialUdp(clientConn *ClientConn) error {
 		}
 	}
 	udpCh.SetRelativePath(path)
-	err = udpCh.Start()
+	err = udpCh.Open()
 	if err == nil {
-		clientConn.Channel = udpCh
-		clientConn.Closed = false
+		cs.Channel = udpCh
+		cs.Closed = false
 	}
 	return err
 }
 
-func (clientConn *ClientConn) Close() {
-	if !clientConn.Closed {
-		id := clientConn.GetId()
+func (clientSocket *ClientSocket) Close() {
+	if !clientSocket.Closed {
 		defer func() {
 			ret := recover()
-			logx.Infof("finish to stop client, id:%v, ret:%v", id, ret)
+			logx.InfoTracef(clientSocket, "finish to stop client, ret:%v", ret)
 		}()
-		logx.Info("start to stop client, id:", id)
-		clientConn.Closed = true
-		clientConn.Exit <- true
-		clientConn.Channel.Stop()
-		clientConn.Channel = nil
-		clientConn.Channel.GetConn().Close()
+		logx.InfoTracef(clientSocket, "start to stop client.")
+		clientSocket.Closed = true
+		clientSocket.Exit <- true
+		clientSocket.Channel.Close()
+		clientSocket.Channel = nil
+		clientSocket.Channel.GetConn().Close()
 	}
 }

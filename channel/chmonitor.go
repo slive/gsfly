@@ -96,8 +96,7 @@ func RevStatisFail(channel IChannel, initTime time.Time) {
 	statis.Current.Time = now
 	statis.Current.SpendTime = time.Since(initTime).Seconds()
 	statis.FailTimes += 1
-	logx.Info("rev fail, chId:", channel.GetId())
-	logx.Infof("chId:%v, rev falil static:%v", channel.GetId(), statis.ToString())
+	logx.InfoTracef(channel, "receive fail statis:%v", statis.ToString())
 }
 
 // RevStatis 读取统计
@@ -105,8 +104,10 @@ func RevStatis(packet IPacket, isOk bool) {
 	channel := packet.GetChannel()
 	statis := channel.GetChStatis().RevStatics
 	handleStatis(statis, packet, isOk)
-	logx.Debugf("chId:%v, rev:%v", channel.GetId(), string(packet.GetData()))
-	logx.Infof("chId:%v, rev static:%v", channel.GetId(), statis.ToString())
+	if logx.IsDebug() {
+		logx.DebugTracef(packet, "receive msg:%v", string(packet.GetData()))
+	}
+	logx.InfoTracef(packet, "receive statis:%v", statis.ToString())
 }
 
 // handleStatis 通用的统计
@@ -134,8 +135,10 @@ func SendStatis(packet IPacket, isOk bool) {
 	channel := packet.GetChannel()
 	statis := channel.GetChStatis().SendStatics
 	handleStatis(statis, packet, isOk)
-	logx.Debugf("chId:%v, write:%v", channel.GetId(), string(packet.GetData()))
-	logx.Infof("chId:%v, write static:%v", channel.GetId(), statis.ToString())
+	if logx.IsDebug() {
+		logx.DebugTracef(packet, "write msg:%v", string(packet.GetData()))
+	}
+	logx.InfoTracef(packet, "write statis:%v", statis.ToString())
 }
 
 // HandleMsgStatis 读统计
@@ -143,6 +146,8 @@ func HandleMsgStatis(packet IPacket, isOk bool) {
 	channel := packet.GetChannel()
 	statis := channel.GetChStatis().HandleMsgStatics
 	handleStatis(statis, packet, isOk)
-	logx.Debugf("chId:%v, handle:%v", channel.GetId(), string(packet.GetData()))
-	logx.Infof("chId:%v, handle static:%v", channel.GetId(), statis.ToString())
+	if logx.IsDebug() {
+		logx.DebugTracef(packet, "handle msg:%v", string(packet.GetData()))
+	}
+	logx.InfoTracef(packet, " handle statis:%v", statis.ToString())
 }

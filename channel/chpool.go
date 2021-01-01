@@ -93,7 +93,7 @@ func handelReadQueue(queue *ReadQueue) {
 					defer func() {
 						rec := recover()
 						if rec != nil {
-							logx.Error("handle message error:", rec)
+							logx.ErrorTracef(context, "handle message error:%v", rec)
 							err, ok := rec.(error)
 							if ok {
 								// 捕获处理消息异常
@@ -110,7 +110,7 @@ func handelReadQueue(queue *ReadQueue) {
 
 				// 管道关闭后的操作
 				if !isOpened {
-					logx.Info("queue handle end, queueId:", queue.id)
+					logx.InfoTracef(context, "queue handle end, queueId:%v", queue.id)
 					return
 				}
 			}

@@ -6,6 +6,7 @@
 package channel
 
 import (
+	"fmt"
 	"github.com/Slive/gsfly/common"
 	"time"
 )
@@ -88,6 +89,8 @@ type IPacket interface {
 	GetInitTime() time.Time
 
 	common.IAttact
+
+	common.IRunContext
 }
 
 // Packet channel通用packet
@@ -97,6 +100,7 @@ type Packet struct {
 	data     []byte
 	initTime time.Time
 	common.Attact
+	common.RunContext
 }
 
 // GetChannel 获取对应的channel
@@ -153,5 +157,7 @@ func NewPacket(channel IChannel, network Network) *Packet {
 		initTime: time.Now(),
 	}
 	b.Attact = *common.NewAttact()
+	b.RunContext = *common.NewRunContext(channel.GetContext())
+	b.AppendTrace(fmt.Sprintf("%v", time.Now().UnixNano()))
 	return b
 }

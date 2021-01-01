@@ -27,10 +27,10 @@ type IServerConf interface {
 	SetMaxChannelSize(maxChannelSize int)
 
 	// GetListenConfs 监听相关的配置
-	GetListenConfs() []IListenConf
+	GetListenConfs() []IServerChildConf
 }
 
-type IListenConf interface {
+type IServerChildConf interface {
 	common.IAttact
 
 	GetNetwork() channel.Network
@@ -39,24 +39,24 @@ type IListenConf interface {
 	GetBasePath() string
 }
 
-type ListenConf struct {
+type ServerChildConf struct {
 	common.Attact
 	network  channel.Network
 	basePath string
 }
 
-func NewListenConf(network channel.Network, basePath string) *ListenConf {
-	conf := ListenConf{network: network, basePath: basePath}
+func NewServerChildConf(network channel.Network, basePath string) *ServerChildConf {
+	conf := ServerChildConf{network: network, basePath: basePath}
 	conf.Attact = *common.NewAttact()
 	return &conf
 }
 
 // GetBasePath 监听的基本的path配置
-func (lsConf *ListenConf) GetBasePath() string {
+func (lsConf *ServerChildConf) GetBasePath() string {
 	return lsConf.basePath
 }
 
-func (lsConf *ListenConf) GetNetwork() channel.Network {
+func (lsConf *ServerChildConf) GetNetwork() channel.Network {
 	return lsConf.network
 }
 
@@ -68,11 +68,11 @@ type ServerConf struct {
 	common.Parent
 	maxChannelSize int
 
-	listenConfs []IListenConf
+	listenConfs []IServerChildConf
 }
 
 // NewServerConf 创建服务端配置
-func NewServerConf(ip string, port int, protocol channel.Network, listenConfs ...IListenConf) *ServerConf {
+func NewServerConf(ip string, port int, protocol channel.Network, listenConfs ...IServerChildConf) *ServerConf {
 	s := &ServerConf{}
 	s.AddrConf = *channel.NewAddrConf(ip, port)
 	s.ChannelConf = *channel.NewDefChannelConf(protocol)
@@ -92,7 +92,7 @@ func (bs *ServerConf) GetMaxChannelSize() int {
 }
 
 // GetListenConfs 监听相关的配置
-func (bs *ServerConf) GetListenConfs() []IListenConf {
+func (bs *ServerConf) GetListenConfs() []IServerChildConf {
 	return bs.listenConfs
 }
 
@@ -109,15 +109,16 @@ type WsServerConf struct {
 	scheme string
 }
 
-func NewWsServerConf(ip string, port int, scheme string, listenConfs ...IListenConf) *WsServerConf {
-	if listenConfs == nil || len(listenConfs) <= 0 {
-		panic("listenConfs conf are nil.")
+// NewWsServerConf 创建wsServer配置，要求至少有一个IServerChildConf配置
+func NewWsServerConf(ip string, port int, scheme string, childrenConf ...IServerChildConf) *WsServerConf {
+	if childrenConf == nil || len(childrenConf) <= 0 {
+		panic("childrenConf conf are nil.")
 	}
 	if len(scheme) <= 0 {
 		scheme = "ws"
 	}
 	w := &WsServerConf{scheme: scheme}
-	w.ServerConf = *NewServerConf(ip, port, channel.NETWORK_WS, listenConfs...)
+	w.ServerConf = *NewServerConf(ip, port, channel.NETWORK_WS, childrenConf...)
 	return w
 }
 

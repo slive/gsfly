@@ -34,11 +34,11 @@ func NewWsSimpleChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChanne
 func NewWsChannel(parent interface{}, wsConn *gws.Conn, chConf gch.IChannelConf, chHandle *gch.ChHandle, params map[string]interface{}, server bool) *WsChannel {
 	ch := newWsChannel(parent, wsConn, chConf, chHandle, params, server)
 	wsConn.SetReadLimit(int64(chConf.GetReadBufSize()))
-	ch.SetId("ws-" + wsConn.LocalAddr().String() + "-" + wsConn.RemoteAddr().String())
+	ch.SetId(wsConn.LocalAddr().String() + "->" + wsConn.RemoteAddr().String())
 	return ch
 }
 
-func (wsCh *WsChannel) Start() error {
+func (wsCh *WsChannel) Open() error {
 	err := wsCh.StartChannel(wsCh)
 	if err == nil {
 		gch.HandleOnActive(gch.NewChHandleContext(wsCh, nil))
@@ -46,13 +46,12 @@ func (wsCh *WsChannel) Start() error {
 	return err
 }
 
-func (wsCh *WsChannel) Stop() {
+func (wsCh *WsChannel) Close() {
 	wsCh.StopChannel(wsCh)
 }
 
 func (wsCh *WsChannel) Read() (gch.IPacket, error) {
 	// TODO 超时配置
-	// conf := wsCh.GetConf()
 	now := time.Now()
 	conf := wsCh.GetConf()
 	failTime := time.Duration(conf.GetCloseRevFailTime())
@@ -61,7 +60,7 @@ func (wsCh *WsChannel) Read() (gch.IPacket, error) {
 	wsCh.Conn.SetReadDeadline(now.Add(duration))
 	msgType, data, err := wsCh.readMessage()
 	if err != nil {
-		logx.Warn("read ws err:", err)
+		logx.WarnTracef(wsCh, "read ws err:%v", err)
 		gch.RevStatisFail(wsCh, now)
 		return nil, err
 	}

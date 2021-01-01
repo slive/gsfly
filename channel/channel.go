@@ -28,11 +28,11 @@ const (
 // IChannel 通信通道接口
 type IChannel interface {
 
-	// Start 启动通信通道
-	Start() error
+	// Open 启动通信通道
+	Open() error
 
-	// Stop 停止通道
-	Stop()
+	// Close 停止通道
+	Close()
 
 	// WriteByConn 通过conn写
 	WriteByConn(packet IPacket) error
@@ -91,6 +91,8 @@ type IChannel interface {
 
 	// GetId 通道Id
 	common.IId
+
+	common.IRunContext
 }
 
 // Channel channel基类
@@ -98,12 +100,13 @@ type Channel struct {
 	ChannelHandle *ChHandle
 	ChannelStatis *ChannelStatis
 	Conn          net.Conn
-	conf          IChannelConf
-	readPool      *ReadPool
-	closed        bool
-	closeExit     chan bool
-	actived       bool
-	server        bool
+
+	conf      IChannelConf
+	readPool  *ReadPool
+	closed    bool
+	closeExit chan bool
+	actived   bool
+	server    bool
 
 	// 路径，根据各自需要定义
 	relativePath string
@@ -112,6 +115,7 @@ type Channel struct {
 	common.Parent
 	common.Id
 	common.Attact
+	common.RunContext
 
 	readBuf []byte
 }
@@ -144,7 +148,7 @@ func initDefChannelConfs(server bool) {
 
 }
 
-// InitDefChannelConf 初始化默认的channel相关配置，如果该方法未调用，则调用默认初始化方法
+// InitDefChannelConf 自定义初始化默认的channel相关配置，如果该方法未调用，则调用默认初始化方法
 // readPoolConf 读线程池配置
 // chConf channel相关配置
 func InitDefChannelConf(readPoolConf *ReadPoolConf, chConf *ChannelConf) {
@@ -226,42 +230,59 @@ func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chH
 	channel.Attact = *common.NewAttact()
 	channel.Id = *common.NewId()
 	channel.Parent = *common.NewParent(parent)
-	logx.Info("create base channel, chConf:%+v", chConf)
+
+	// 设置上下文runcontext
+	channel.RunContext = *common.NewRunContextByParent(parent)
+	logx.InfoTracef(channel, "create base channel, chConf:%+v", chConf)
+	// TODO 必须？影响性能？
 	channel.readBuf = make([]byte, chConf.GetReadBufSize())
 	return channel
 }
 
-func (ch *Channel) Start() error {
+func (ch *Channel) SetId(id string) {
+	// 填充客户或者服务端，网络类型
+	id = ch.conf.GetNetwork().String() + "#" + id
+	if ch.IsServer() {
+		id = "server#" + id
+	} else {
+		id = "client#" + id
+	}
+	ch.AddTrace(id)
+	ch.Id.SetId(id)
+}
+
+func (ch *Channel) Open() error {
 	return ch.StartChannel(ch)
 }
 
-func (ch *Channel) Stop() {
+func (ch *Channel) Close() {
 	ch.StopChannel(ch)
 }
 
 func (ch *Channel) StartChannel(channel IChannel) error {
 	id := ch.GetId()
 	if !channel.IsClosed() {
-		return errors.New("channel is open, chId:" + id)
+		logx.ErrorTracef(ch, "channel had open.")
+		return errors.New("channel had open, chId:" + id)
 	}
 
 	ctx := NewChHandleContext(channel, nil)
 	defer func() {
 		rec := recover()
 		if rec != nil {
-			logx.Errorf("connect channel error, chId:%v, ret:%v", id, rec)
+			logx.ErrorTracef(ch, "start channel error:%v", rec)
 			err, ok := rec.(error)
 			if ok {
 				// 捕获处理消息异常
 				NotifyErrorHandle(ctx, err, ERR_ACTIVE)
 			}
-			channel.Stop()
+			channel.Close()
 		}
 	}()
 	go ch.startReadLoop(channel)
 
 	ch.SetClosed(false)
-	logx.Info("finish to start channel, chId:", channel.GetId())
+	logx.InfoTrace(ch, "finish to start channel.")
 	return nil
 }
 
@@ -311,7 +332,7 @@ func (ch *Channel) Write(datapacket IPacket) error {
 			// 捕获处理消息异常
 			NotifyErrorHandle(ctx, err, ERR_WRITE)
 			// 有异常，终止执行
-			channel.Stop()
+			channel.Close()
 		}
 	}()
 
@@ -436,37 +457,40 @@ func (ch *Channel) StopChannel(channel IChannel) {
 
 // StartReadLoop 启动循环读取，读取到数据包后，放入#ReadQueue中，等待处理
 func (ch *Channel) startReadLoop(channel IChannel) {
-	chId := ch.GetId()
 	ctx := NewChHandleContext(channel, nil)
 	defer func() {
 		rec := recover()
 		if rec != nil {
-			logx.Errorf("readloop error, chId:%v, err:%v", chId, rec)
+			logx.ErrorTracef(ch, "readloop error, err:%v", rec)
 			err, ok := rec.(error)
 			if ok {
 				// 捕获处理消息异常
 				NotifyErrorHandle(ctx, err, ERR_READ)
 			}
-			ch.Stop()
+			ch.Close()
 		}
 	}()
-	logx.Info("start to readloop, chId:", chId)
+	logx.InfoTrace(ch, "start to readloop.")
 	for {
 		select {
 		case <-ch.closeExit:
-			logx.Info("stop read loop, chId:", chId)
+			logx.InfoTracef(ch, "stop read loop by close.")
+			return
+		case <-ch.GetContext().Done():
+			logx.InfoTracef(ch, "stop read loop by notify.")
 			return
 		default:
 			rev, err := channel.Read()
+			logx.InfoTracef(ch, "rev:%v", rev)
 			if err != nil {
 				switch err {
 				case io.EOF, io.ErrClosedPipe, io.ErrUnexpectedEOF:
 					// io的异常直接结束
-					logx.Panicf("readloop io error:%v", err)
+					logx.PanicTracef(ch, "readloop io error:%v", err)
 				default:
 					// 其他异常循环等待或者忽略
 					if !channel.IsReadLoopContinued(err) {
-						logx.Panicf("readloop error:%v", err)
+						logx.PanicTracef(ch, "readloop error:%v", err)
 					} else {
 						continue
 					}

@@ -49,10 +49,10 @@ func NewUdpChannel(parent interface{}, udpConn *net.UDPConn, chConf gch.IChannel
 }
 
 func FetchUdpId(udpConn *net.UDPConn, rAddr *net.UDPAddr) string {
-	return "udp-" + udpConn.LocalAddr().String() + "-" + rAddr.String()
+	return udpConn.LocalAddr().String() + "->" + rAddr.String()
 }
 
-func (udpCh *UdpChannel) Start() error {
+func (udpCh *UdpChannel) Open() error {
 	err := udpCh.StartChannel(udpCh)
 	if err == nil {
 		gch.HandleOnActive(gch.NewChHandleContext(udpCh, nil))
@@ -60,7 +60,7 @@ func (udpCh *UdpChannel) Start() error {
 	return err
 }
 
-func (udpCh *UdpChannel) Stop() {
+func (udpCh *UdpChannel) Close() {
 	udpCh.StopChannel(udpCh)
 	if udpCh.IsServer() {
 		close(udpCh.readchan)

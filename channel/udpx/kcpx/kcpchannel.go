@@ -35,7 +35,7 @@ func NewKcpChannel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChan
 	ch.onKcpReadHandler = chHandle.GetOnRead()
 	// 重新包装
 	chHandle.SetOnRead(ch.onKcpWapperReadHandler)
-	ch.SetId("kcp-" + kcpConn.LocalAddr().String() + "-" + kcpConn.RemoteAddr().String() + "-" + fmt.Sprintf("%v", kcpConn.GetConv()))
+	ch.SetId(kcpConn.LocalAddr().String() + "->" + kcpConn.RemoteAddr().String() + "#" + fmt.Sprintf("%v", kcpConn.GetConv()))
 	return ch
 }
 
@@ -123,7 +123,7 @@ func (b *KcpChannel) NewPacket() gch.IPacket {
 	return k
 }
 
-func (b *KcpChannel) Start() error {
+func (b *KcpChannel) Open() error {
 	err := b.StartChannel(b)
 	if err == nil && !b.IsServer() {
 		// 客户端启动即激活？
@@ -132,7 +132,7 @@ func (b *KcpChannel) Start() error {
 	return err
 }
 
-func (b *KcpChannel) Stop() {
+func (b *KcpChannel) Close() {
 	b.StopChannel(b)
 }
 

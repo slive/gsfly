@@ -4,7 +4,11 @@
  */
 package common
 
-import "sync"
+import (
+	"context"
+	"fmt"
+	"sync"
+)
 
 type IParent interface {
 	GetParent() interface{}
@@ -96,4 +100,93 @@ func (b *Attact) RemoveAttach(key string) {
 
 func (b *Attact) Clear() {
 	// Todo
+}
+
+const Key_Trace = "trace"
+
+type IRunContext interface {
+
+	// SetContext 设置上下文，以便线程优雅停止
+	SetContext(ctx context.Context)
+
+	// GetContext 设置上下文，以便线程优雅停止
+	GetContext() context.Context
+
+	GetTrace() string
+
+	AppendTrace(append string)
+
+	AddTrace(append string)
+}
+
+type RunContext struct {
+	context context.Context
+}
+
+// SetContext 设置上下文，以便线程优雅停止
+func (ctx *RunContext) SetContext(c context.Context) {
+	ctx.context = c
+}
+
+// GetContext 设置上下文，以便线程优雅停止
+func (ctx *RunContext) GetContext() context.Context {
+	return ctx.context
+}
+
+func (ctx *RunContext) GetTrace() string {
+	value := ctx.context.Value(Key_Trace)
+	if value != nil {
+		s, ok := value.(string)
+		if ok {
+			return s
+		}
+	}
+	return ""
+}
+
+// AppendTrace 新增到trace后面
+func (ctx *RunContext) AppendTrace(append string) {
+	c := ctx.context
+	value := c.Value(Key_Trace)
+	if value == nil {
+		value = append
+	} else {
+		value = fmt.Sprintf("%v#%v", value, append)
+	}
+	ctx.context = context.WithValue(c, Key_Trace, value)
+}
+
+// AppendTrace 添加trace，覆盖原有的
+func (ctx *RunContext) AddTrace(addStr string) {
+	c := ctx.context
+	ctx.context = context.WithValue(c, Key_Trace, addStr)
+}
+
+func NewDefRunContext() *RunContext {
+	return NewRunContext(context.TODO())
+}
+
+func NewRunContext(parentCtx context.Context) *RunContext {
+	var ctx context.Context
+	value := parentCtx.Value(Key_Trace)
+	if value != nil {
+		ctx = context.WithValue(parentCtx, Key_Trace, value)
+	} else {
+		ctx = parentCtx
+	}
+	return &RunContext{context: ctx}
+}
+
+func NewRunContextByParent(parent interface{}) *RunContext {
+	var ctx context.Context
+	if parent != nil {
+		runContext, ok := parent.(IRunContext)
+		if ok {
+			ctx = runContext.GetContext()
+		}
+	}
+	if ctx == nil {
+		ctx = context.TODO()
+	}
+	return NewRunContext(ctx)
 }

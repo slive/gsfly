@@ -24,8 +24,8 @@ import (
 	"time"
 )
 
-// IServerListener 服务监听接口
-type IServerListener interface {
+// IServerSocket 服务监听接口
+type IServerSocket interface {
 	ISocket
 	GetConf() IServerConf
 	GetChannels() *hashmap.Map
@@ -39,8 +39,8 @@ type IServerListener interface {
 	GetBasePath() string
 }
 
-// ServerListener 服务监听
-type ServerListener struct {
+// ServerSocket 服务监听
+type ServerSocket struct {
 	Socket
 	Conf       IServerConf
 	channels   *hashmap.Map
@@ -48,11 +48,11 @@ type ServerListener struct {
 	basePath   string
 }
 
-// NewServerListener 创建服务监听器
+// NewServerSocket 创建服务监听器
 // parent 父类
 // serverConf 服务端配置
 // chHandle handle
-func NewServerListener(parent interface{}, serverConf IServerConf, chHandle gch.IChHandle) *ServerListener {
+func NewServerSocket(parent interface{}, serverConf IServerConf, chHandle gch.IChHandle) *ServerSocket {
 	if chHandle == nil {
 		errMsg := "chHandle is nil."
 		logx.Panic(errMsg)
@@ -65,52 +65,48 @@ func NewServerListener(parent interface{}, serverConf IServerConf, chHandle gch.
 		panic(errMsg)
 	}
 
-	b := &ServerListener{
+	b := &ServerSocket{
 		Conf:     serverConf,
 		channels: hashmap.New(),
 	}
-	b.Socket = *NewSocketConn(parent, chHandle, nil)
+	b.Socket = *NewSocket(parent, chHandle, nil)
+	b.SetId("server#" + b.Conf.GetNetwork().String() + "#" + b.Conf.GetAddrStr())
 	return b
 }
 
-func (listener *ServerListener) GetId() string {
-	return listener.Conf.GetAddrStr()
-}
-
-func (listener *ServerListener) Close() {
-	if !listener.Closed {
-		id := listener.GetId()
+func (serverSocket *ServerSocket) Close() {
+	if !serverSocket.Closed {
 		defer func() {
 			ret := recover()
-			logx.Infof("finish to stop listen, id:%v, ret:%v", id, ret)
+			logx.InfoTracef(serverSocket, "finish to stop listen, ret:%v", ret)
 		}()
-		logx.Info("start to stop listen, id:", id)
-		listener.Closed = true
-		listener.Exit <- true
-		acceptChannels := listener.GetChannels().Values()
+		logx.InfoTracef(serverSocket, "start to stop listen.")
+		serverSocket.Closed = true
+		serverSocket.Exit <- true
+		acceptChannels := serverSocket.GetChannels().Values()
 		for _, ch := range acceptChannels {
-			ch.(gch.IChannel).Stop()
+			ch.(gch.IChannel).Close()
 		}
 	}
 }
 
-func (listener *ServerListener) GetChannels() *hashmap.Map {
-	return listener.channels
+func (serverSocket *ServerSocket) GetChannels() *hashmap.Map {
+	return serverSocket.channels
 }
 
-func (listener *ServerListener) GetConf() IServerConf {
-	return listener.Conf
+func (serverSocket *ServerSocket) GetConf() IServerConf {
+	return serverSocket.Conf
 }
-func (serverListener *ServerListener) GetHttpServer() *http.Server {
-	return serverListener.httpServer
-}
-
-func (serverListener *ServerListener) SetHttpServer(httpServer *http.Server) {
-	serverListener.httpServer = httpServer
+func (serverSocket *ServerSocket) GetHttpServer() *http.Server {
+	return serverSocket.httpServer
 }
 
-func (serverListener *ServerListener) GetBasePath() string {
-	return serverListener.basePath
+func (serverSocket *ServerSocket) SetHttpServer(httpServer *http.Server) {
+	serverSocket.httpServer = httpServer
+}
+
+func (serverSocket *ServerSocket) GetBasePath() string {
+	return serverSocket.basePath
 }
 
 // ConverOnInActiveHandle 转化OnStopHandle方法
@@ -119,7 +115,7 @@ func ConverOnInActiveHandler(channels *hashmap.Map, onInActiveHandler gch.ChHand
 		// 释放现有资源
 		chId := ctx.GetChannel().GetId()
 		channels.Remove(chId)
-		logx.Infof("remove serverchannel, chId:%v, channelSize:%v", chId, channels.Size())
+		logx.InfoTracef(ctx, "remove serverchannel, channelSize:%v", channels.Size())
 		if onInActiveHandler != nil {
 			onInActiveHandler(ctx)
 		}
@@ -127,25 +123,25 @@ func ConverOnInActiveHandler(channels *hashmap.Map, onInActiveHandler gch.ChHand
 }
 
 // Listen 监听方法，可自定义实现
-func (listener *ServerListener) Listen() error {
-	network := listener.GetConf().GetNetwork()
+func (serverSocket *ServerSocket) Listen() error {
+	network := serverSocket.GetConf().GetNetwork()
 	switch network {
 	case gch.NETWORK_WS:
-		return listenWs(listener)
+		return listenWs(serverSocket)
 	case gch.NETWORK_HTTP:
 		// TODO http也是ws处理
-		return listenWs(listener)
+		return listenWs(serverSocket)
 	case gch.NETWORK_KCP:
-		return listenKcp(listener)
+		return listenKcp(serverSocket)
 	case gch.NETWORK_TCP:
-		return listenTcp(listener)
+		return listenTcp(serverSocket)
 	case gch.NETWORK_UDP:
-		return listenUdp(listener)
+		return listenUdp(serverSocket)
 	default:
-		logx.Info("unsupport network:", network)
+		logx.InfoTracef(serverSocket, "unsupport network:%v", network)
 		return nil
 	}
-	return errors.New("start serverListener error.")
+	return errors.New("start serverSocket error, id:" + serverSocket.GetId())
 }
 
 const KEY_HTTP_REQUEST = "http-request"
@@ -155,23 +151,23 @@ const KEY_HTTP_REQUEST = "http-request"
 // serverConf 服务器配置，必须项
 // chHandle channel处理类，必须项
 // httpServer http监听服务，可选，为空时，根据serverConf的ip/port进行创建监听
-func listenWs(serverListener *ServerListener) error {
-	id := serverListener.GetId()
-	if !serverListener.IsClosed() {
+func listenWs(ss *ServerSocket) error {
+	id := ss.GetId()
+	if !ss.IsClosed() {
 		return errors.New("websocket Server is opened, id:" + id)
 	}
 
 	defer func() {
 		ret := recover()
 		if ret != nil {
-			logx.Warnf("finish listenWs, id:%v, ret:%v", id, ret)
-			serverListener.Close()
+			logx.WarnTracef(ss, "finish listenWs, ret:%v", ret)
+			ss.Close()
 		} else {
-			logx.Info("finish listenWs, id:", id)
+			logx.InfoTracef(ss, "finish listenWs.")
 		}
 	}()
 
-	wsServerConf := serverListener.GetConf().(IWsServerConf)
+	wsServerConf := ss.GetConf().(IWsServerConf)
 	// ws依赖http做升级而来
 	upgrader := websocket.Upgrader{
 		HandshakeTimeout: wsServerConf.GetReadTimeout() * time.Second,
@@ -179,11 +175,12 @@ func listenWs(serverListener *ServerListener) error {
 		WriteBufferSize:  wsServerConf.GetWriteBufSize(),
 	}
 
-	httpServer := serverListener.GetHttpServer()
+	addrStr := wsServerConf.GetAddrStr()
+	httpServer := ss.GetHttpServer()
 	if httpServer == nil {
 		// 为空时，根据serverConf的ip/port进行创建监听
 		httpServer = &http.Server{
-			Addr:              wsServerConf.GetAddrStr(),
+			Addr:              addrStr,
 			TLSConfig:         nil,
 			ReadTimeout:       wsServerConf.GetReadTimeout() * time.Second,
 			ReadHeaderTimeout: wsServerConf.GetReadTimeout() * time.Second,
@@ -194,10 +191,10 @@ func listenWs(serverListener *ServerListener) error {
 		// 启动监听
 		go func() {
 			// 异步监听http和ws
-			logx.Info("listenAnServe id:", id)
+			logx.InfoTracef(ss, "listenAnServe addrStr:%v", addrStr)
 			err := httpServer.ListenAndServe()
 			if err != nil {
-				logx.Error("listenAnServe error:", err)
+				logx.ErrorTracef(ss, "listenAnServe error:%v", err)
 				panic(err)
 			}
 		}()
@@ -209,7 +206,7 @@ func listenWs(serverListener *ServerListener) error {
 			select {
 			case sg := <-s:
 				httpServer.Close()
-				logx.Infof("listenAnServe close, id:%v, signal:%v", id, sg)
+				logx.InfoTracef(ss, "listenAnServe close, signal:%v", sg)
 			}
 		}()
 
@@ -225,10 +222,10 @@ func listenWs(serverListener *ServerListener) error {
 				if network == gch.NETWORK_WS {
 					// ws处理事件，针对不同的basePath进行处理
 					http.HandleFunc(child.GetBasePath(), func(writer http.ResponseWriter, req *http.Request) {
-						logx.Info("requestWs:", req.URL)
-						err := upgradeWs(serverListener, writer, req, upgrader, child)
+						logx.InfoTracef(ss, "requestWs:%v", req.URL)
+						err := upgradeWs(ss, writer, req, upgrader, child)
 						if err != nil {
-							logx.Error("start ws error:", err)
+							logx.ErrorTracef(ss, "start ws error:%v", err)
 						}
 					})
 				}
@@ -237,27 +234,28 @@ func listenWs(serverListener *ServerListener) error {
 	} else {
 		// 已在外面完成的监听，重写httphandler处理事件，以便通过不同的path分别处理http和ws
 		httpHandler := httpServer.Handler
-		httpServer.Handler = newProxyHandler(httpHandler, upgrader, serverListener)
+		httpServer.Handler = newProxyHandler(httpHandler, upgrader, ss)
 	}
-	serverListener.Closed = false
+	ss.Closed = false
 	return nil
 }
 
-func newProxyHandler(handler http.Handler, upgrader websocket.Upgrader, serverListener IServerListener) *proxyHandler {
-	return &proxyHandler{handler: handler, upgrader: upgrader, serverListener: serverListener}
+func newProxyHandler(handler http.Handler, upgrader websocket.Upgrader, serverListener IServerSocket) *proxyHandler {
+	return &proxyHandler{handler: handler, upgrader: upgrader, serverSocket: serverListener}
 }
 
 type proxyHandler struct {
-	handler        http.Handler
-	upgrader       websocket.Upgrader
-	serverListener IServerListener
+	handler      http.Handler
+	upgrader     websocket.Upgrader
+	serverSocket IServerSocket
 }
 
 // ServeHTTP 通过不同的path分别处理http和ws
 func (proxy *proxyHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 	uri := req.RequestURI
-	logx.Info("request:", uri)
-	conf := proxy.serverListener.GetConf().(IWsServerConf)
+	serverSocket := proxy.serverSocket
+	logx.InfoTracef(serverSocket, "http request:%v", uri)
+	conf := serverSocket.GetConf().(IWsServerConf)
 	// TODO 模糊匹配?，优先级如何？
 	wsChildren := conf.GetListenConfs()
 	if wsChildren != nil {
@@ -265,9 +263,9 @@ func (proxy *proxyHandler) ServeHTTP(writer http.ResponseWriter, req *http.Reque
 			path := child.GetBasePath()
 			// 优先处理ws的handler
 			if strings.Contains(uri, path) {
-				err := upgradeWs(proxy.serverListener, writer, req, proxy.upgrader, child)
+				err := upgradeWs(serverSocket, writer, req, proxy.upgrader, child)
 				if err != nil {
-					logx.Error("start ws error:", err)
+					logx.ErrorTracef(serverSocket, "start ws error:%v", err)
 				}
 				return
 			}
@@ -279,9 +277,9 @@ func (proxy *proxyHandler) ServeHTTP(writer http.ResponseWriter, req *http.Reque
 }
 
 // listenWs 启动ws处理
-func upgradeWs(serverListener IServerListener, writer http.ResponseWriter, req *http.Request, upgr websocket.Upgrader, childConf IListenConf) error {
-	acceptChannels := serverListener.GetChannels()
-	serverConf := serverListener.GetConf().(IWsServerConf)
+func upgradeWs(ss IServerSocket, writer http.ResponseWriter, req *http.Request, upgr websocket.Upgrader, childConf IServerChildConf) error {
+	acceptChannels := ss.GetChannels()
+	serverConf := ss.GetConf().(IWsServerConf)
 	connLen := acceptChannels.Size()
 	maxAcceptSize := serverConf.GetMaxChannelSize()
 	if maxAcceptSize > 0 && connLen >= maxAcceptSize {
@@ -297,7 +295,7 @@ func upgradeWs(serverListener IServerListener, writer http.ResponseWriter, req *
 	}
 
 	urlStr := req.URL.String()
-	logx.Infof("form:%v, params:%v, url:%v", form, params, urlStr)
+	logx.InfoTracef(ss, "form:%v, params:%v, url:%v", form, params, urlStr)
 	// upgrade处理
 	subPros := childConf.GetAttach(WS_SUBPROTOCOL_KEY)
 	header := req.Header
@@ -320,18 +318,18 @@ func upgradeWs(serverListener IServerListener, writer http.ResponseWriter, req *
 	}
 	conn, err := upgr.Upgrade(writer, req, header)
 	if err != nil {
-		logx.Println("upgrade error:", err)
+		logx.ErrorTracef(ss, "upgrade error:%v", err)
 		return err
 	}
-	addHttpRequest(serverListener, req)
+	addHttpRequest(ss, req)
 
-	chHandle := serverListener.GetChHandle().(*gch.ChHandle)
+	chHandle := ss.GetChHandle().(*gch.ChHandle)
 	// OnInActiveHandle重新包装，以便释放资源
 	chHandle.SetOnInActive(ConverOnInActiveHandler(acceptChannels, chHandle.GetOnInActive()))
-	wsCh := tcpx.NewWsChannel(serverListener, conn, serverConf, chHandle, params, true)
+	wsCh := tcpx.NewWsChannel(ss, conn, serverConf, chHandle, params, true)
 	// 设置为请求过来的path
 	wsCh.SetRelativePath(req.URL.Path)
-	err = wsCh.Start()
+	err = wsCh.Open()
 	if err == nil {
 		// TODO 线程安全？
 		acceptChannels.Put(wsCh.GetId(), wsCh)
@@ -339,51 +337,51 @@ func upgradeWs(serverListener IServerListener, writer http.ResponseWriter, req *
 	return err
 }
 
-func addHttpRequest(serverListener IServerListener, req *http.Request) {
+func addHttpRequest(serverListener IServerSocket, req *http.Request) {
 	serverListener.AddAttach(KEY_HTTP_REQUEST, req)
 }
 
-func listenKcp(serverListener *ServerListener) error {
-	if !serverListener.IsClosed() {
-		return errors.New("kcp server is opened, id:" + serverListener.GetId())
+func listenKcp(ss *ServerSocket) error {
+	if !ss.IsClosed() {
+		return errors.New("kcp server is opened, id:" + ss.GetId())
 	}
 
-	kcpServerConf := serverListener.GetConf()
+	kcpServerConf := ss.GetConf()
 	addr := kcpServerConf.GetAddrStr()
-	logx.Info("listen kcp addr:", addr)
+	logx.InfoTracef(ss, "listen kcp addr:%v", addr)
 	listKcp, err := kcp.ListenWithOptions(addr, nil, 0, 0)
 	if err != nil {
-		logx.Info("listen kcp error, addr:", addr, err)
+		logx.ErrorTracef(ss, "listen kcp error:%v", err)
 		return err
 	}
 
 	defer func() {
 		ret := recover()
 		if ret != nil {
-			logx.Warnf("finish kcp serverListener, id:%v, ret:%v", serverListener.GetId(), ret)
-			serverListener.Close()
+			logx.ErrorTracef(ss, "finish kcp serverSocket, error:%v", ret)
+			ss.Close()
 		} else {
-			logx.Info("finish kcp serverListener, id:", serverListener.GetId())
+			logx.InfoTracef(ss, "finish kcp serverSocket.")
 		}
 	}()
 
-	kcpChannels := serverListener.GetChannels()
+	kcpChannels := ss.GetChannels()
 	go func() {
 		for {
 			kcpConn, err := listKcp.AcceptKCP()
 			if err != nil {
-				logx.Error("accept kcpconn error:", nil)
+				logx.ErrorTracef(ss, "accept kcp error:%v", err)
 				listKcp.Close()
 				panic(err)
 			}
 
-			schHandle := serverListener.GetChHandle().(*gch.ChHandle)
+			schHandle := ss.GetChHandle().(*gch.ChHandle)
 			// 复制一份handle，避免相互覆盖
 			chHandle := gch.CopyChHandle(schHandle)
 			// OnInActiveHandle重新包装，以便释放资源
 			chHandle.SetOnInActive(ConverOnInActiveHandler(kcpChannels, chHandle.GetOnInActive()))
-			kcpCh := kcpx.NewKcpChannel(serverListener, kcpConn, kcpServerConf, chHandle, true)
-			err = kcpCh.Start()
+			kcpCh := kcpx.NewKcpChannel(ss, kcpConn, kcpServerConf, chHandle, true)
+			err = kcpCh.Open()
 			if err == nil {
 				kcpChannels.Put(kcpCh.GetId(), kcpCh)
 			}
@@ -391,51 +389,51 @@ func listenKcp(serverListener *ServerListener) error {
 	}()
 
 	if err == nil {
-		serverListener.Closed = false
+		ss.Closed = false
 	}
 	return err
 }
 
-func listenTcp(serverListener *ServerListener) error {
-	if !serverListener.IsClosed() {
-		return errors.New("server had opened, id:" + serverListener.GetId())
+func listenTcp(ss *ServerSocket) error {
+	if !ss.IsClosed() {
+		return errors.New("server had opened, id:" + ss.GetId())
 	}
 
-	serverConf := serverListener.GetConf()
+	serverConf := ss.GetConf()
 	addr := serverConf.GetAddrStr()
-	logx.Info("listen tcp addr:", addr)
+	logx.InfoTracef(ss, "listen tcp addr:%v", addr)
 	network := serverConf.GetNetwork().String()
 	tcpAddr, err := net.ResolveTCPAddr(network, addr)
 	listenTCP, err := net.ListenTCP(network, tcpAddr)
 	if err != nil {
-		logx.Info("listen tcp error, addr:", addr, err)
+		logx.InfoTracef(ss, "listen tcp error:%v", err)
 		return err
 	}
 
 	defer func() {
 		ret := recover()
 		if ret != nil {
-			logx.Warnf("finish tcp serverListener, id:%v, ret:%v", serverListener.GetId(), ret)
-			serverListener.Close()
+			logx.ErrorTracef(ss, "finish tcp serverSocket, err:%v", ret)
+			ss.Close()
 		} else {
-			logx.Info("finish tcp serverListener, id:", serverListener.GetId())
+			logx.InfoTracef(ss, "finish tcp serverSocket.")
 		}
 	}()
 
-	channels := serverListener.GetChannels()
+	channels := ss.GetChannels()
 	go func() {
 		for {
 			tcpConn, err := listenTCP.AcceptTCP()
 			if err != nil {
-				logx.Error("accept tcpconn error:", nil)
+				logx.ErrorTracef(ss, "accept tcp error:%v", err)
 				listenTCP.Close()
 				panic(err)
 			}
-			chHandle := serverListener.GetChHandle().(*gch.ChHandle)
+			chHandle := ss.GetChHandle().(*gch.ChHandle)
 			// OnInActiveHandle重新包装，以便释放资源
 			chHandle.SetOnInActive(ConverOnInActiveHandler(channels, chHandle.GetOnInActive()))
-			tcpCh := tcpx.NewTcpChannel(serverListener, tcpConn, serverConf, chHandle, true)
-			err = tcpCh.Start()
+			tcpCh := tcpx.NewTcpChannel(ss, tcpConn, serverConf, chHandle, true)
+			err = tcpCh.Open()
 			if err == nil {
 				channels.Put(tcpCh.GetId(), tcpCh)
 			}
@@ -445,34 +443,34 @@ func listenTcp(serverListener *ServerListener) error {
 	return err
 }
 
-func listenUdp(serverListener *ServerListener) error {
-	if !serverListener.IsClosed() {
-		return errors.New("udp server is opened, id:" + serverListener.GetId())
+func listenUdp(ss *ServerSocket) error {
+	if !ss.IsClosed() {
+		return errors.New("udp server is opened, id:" + ss.GetId())
 	}
 
-	serverConf := serverListener.GetConf()
+	serverConf := ss.GetConf()
 	addr := serverConf.GetAddrStr()
-	logx.Info("listen udp addr:", addr)
+	logx.InfoTracef(ss, "listen udp addr:%v", addr)
 	network := serverConf.GetNetwork().String()
 	udpAddr, err := net.ResolveUDPAddr(network, addr)
 	udpConn, err := net.ListenUDP(network, udpAddr)
 	if err != nil {
-		logx.Error("listen udp error, addr:", addr, err)
+		logx.ErrorTracef(ss, "listen udp error:%v", err)
 		return err
 	}
 
 	defer func() {
 		ret := recover()
 		if ret != nil {
-			logx.Warnf("finish udp serverListener, id:%v, ret:%v", serverListener.GetId(), ret)
-			serverListener.Close()
+			logx.ErrorTracef(ss, "finish udp serverSocket, err:%v", ret)
+			ss.Close()
 		} else {
-			logx.Info("finish udp serverListener, id:", serverListener.GetId())
+			logx.InfoTracef(ss, "finish udp serverSocket.")
 		}
 	}()
 
 	readbf := make([]byte, serverConf.GetReadBufSize())
-	channels := serverListener.GetChannels()
+	channels := ss.GetChannels()
 	go func() {
 		for {
 			// TODO 是否有性能问题？
@@ -481,7 +479,7 @@ func listenUdp(serverListener *ServerListener) error {
 				continue
 			}
 			if err != nil {
-				logx.Error("read udp error:", err)
+				logx.ErrorTracef(ss, "read udp error:%v", err)
 				udpConn.Close()
 				panic(err)
 			}
@@ -492,11 +490,11 @@ func listenUdp(serverListener *ServerListener) error {
 			channel, found := channels.Get(udpChId)
 			if !found {
 				// 第一次生成一个channel
-				chHandle := serverListener.GetChHandle().(*gch.ChHandle)
+				chHandle := ss.GetChHandle().(*gch.ChHandle)
 				// OnInActiveHandle重新包装，以便释放资源
 				chHandle.SetOnInActive(ConverOnInActiveHandler(channels, chHandle.GetOnInActive()))
-				udpCh = udpx.NewUdpChannel(serverListener, udpConn, serverConf, chHandle, addr, true)
-				err = udpCh.Start()
+				udpCh = udpx.NewUdpChannel(ss, udpConn, serverConf, chHandle, addr, true)
+				err = udpCh.Open()
 				if err == nil {
 					channels.Put(udpCh.GetId(), udpCh)
 				}
@@ -514,7 +512,7 @@ func listenUdp(serverListener *ServerListener) error {
 	}()
 
 	if err == nil {
-		serverListener.Closed = false
+		ss.Closed = false
 	}
 	return err
 }
