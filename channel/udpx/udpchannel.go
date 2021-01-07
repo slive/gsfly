@@ -19,14 +19,22 @@ type UdpChannel struct {
 	rAddr    *net.UDPAddr
 	readchan chan []byte
 }
+// udp 包最大不大于65535
+const Max_UDP_Buf = 65535
 
 func newUdpChannel(parent interface{}, conn *net.UDPConn, conf gch.IChannelConf, chHandle *gch.ChHandle, rAddr *net.UDPAddr, server bool) *UdpChannel {
 	ch := &UdpChannel{Conn: conn}
 	ch.Channel = *gch.NewDefChannel(parent, conf, chHandle, server)
 	readBufSize := conf.GetReadBufSize()
+	if readBufSize > Max_UDP_Buf {
+		readBufSize = Max_UDP_Buf
+	}
 	conn.SetReadBuffer(readBufSize)
 
 	writeBufSize := conf.GetWriteBufSize()
+	if writeBufSize > Max_UDP_Buf {
+		writeBufSize = Max_UDP_Buf
+	}
 	conn.SetWriteBuffer(writeBufSize)
 	ch.rAddr = rAddr
 	if server {
@@ -72,7 +80,7 @@ func (udpCh *UdpChannel) Read() (gch.IPacket, error) {
 	raddr := udpCh.rAddr
 	var bytes []byte
 	if !udpCh.IsServer() {
-		readbf := udpCh.GetReadBuf()
+		readbf := udpCh.NewReadBuf()
 		conf := udpCh.GetConf()
 		now := time.Now()
 		udpCh.Conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
@@ -85,8 +93,8 @@ func (udpCh *UdpChannel) Read() (gch.IPacket, error) {
 		}
 		raddr = addr
 		bytes = readbf[0:readNum]
-
 	} else {
+		// 服务端直接获取
 		bytes = <-udpCh.readchan
 	}
 

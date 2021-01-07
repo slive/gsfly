@@ -12,7 +12,7 @@ import (
 )
 
 func TestEchoWs(t *testing.T) {
-	childConf := NewServerChildConf(channel.NETWORK_WS, "/ctl")
+	childConf := NewServerChildConf(channel.NETWORK_WS, "/test")
 	serverConf := NewWsServerConf("127.0.0.1", 9080, "ws", childConf)
 	defServerHandle := channel.NewDefChHandle(func(ctx channel.IChHandleContext) {
 		logx.DebugTracef(ctx, "server msg:%v", ctx.GetPacket())
@@ -24,7 +24,7 @@ func TestEchoWs(t *testing.T) {
 		return
 	}
 
-	clientConf := NewWsClientConf("127.0.0.1", 9080, "ws", "ctl")
+	clientConf := NewWsClientConf("127.0.0.1", 9080, "ws", "test")
 	defClientHandle := channel.NewDefChHandle(func(ctx channel.IChHandleContext) {
 		logx.DebugTracef(ctx, "client msg:%v", ctx.GetPacket())
 	})
@@ -39,13 +39,13 @@ func TestEchoWs(t *testing.T) {
 	clientChannel := clientSocket.GetChannel()
 	packet := clientChannel.NewPacket()
 
-	packet.SetData([]byte("21123232"))
-	clientChannel.Write(packet)
 	ticker := time.NewTicker(time.Second * 2)
 	for {
 		select {
 		case <-ticker.C:
-			logx.Println("11111")
+			packet.SetData([]byte("21123232"))
+			clientChannel.Write(packet)
+			logx.Println("21123232")
 		}
 	}
 }

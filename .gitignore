@@ -4,9 +4,8 @@
 
 vendor
 logs
-*/log/*
 bin
-
+log
 *.log
 *.out
 *.exe

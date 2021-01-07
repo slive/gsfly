@@ -68,7 +68,7 @@ func Read(ch *KcpChannel) (gch.IPacket, error) {
 	conf := ch.GetConf()
 	now := time.Now()
 	conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
-	readbf := ch.GetReadBuf()
+	readbf := ch.NewReadBuf()
 	readNum, err := conn.Read(readbf)
 	if err != nil {
 		// TODO 超时后抛出异常？

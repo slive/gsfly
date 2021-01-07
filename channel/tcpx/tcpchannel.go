@@ -57,7 +57,7 @@ func (tcpCh *TcpChannel) Read() (gch.IPacket, error) {
 	conf := tcpCh.GetConf()
 	now := time.Now()
 	tcpCh.Conn.SetReadDeadline(now.Add(conf.GetReadTimeout() * time.Second))
-	readbf := tcpCh.GetReadBuf()
+	readbf := tcpCh.NewReadBuf()
 	readNum, err := tcpCh.Conn.Read(readbf)
 	if err != nil {
 		logx.Warn("read udp err:", err)

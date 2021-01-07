@@ -116,8 +116,6 @@ type Channel struct {
 	common.Id
 	common.Attact
 	common.RunContext
-
-	readBuf []byte
 }
 
 // defReadPoolConf 初始化读协程池，全局配置，若不初始化，默认使用global配置
@@ -145,7 +143,6 @@ func initDefChannelConfs(server bool) {
 		defChannelConf = globalChannelConf
 		logx.Info("init default channelConf:", defChannelConf)
 	}
-
 }
 
 // InitDefChannelConf 自定义初始化默认的channel相关配置，如果该方法未调用，则调用默认初始化方法
@@ -234,8 +231,6 @@ func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chH
 	// 设置上下文runcontext
 	channel.RunContext = *common.NewRunContextByParent(parent)
 	logx.InfoTracef(channel, "create base channel, chConf:%+v", chConf)
-	// TODO 必须？影响性能？
-	channel.readBuf = make([]byte, chConf.GetReadBufSize())
 	return channel
 }
 
@@ -286,8 +281,8 @@ func (ch *Channel) StartChannel(channel IChannel) error {
 	return nil
 }
 
-func (ch *Channel) GetReadBuf() []byte {
-	return ch.readBuf
+func (ch *Channel) NewReadBuf() []byte {
+	return make([]byte, ch.conf.GetReadBufSize())
 }
 
 func NotifyErrorHandle(ctx IChHandleContext, err error, errMsg string) {

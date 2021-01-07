@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"syscall"
 )
 
 // ReadQueue 每个协程可缓冲的读队列
@@ -40,7 +41,7 @@ func NewReadPool(maxReadPoolSize int, maxReadQueueSize int) *ReadPool {
 	}
 	go func() {
 		n := make(chan os.Signal, 1)
-		signal.Notify(n)
+		signal.Notify(n, os.Kill, os.Interrupt, syscall.SIGABRT, syscall.SIGTERM)
 		select {
 		case s := <-n:
 			// 结束时释放所有chan

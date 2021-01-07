@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -202,7 +203,7 @@ func listenWs(ss *ServerSocket) error {
 		// 等待关闭操作
 		go func() {
 			s := make(chan os.Signal, 1)
-			signal.Notify(s)
+			signal.Notify(s, os.Kill, os.Interrupt, syscall.SIGABRT, syscall.SIGTERM)
 			select {
 			case sg := <-s:
 				httpServer.Close()
@@ -469,7 +470,11 @@ func listenUdp(ss *ServerSocket) error {
 		}
 	}()
 
-	readbf := make([]byte, serverConf.GetReadBufSize())
+	readBufSize := serverConf.GetReadBufSize()
+	if readBufSize > udpx.Max_UDP_Buf {
+		readBufSize = udpx.Max_UDP_Buf
+	}
+	readbf := make([]byte, readBufSize)
 	channels := ss.GetChannels()
 	go func() {
 		for {
