@@ -63,12 +63,12 @@ func FetchUdpId(udpConn *net.UDPConn, rAddr *net.UDPAddr) string {
 func (udpCh *UdpChannel) Open() error {
 	err := udpCh.StartChannel(udpCh)
 	if err == nil {
-		gch.HandleOnActive(gch.NewChHandleContext(udpCh, nil))
+		gch.HandleOnConnnect(gch.NewChHandleContext(udpCh, nil))
 	}
 	return err
 }
 
-func (udpCh *UdpChannel) Close() {
+func (udpCh *UdpChannel) Release() {
 	udpCh.StopChannel(udpCh)
 	if udpCh.IsServer() {
 		close(udpCh.readchan)

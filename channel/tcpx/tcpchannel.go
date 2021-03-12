@@ -43,12 +43,12 @@ func NewTcpChannel(parent interface{}, tcpConn *net.TCPConn, chConf gch.IChannel
 func (tcpCh *TcpChannel) Open() error {
 	err := tcpCh.StartChannel(tcpCh)
 	if err == nil {
-		gch.HandleOnActive(gch.NewChHandleContext(tcpCh, nil))
+		gch.HandleOnConnnect(gch.NewChHandleContext(tcpCh, nil))
 	}
 	return err
 }
 
-func (tcpCh *TcpChannel) Close() {
+func (tcpCh *TcpChannel) Release() {
 	tcpCh.StopChannel(tcpCh)
 }
 

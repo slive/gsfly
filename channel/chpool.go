@@ -123,7 +123,7 @@ func (p *ReadPool) get(key int) *ReadQueue {
 	return p.readQueue[key]
 }
 
-// Close 关闭
+// Release 关闭
 func (p *ReadPool) Close() {
 	p.mut.Lock()
 	defer p.mut.Unlock()

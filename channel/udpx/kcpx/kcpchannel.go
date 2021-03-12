@@ -19,6 +19,7 @@ type KcpChannel struct {
 	Conn             *kcp.UDPSession
 	protocol         gch.Network
 	onKcpReadHandler gch.ChHandleFunc
+	connected        bool
 }
 
 // NewKcpChannel 创建KcpChannel
@@ -30,11 +31,13 @@ func NewKcpChannel(parent interface{}, kcpConn *kcp.UDPSession, chConf gch.IChan
 	kcpConn.SetReadBuffer(readBufSize)
 	writeBufSize := chConf.GetWriteBufSize()
 	kcpConn.SetWriteBuffer(writeBufSize)
+	// TODO kcp相关配置，待具体实现
 	kcpConn.SetACKNoDelay(true)
 	kcpConn.SetWriteDelay(false)
 	ch.onKcpReadHandler = chHandle.GetOnRead()
+
 	// 重新包装
-	chHandle.SetOnRead(ch.onKcpWapperReadHandler)
+	chHandle.SetOnRead(ch.onKcpRead)
 	ch.SetId(kcpConn.LocalAddr().String() + "->" + kcpConn.RemoteAddr().String() + "#" + fmt.Sprintf("%v", kcpConn.GetConv()))
 	return ch
 }
@@ -43,21 +46,22 @@ func (b *KcpChannel) Read() (gch.IPacket, error) {
 	return Read(b)
 }
 
-func (b *KcpChannel) onKcpWapperReadHandler(ctx gch.IChHandleContext) {
+// onKcpRead kcp的读取处理
+func (b *KcpChannel) onKcpRead(ctx gch.IChHandleContext) {
 	handleFunc := b.onKcpReadHandler
 	if handleFunc != nil {
-		if b.IsServer() {
-			// 服务端收到第一条信息则为：激活处理方法
-			if !b.IsActived() {
-				gch.HandleOnActive(ctx)
-				b.SetActived(true)
-			}
-			packet := ctx.GetPacket()
-			if packet != nil && !packet.IsRelease() {
-				handleFunc(ctx)
-			}
-		} else {
+		var continued = true
+		if !b.connected {
+			// 第一次使用时为链接
+			gch.HandleOnConnnect(ctx)
+			continued = (ctx.GetError() == nil)
+			b.connected = continued
+		}
+
+		if continued {
 			handleFunc(ctx)
+		} else {
+			logx.Error("onKcpRead error:%v.", ctx.GetError())
 		}
 	}
 }
@@ -76,7 +80,7 @@ func Read(ch *KcpChannel) (gch.IPacket, error) {
 		gch.RevStatisFail(ch, now)
 		return nil, err
 	}
-	// 接收到8个字节数据，是bug?
+	// TODO 接收到8个字节数据，是否要忽略
 	// if readNum <= 8 {
 	// 	return nil, nil
 	// }
@@ -124,15 +128,11 @@ func (b *KcpChannel) NewPacket() gch.IPacket {
 }
 
 func (b *KcpChannel) Open() error {
-	err := b.StartChannel(b)
-	if err == nil && !b.IsServer() {
-		// 客户端启动即激活？
-		gch.HandleOnActive(gch.NewChHandleContext(b, nil))
-	}
-	return err
+	return b.StartChannel(b)
 }
 
-func (b *KcpChannel) Close() {
+func (b *KcpChannel) Release() {
+	b.connected = false
 	b.StopChannel(b)
 }
 

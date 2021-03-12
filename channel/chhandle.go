@@ -100,20 +100,20 @@ type IChHandle interface {
 	// SetOnRead 设置读信息后的处理方法
 	SetOnRead(onRead ChHandleFunc)
 
-	// GetOnWrite 获取写之前的处理方法
-	GetOnWrite() ChHandleFunc
-	// SetOnWrite 设置写之前的处理方法
-	SetOnWrite(onWrite ChHandleFunc)
+	// GetPreWrite 获取写之前的处理方法
+	GetPreWrite() ChHandleFunc
+	// SetPreWrite 设置写之前的处理方法
+	SetPreWrite(preWrite ChHandleFunc)
 
-	// GetOnActive 获取激活后的处理方法
-	GetOnActive() ChHandleFunc
-	// SetOnActive 设置激活后的处理方法
-	SetOnActive(onActive ChHandleFunc)
+	// GetOnConnect 获取激活后的处理方法
+	GetOnConnect() ChHandleFunc
+	// SetOnConnect 设置激活后的处理方法
+	SetOnConnect(onConnect ChHandleFunc)
 
-	// GetOnInActive 获取非激活后的处理方法
-	GetOnInActive() ChHandleFunc
-	// SetOnInActive 设置非激活后的处理方法
-	SetOnInActive(onInActive ChHandleFunc)
+	// GetOnRelease 获取非激活后的处理方法
+	GetOnRelease() ChHandleFunc
+	// SetOnRelease 设置非激活后的处理方法
+	SetOnRelease(onRelease ChHandleFunc)
 
 	// GetOnError 获取错误时方法
 	GetOnError() ChHandleFunc
@@ -123,11 +123,11 @@ type IChHandle interface {
 
 // ChHandle channel(通信通道)处理集，针对如开始，关闭和收到消息的方法
 type ChHandle struct {
-	onActive    ChHandleFunc
-	onInActive  ChHandleFunc
+	onConnect   ChHandleFunc
+	onRelease   ChHandleFunc
 	onInnerRead ChHandleFunc
 	onRead      ChHandleFunc
-	onWrite     ChHandleFunc
+	preWrite    ChHandleFunc
 	onError     ChHandleFunc
 }
 
@@ -141,34 +141,34 @@ func (c *ChHandle) GetOnRead() ChHandleFunc {
 	return c.onRead
 }
 
-// SetOnWrite 设置写之前的处理方法
-func (c *ChHandle) SetOnWrite(onWrite ChHandleFunc) {
-	c.onWrite = onWrite
+// SetPreWrite 设置写之前的处理方法
+func (c *ChHandle) SetPreWrite(onWrite ChHandleFunc) {
+	c.preWrite = onWrite
 }
 
-// GetOnWrite 获取写之前的处理方法
-func (c *ChHandle) GetOnWrite() ChHandleFunc {
-	return c.onWrite
+// GetPreWrite 获取写之前的处理方法
+func (c *ChHandle) GetPreWrite() ChHandleFunc {
+	return c.preWrite
 }
 
-// SetOnActive 设置激活后处理方法
-func (c *ChHandle) SetOnActive(onActive ChHandleFunc) {
-	c.onActive = onActive
+// SetOnConnect 设置激活后处理方法
+func (c *ChHandle) SetOnConnect(onActive ChHandleFunc) {
+	c.onConnect = onActive
 }
 
-// GetOnActive 获取激活后处理方法
-func (c *ChHandle) GetOnActive() ChHandleFunc {
-	return c.onActive
+// GetOnConnect 获取激活后处理方法
+func (c *ChHandle) GetOnConnect() ChHandleFunc {
+	return c.onConnect
 }
 
-// SetOnInActive 设置非激活后处理方法
-func (c *ChHandle) SetOnInActive(onInActive ChHandleFunc) {
-	c.onInActive = onInActive
+// SetOnRelease 设置非激活后处理方法
+func (c *ChHandle) SetOnRelease(onInActive ChHandleFunc) {
+	c.onRelease = onInActive
 }
 
-// GetOnInActive 获取非激活后处理方法
-func (c *ChHandle) GetOnInActive() ChHandleFunc {
-	return c.onInActive
+// GetOnRelease 获取非激活后处理方法
+func (c *ChHandle) GetOnRelease() ChHandleFunc {
+	return c.onRelease
 }
 
 // SetOnError 设置错误后处理方法
@@ -222,9 +222,9 @@ func (c *ChHandle) onWapperReadHandler(ctx IChHandleContext) {
 
 func CopyChHandle(handle IChHandle) *ChHandle {
 	newHandle := NewDefChHandle(handle.GetOnRead())
-	newHandle.SetOnActive(handle.GetOnActive())
-	newHandle.SetOnInActive(handle.GetOnInActive())
+	newHandle.SetOnConnect(handle.GetOnConnect())
+	newHandle.SetOnRelease(handle.GetOnRelease())
 	newHandle.SetOnError(handle.GetOnError())
-	newHandle.SetOnWrite(handle.GetOnWrite())
+	newHandle.SetPreWrite(handle.GetPreWrite())
 	return newHandle
 }

@@ -86,7 +86,7 @@ func (serverSocket *ServerSocket) Close() {
 		serverSocket.Exit <- true
 		acceptChannels := serverSocket.GetChannels().Values()
 		for _, ch := range acceptChannels {
-			ch.(gch.IChannel).Close()
+			ch.(gch.IChannel).Release()
 		}
 	}
 }
@@ -326,7 +326,7 @@ func upgradeWs(ss IServerSocket, writer http.ResponseWriter, req *http.Request, 
 
 	chHandle := ss.GetChHandle().(*gch.ChHandle)
 	// OnInActiveHandle重新包装，以便释放资源
-	chHandle.SetOnInActive(ConverOnInActiveHandler(acceptChannels, chHandle.GetOnInActive()))
+	chHandle.SetOnRelease(ConverOnInActiveHandler(acceptChannels, chHandle.GetOnRelease()))
 	wsCh := tcpx.NewWsChannel(ss, conn, serverConf, chHandle, params, true)
 	// 设置为请求过来的path
 	wsCh.SetRelativePath(req.URL.Path)
@@ -380,7 +380,7 @@ func listenKcp(ss *ServerSocket) error {
 			// 复制一份handle，避免相互覆盖
 			chHandle := gch.CopyChHandle(schHandle)
 			// OnInActiveHandle重新包装，以便释放资源
-			chHandle.SetOnInActive(ConverOnInActiveHandler(kcpChannels, chHandle.GetOnInActive()))
+			chHandle.SetOnRelease(ConverOnInActiveHandler(kcpChannels, chHandle.GetOnRelease()))
 			kcpCh := kcpx.NewKcpChannel(ss, kcpConn, kcpServerConf, chHandle, true)
 			err = kcpCh.Open()
 			if err == nil {
@@ -432,7 +432,7 @@ func listenTcp(ss *ServerSocket) error {
 			}
 			chHandle := ss.GetChHandle().(*gch.ChHandle)
 			// OnInActiveHandle重新包装，以便释放资源
-			chHandle.SetOnInActive(ConverOnInActiveHandler(channels, chHandle.GetOnInActive()))
+			chHandle.SetOnRelease(ConverOnInActiveHandler(channels, chHandle.GetOnRelease()))
 			tcpCh := tcpx.NewTcpChannel(ss, tcpConn, serverConf, chHandle, true)
 			err = tcpCh.Open()
 			if err == nil {
@@ -497,7 +497,7 @@ func listenUdp(ss *ServerSocket) error {
 				// 第一次生成一个channel
 				chHandle := ss.GetChHandle().(*gch.ChHandle)
 				// OnInActiveHandle重新包装，以便释放资源
-				chHandle.SetOnInActive(ConverOnInActiveHandler(channels, chHandle.GetOnInActive()))
+				chHandle.SetOnRelease(ConverOnInActiveHandler(channels, chHandle.GetOnRelease()))
 				udpCh = udpx.NewUdpChannel(ss, udpConn, serverConf, chHandle, addr, true)
 				err = udpCh.Open()
 				if err == nil {

@@ -231,7 +231,7 @@ func (clientSocket *ClientSocket) Close() {
 		logx.InfoTracef(clientSocket, "start to stop client.")
 		clientSocket.Closed = true
 		clientSocket.Exit <- true
-		clientSocket.Channel.Close()
+		clientSocket.Channel.Release()
 		clientSocket.Channel = nil
 		clientSocket.Channel.GetConn().Close()
 	}

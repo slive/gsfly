@@ -27,12 +27,11 @@ const (
 
 // IChannel 通信通道接口
 type IChannel interface {
-
-	// Open 启动通信通道
+	// Open 打开通道
 	Open() error
 
-	// Close 停止通道
-	Close()
+	// Release 释放通道
+	Release()
 
 	// WriteByConn 通过conn写
 	WriteByConn(packet IPacket) error
@@ -70,12 +69,6 @@ type IChannel interface {
 	// GetChHandle 获取handle相关类
 	GetChHandle() *ChHandle
 
-	// IsActived 是否是激活状态
-	IsActived() bool
-
-	// SetActived 设置是否激活
-	SetActived(register bool)
-
 	// IsServer 是否是服务端产生的channel
 	IsServer() bool
 
@@ -105,7 +98,6 @@ type Channel struct {
 	readPool  *ReadPool
 	closed    bool
 	closeExit chan bool
-	actived   bool
 	server    bool
 
 	// 路径，根据各自需要定义
@@ -223,7 +215,6 @@ func NewChannel(parent interface{}, chConf IChannelConf, readPool *ReadPool, chH
 	}
 
 	channel.SetClosed(true)
-	channel.SetActived(false)
 	channel.Attact = *common.NewAttact()
 	channel.Id = *common.NewId()
 	channel.Parent = *common.NewParent(parent)
@@ -250,7 +241,7 @@ func (ch *Channel) Open() error {
 	return ch.StartChannel(ch)
 }
 
-func (ch *Channel) Close() {
+func (ch *Channel) Release() {
 	ch.StopChannel(ch)
 }
 
@@ -271,7 +262,7 @@ func (ch *Channel) StartChannel(channel IChannel) error {
 				// 捕获处理消息异常
 				NotifyErrorHandle(ctx, err, ERR_ACTIVE)
 			}
-			channel.Close()
+			channel.Release()
 		}
 	}()
 	go ch.startReadLoop(channel)
@@ -327,13 +318,13 @@ func (ch *Channel) Write(datapacket IPacket) error {
 			// 捕获处理消息异常
 			NotifyErrorHandle(ctx, err, ERR_WRITE)
 			// 有异常，终止执行
-			channel.Close()
+			channel.Release()
 		}
 	}()
 
 	if datapacket.IsPrepare() {
 		// 发送前的处理
-		onWriteHandle := chHandle.onWrite
+		onWriteHandle := chHandle.preWrite
 		if onWriteHandle != nil {
 			onWriteHandle(ctx)
 			err := ctx.gerr
@@ -383,14 +374,6 @@ func (ch *Channel) GetChHandle() *ChHandle {
 	return ch.ChannelHandle
 }
 
-func (ch *Channel) IsActived() bool {
-	return ch.actived
-}
-
-func (ch *Channel) SetActived(actived bool) {
-	ch.actived = actived
-}
-
 // 是否是服务端产生的channel
 func (ch *Channel) IsServer() bool {
 	return ch.server
@@ -428,7 +411,7 @@ func (ch *Channel) StopChannel(channel IChannel) {
 		}
 
 		// 执行关闭后的方法
-		closeFunc := handle.onInActive
+		closeFunc := handle.onRelease
 		if closeFunc != nil {
 			closeFunc(ctx)
 		}
@@ -462,7 +445,7 @@ func (ch *Channel) startReadLoop(channel IChannel) {
 				// 捕获处理消息异常
 				NotifyErrorHandle(ctx, err, ERR_READ)
 			}
-			ch.Close()
+			ch.Release()
 		}
 	}()
 	logx.InfoTrace(ch, "start to readloop.")
@@ -506,16 +489,14 @@ func (ch *Channel) startReadLoop(channel IChannel) {
 	}
 }
 
-func HandleOnActive(ctx IChHandleContext) {
+func HandleOnConnnect(ctx IChHandleContext) {
 	channel := ctx.GetChannel()
-	activeFunc := channel.GetChHandle().GetOnActive()
+	activeFunc := channel.GetChHandle().GetOnConnect()
 	if activeFunc != nil {
 		activeFunc(ctx)
 		gerr := ctx.GetError()
 		if gerr != nil {
 			NotifyErrorHandle(ctx, gerr.GetErr(), ERR_READ)
-		} else {
-			channel.SetActived(true)
 		}
 	}
 }
