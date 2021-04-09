@@ -7,8 +7,8 @@
 package tcpx
 
 import (
-	gch "github.com/Slive/gsfly/channel"
-	logx "github.com/Slive/gsfly/logger"
+	gch "github.com/slive/gsfly/channel"
+	logx "github.com/slive/gsfly/logger"
 	"net"
 	"time"
 )

@@ -6,8 +6,8 @@
 package socket
 
 import (
-	gch "github.com/Slive/gsfly/channel"
-	cmm "github.com/Slive/gsfly/common"
+	gch "github.com/slive/gsfly/channel"
+	cmm "github.com/slive/gsfly/common"
 )
 
 // ISocket socket接口

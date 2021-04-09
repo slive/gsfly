@@ -7,7 +7,7 @@ package channel
 
 import (
 	"encoding/json"
-	logx "github.com/Slive/gsfly/logger"
+	logx "github.com/slive/gsfly/logger"
 	"time"
 )
 

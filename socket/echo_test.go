@@ -5,8 +5,8 @@
 package socket
 
 import (
-	"github.com/Slive/gsfly/channel"
-	logx "github.com/Slive/gsfly/logger"
+	"github.com/slive/gsfly/channel"
+	logx "github.com/slive/gsfly/logger"
 	"testing"
 	"time"
 )

@@ -6,8 +6,8 @@
 package udpx
 
 import (
-	gch "github.com/Slive/gsfly/channel"
-	logx "github.com/Slive/gsfly/logger"
+	gch "github.com/slive/gsfly/channel"
+	logx "github.com/slive/gsfly/logger"
 	"github.com/pkg/errors"
 	"net"
 	"time"

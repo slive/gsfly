@@ -6,8 +6,8 @@ package logger
 
 import (
 	"fmt"
-	"github.com/Slive/gsfly/common"
-	"github.com/Slive/gsfly/util"
+	"github.com/slive/gsfly/common"
+	"github.com/slive/gsfly/util"
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/rifflock/lfshook"
 	logx "github.com/sirupsen/logrus"

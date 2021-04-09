@@ -6,7 +6,7 @@
 package channel
 
 import (
-	logx "github.com/Slive/gsfly/logger"
+	logx "github.com/slive/gsfly/logger"
 	"hash/crc32"
 	"os"
 	"os/signal"

@@ -6,8 +6,8 @@
 package socket
 
 import (
-	"github.com/Slive/gsfly/channel"
-	"github.com/Slive/gsfly/common"
+	"github.com/slive/gsfly/channel"
+	"github.com/slive/gsfly/common"
 	"net/url"
 )
 

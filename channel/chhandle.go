@@ -5,8 +5,8 @@
 package channel
 
 import (
-	"github.com/Slive/gsfly/common"
-	logx "github.com/Slive/gsfly/logger"
+	"github.com/slive/gsfly/common"
+	logx "github.com/slive/gsfly/logger"
 )
 
 // IChHandleContext channel处理handler上下文接口

@@ -1,6 +1,6 @@
 ## gsfly
 ### 简介
-**[gsfly](https://github.com/Slive/gsfly)** 是轻量级集成tcp、udp、ws(websocket)、kcp，提供高性能和统一的创建，使用通信框架
+**[gsfly](https://github.com/slive/gsfly)** 是轻量级集成tcp、udp、ws(websocket)、kcp，提供高性能和统一的创建，使用通信框架
 
 ### 架构
 **gsfly** 架构见如下图：

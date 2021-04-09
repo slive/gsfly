@@ -7,7 +7,7 @@ package channel
 
 import (
 	"fmt"
-	"github.com/Slive/gsfly/common"
+	"github.com/slive/gsfly/common"
 	"time"
 )
 
